@@ -9,12 +9,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U delta -d delta_job_tracker"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      - delta_job_tracker_pg:/var/lib/postgresql/data
 
 volumes:
-  pgdata:
+  delta_job_tracker_pg:
