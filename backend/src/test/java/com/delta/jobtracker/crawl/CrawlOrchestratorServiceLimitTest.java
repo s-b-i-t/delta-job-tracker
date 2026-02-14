@@ -91,7 +91,7 @@ class CrawlOrchestratorServiceLimitTest {
 
     private CrawlOrchestratorService createService(CrawlerProperties properties) {
         when(repository.insertCrawlRun(any(), any(), any())).thenReturn(1L);
-        when(domainResolutionService.resolveMissingDomains(anyInt())).thenReturn(new DomainResolutionResult(0, 0, List.of()));
+        when(domainResolutionService.resolveMissingDomains(anyInt())).thenReturn(new DomainResolutionResult(0, 0, 0, 0, 0, List.of()));
         when(careersDiscoveryService.discover(anyInt())).thenReturn(new CareersDiscoveryResult(new LinkedHashMap<>(), 0, new LinkedHashMap<>()));
         when(repository.findCompanyTargets(any(), anyInt())).thenReturn(List.of());
         return new CrawlOrchestratorService(

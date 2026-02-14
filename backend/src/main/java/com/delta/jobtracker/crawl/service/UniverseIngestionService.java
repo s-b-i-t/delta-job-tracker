@@ -138,7 +138,10 @@ public class UniverseIngestionService {
             }
             rowNumber++;
             String ticker = normalizeTicker(readCell(cells, tickerIndex));
-            String name = normalizeText(readCell(cells, nameIndex));
+            Element nameCell = nameIndex == null || nameIndex < 0 || nameIndex >= cells.size()
+                ? null
+                : cells.get(nameIndex);
+            String name = normalizeText(nameCell == null ? null : nameCell.text());
             String sector = normalizeText(readCell(cells, sectorIndex));
             String cik = normalizeText(readCell(cells, cikIndex));
             if (ticker == null || name == null) {
@@ -146,7 +149,8 @@ public class UniverseIngestionService {
                 continue;
             }
 
-            long companyId = repository.upsertCompany(ticker, name, sector);
+            String wikipediaTitle = extractWikipediaTitle(nameCell);
+            long companyId = repository.upsertCompany(ticker, name, sector, wikipediaTitle);
             companyIdsByTicker.put(ticker, companyId);
             counts.companiesUpserted++;
 
@@ -297,6 +301,45 @@ public class UniverseIngestionService {
         String cleaned = value.replace('\u00A0', ' ').trim();
         cleaned = FOOTNOTE_PATTERN.matcher(cleaned).replaceAll("").trim();
         return cleaned.isEmpty() ? null : cleaned;
+    }
+
+    private String extractWikipediaTitle(Element cell) {
+        if (cell == null) {
+            return null;
+        }
+        Element link = cell.selectFirst("a[href]");
+        if (link == null) {
+            return null;
+        }
+        String href = link.attr("href");
+        if (href == null || href.isBlank()) {
+            return null;
+        }
+        String normalized = href.trim();
+        if (normalized.startsWith("//")) {
+            normalized = "https:" + normalized;
+        }
+        String title = null;
+        if (normalized.startsWith("/wiki/")) {
+            title = normalized.substring("/wiki/".length());
+        } else if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            int idx = normalized.indexOf("/wiki/");
+            if (idx != -1) {
+                title = normalized.substring(idx + "/wiki/".length());
+            }
+        }
+        if (title == null || title.isBlank()) {
+            return null;
+        }
+        int hashIdx = title.indexOf('#');
+        if (hashIdx > 0) {
+            title = title.substring(0, hashIdx);
+        }
+        int queryIdx = title.indexOf('?');
+        if (queryIdx > 0) {
+            title = title.substring(0, queryIdx);
+        }
+        return title.isBlank() ? null : title;
     }
 
     private CSVParser csvParser(Reader reader) throws IOException {

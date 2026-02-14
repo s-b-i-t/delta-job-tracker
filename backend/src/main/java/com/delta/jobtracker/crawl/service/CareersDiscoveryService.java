@@ -111,6 +111,8 @@ public class CareersDiscoveryService {
     private AtsType discoverForCompany(CompanyTarget company) {
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         String base = "https://" + company.domain();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        AtsType detectedByPattern = AtsType.UNKNOWN;
 
         if (company.careersHintUrl() != null && !company.careersHintUrl().isBlank()) {
             candidates.add(company.careersHintUrl().trim());
@@ -130,7 +132,15 @@ public class CareersDiscoveryService {
             }
             inspected++;
 
+            AtsType patternType = atsDetector.detect(candidate);
+            if (patternType != AtsType.UNKNOWN) {
+                if (registerPatternEndpoint(company, candidate, patternType, seen) && detectedByPattern == AtsType.UNKNOWN) {
+                    detectedByPattern = patternType;
+                }
+            }
+
             if (!robotsTxtService.isAllowed(candidate)) {
+                log.debug("Careers discovery blocked by robots: {}", candidate);
                 continue;
             }
             HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
@@ -146,11 +156,13 @@ public class CareersDiscoveryService {
                 fetch.finalUrlOrRequested(),
                 candidate,
                 confidence,
-                Instant.now()
+                Instant.now(),
+                "html",
+                true
             );
             return detected;
         }
-        return AtsType.UNKNOWN;
+        return detectedByPattern;
     }
 
     private List<String> discoverLinksFromHomepage(String domain, String baseUrl) {
@@ -192,6 +204,30 @@ public class CareersDiscoveryService {
             }
         }
         return false;
+    }
+
+    private boolean registerPatternEndpoint(
+        CompanyTarget company,
+        String candidate,
+        AtsType type,
+        LinkedHashSet<String> seen
+    ) {
+        String key = type.name() + "|" + candidate.toLowerCase(Locale.ROOT);
+        if (seen.contains(key)) {
+            return false;
+        }
+        seen.add(key);
+        repository.upsertAtsEndpoint(
+            company.companyId(),
+            type,
+            candidate,
+            candidate,
+            0.6,
+            Instant.now(),
+            "pattern",
+            false
+        );
+        return true;
     }
 
     private void increment(Map<String, Integer> map, String key) {

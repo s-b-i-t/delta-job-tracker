@@ -10,6 +10,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.parser.Parser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
@@ -27,6 +29,7 @@ import java.util.zip.GZIPInputStream;
 
 @Service
 public class SitemapService {
+    private static final Logger log = LoggerFactory.getLogger(SitemapService.class);
     private final PoliteHttpClient httpClient;
     private final RobotsTxtService robotsTxtService;
 
@@ -62,6 +65,7 @@ public class SitemapService {
             visitedSitemaps.add(current.url());
 
             if (!robotsTxtService.isAllowed(current.url())) {
+                log.debug("Sitemap blocked by robots: {}", current.url());
                 increment(errors, "blocked_by_robots");
                 continue;
             }

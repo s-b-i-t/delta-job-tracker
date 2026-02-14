@@ -4,6 +4,7 @@ public record CompanyIdentity(
     long companyId,
     String ticker,
     String name,
-    String sector
+    String sector,
+    String wikipediaTitle
 ) {
 }

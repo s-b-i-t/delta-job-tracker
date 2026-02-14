@@ -4,7 +4,10 @@ import java.util.List;
 
 public record DomainResolutionResult(
     int resolvedCount,
-    int failedCount,
-    List<String> topErrors
+    int noWikipediaTitleCount,
+    int noItemCount,
+    int noP856Count,
+    int wdqsErrorCount,
+    List<String> sampleErrors
 ) {
 }

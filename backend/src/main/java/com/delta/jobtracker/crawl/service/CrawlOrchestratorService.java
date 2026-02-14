@@ -65,7 +65,14 @@ public class CrawlOrchestratorService {
             DomainResolutionResult resolution = tickers.isEmpty()
                 ? domainResolutionService.resolveMissingDomains(resolveLimit)
                 : domainResolutionService.resolveMissingDomainsForTickers(tickers, resolveLimit);
-            log.info("Domain resolver before crawl: resolved={}, failed={}", resolution.resolvedCount(), resolution.failedCount());
+            log.info(
+                "Domain resolver before crawl: resolved={} no_wikipedia_title={} no_item={} no_p856={} wdqs_error={}",
+                resolution.resolvedCount(),
+                resolution.noWikipediaTitleCount(),
+                resolution.noItemCount(),
+                resolution.noP856Count(),
+                resolution.wdqsErrorCount()
+            );
         }
         if (shouldDiscoverCareers(request)) {
             CareersDiscoveryResult discovery = tickers.isEmpty()

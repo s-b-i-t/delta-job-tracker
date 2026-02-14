@@ -15,6 +15,8 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -24,6 +26,7 @@ import java.util.Map;
 
 @Repository
 public class CrawlJdbcRepository {
+    private static final Logger log = LoggerFactory.getLogger(CrawlJdbcRepository.class);
     private final NamedParameterJdbcTemplate jdbc;
 
     public CrawlJdbcRepository(NamedParameterJdbcTemplate jdbc) {
@@ -52,16 +55,22 @@ public class CrawlJdbcRepository {
     }
 
     public long upsertCompany(String ticker, String name, String sector) {
+        return upsertCompany(ticker, name, sector, null);
+    }
+
+    public long upsertCompany(String ticker, String name, String sector, String wikipediaTitle) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("ticker", ticker)
             .addValue("name", name)
-            .addValue("sector", sector);
+            .addValue("sector", sector)
+            .addValue("wikipediaTitle", wikipediaTitle);
 
         int updated = jdbc.update(
             """
                 UPDATE companies
                 SET name = :name,
-                    sector = COALESCE(:sector, sector)
+                    sector = COALESCE(:sector, sector),
+                    wikipedia_title = COALESCE(:wikipediaTitle, wikipedia_title)
                 WHERE ticker = :ticker
                 """,
             params
@@ -70,8 +79,8 @@ public class CrawlJdbcRepository {
             try {
                 jdbc.update(
                     """
-                        INSERT INTO companies (ticker, name, sector)
-                        VALUES (:ticker, :name, :sector)
+                        INSERT INTO companies (ticker, name, sector, wikipedia_title)
+                        VALUES (:ticker, :name, :sector, :wikipediaTitle)
                         """,
                     params
                 );
@@ -80,7 +89,8 @@ public class CrawlJdbcRepository {
                     """
                         UPDATE companies
                         SET name = :name,
-                            sector = COALESCE(:sector, sector)
+                            sector = COALESCE(:sector, sector),
+                            wikipedia_title = COALESCE(:wikipediaTitle, wikipedia_title)
                         WHERE ticker = :ticker
                         """,
                     params
@@ -115,13 +125,28 @@ public class CrawlJdbcRepository {
         double confidence,
         Instant resolvedAt
     ) {
+        upsertCompanyDomain(companyId, domain, careersHintUrl, source, confidence, resolvedAt, null, null);
+    }
+
+    public void upsertCompanyDomain(
+        long companyId,
+        String domain,
+        String careersHintUrl,
+        String source,
+        double confidence,
+        Instant resolvedAt,
+        String resolutionMethod,
+        String wikidataQid
+    ) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("domain", domain)
             .addValue("careersHintUrl", careersHintUrl)
             .addValue("source", source)
             .addValue("confidence", confidence)
-            .addValue("resolvedAt", toTimestamp(resolvedAt));
+            .addValue("resolvedAt", toTimestamp(resolvedAt))
+            .addValue("resolutionMethod", resolutionMethod)
+            .addValue("wikidataQid", wikidataQid);
 
         int updated = jdbc.update(
             """
@@ -129,7 +154,9 @@ public class CrawlJdbcRepository {
                 SET careers_hint_url = COALESCE(:careersHintUrl, careers_hint_url),
                     source = :source,
                     confidence = :confidence,
-                    resolved_at = :resolvedAt
+                    resolved_at = :resolvedAt,
+                    resolution_method = COALESCE(:resolutionMethod, resolution_method),
+                    wikidata_qid = COALESCE(:wikidataQid, wikidata_qid)
                 WHERE company_id = :companyId
                   AND domain = :domain
                 """,
@@ -140,10 +167,12 @@ public class CrawlJdbcRepository {
                 jdbc.update(
                     """
                         INSERT INTO company_domains (
-                            company_id, domain, careers_hint_url, source, confidence, resolved_at
+                            company_id, domain, careers_hint_url, source, confidence, resolved_at,
+                            resolution_method, wikidata_qid
                         )
                         VALUES (
-                            :companyId, :domain, :careersHintUrl, :source, :confidence, :resolvedAt
+                            :companyId, :domain, :careersHintUrl, :source, :confidence, :resolvedAt,
+                            :resolutionMethod, :wikidataQid
                         )
                         """,
                     params
@@ -155,7 +184,9 @@ public class CrawlJdbcRepository {
                         SET careers_hint_url = COALESCE(:careersHintUrl, careers_hint_url),
                             source = :source,
                             confidence = :confidence,
-                            resolved_at = :resolvedAt
+                            resolved_at = :resolvedAt,
+                            resolution_method = COALESCE(:resolutionMethod, resolution_method),
+                            wikidata_qid = COALESCE(:wikidataQid, wikidata_qid)
                         WHERE company_id = :companyId
                           AND domain = :domain
                         """,
@@ -226,7 +257,7 @@ public class CrawlJdbcRepository {
             .addValue("limit", limit);
         return jdbc.query(
             """
-                SELECT c.id AS company_id, c.ticker, c.name, c.sector
+                SELECT c.id AS company_id, c.ticker, c.name, c.sector, c.wikipedia_title
                 FROM companies c
                 WHERE NOT EXISTS (
                     SELECT 1
@@ -250,7 +281,7 @@ public class CrawlJdbcRepository {
             .addValue("limit", limit);
         return jdbc.query(
             """
-                SELECT c.id AS company_id, c.ticker, c.name, c.sector
+                SELECT c.id AS company_id, c.ticker, c.name, c.sector, c.wikipedia_title
                 FROM companies c
                 WHERE c.ticker IN (:tickers)
                   AND NOT EXISTS (
@@ -528,19 +559,36 @@ public class CrawlJdbcRepository {
         double confidence,
         Instant detectedAt
     ) {
+        upsertAtsEndpoint(companyId, atsType, atsUrl, discoveredFromUrl, confidence, detectedAt, "legacy", true);
+    }
+
+    public void upsertAtsEndpoint(
+        long companyId,
+        AtsType atsType,
+        String atsUrl,
+        String discoveredFromUrl,
+        double confidence,
+        Instant detectedAt,
+        String detectionMethod,
+        boolean verified
+    ) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("atsType", atsType.name())
             .addValue("atsUrl", atsUrl)
             .addValue("discoveredFromUrl", discoveredFromUrl)
             .addValue("confidence", confidence)
-            .addValue("detectedAt", toTimestamp(detectedAt));
+            .addValue("detectedAt", toTimestamp(detectedAt))
+            .addValue("detectionMethod", detectionMethod)
+            .addValue("verified", verified);
         int updated = jdbc.update(
             """
                 UPDATE ats_endpoints
                 SET detected_at = :detectedAt,
                     discovered_from_url = COALESCE(:discoveredFromUrl, discovered_from_url),
-                    confidence = :confidence
+                    confidence = :confidence,
+                    detection_method = COALESCE(:detectionMethod, detection_method),
+                    verified = COALESCE(:verified, verified)
                 WHERE company_id = :companyId
                   AND ats_type = :atsType
                   AND ats_url = :atsUrl
@@ -552,10 +600,12 @@ public class CrawlJdbcRepository {
                 jdbc.update(
                     """
                         INSERT INTO ats_endpoints (
-                            company_id, ats_type, ats_url, detected_at, discovered_from_url, confidence
+                            company_id, ats_type, ats_url, detected_at, discovered_from_url, confidence,
+                            detection_method, verified
                         )
                         VALUES (
-                            :companyId, :atsType, :atsUrl, :detectedAt, :discoveredFromUrl, :confidence
+                            :companyId, :atsType, :atsUrl, :detectedAt, :discoveredFromUrl, :confidence,
+                            :detectionMethod, :verified
                         )
                         """,
                     params
@@ -566,7 +616,9 @@ public class CrawlJdbcRepository {
                         UPDATE ats_endpoints
                         SET detected_at = :detectedAt,
                             discovered_from_url = COALESCE(:discoveredFromUrl, discovered_from_url),
-                            confidence = :confidence
+                            confidence = :confidence,
+                            detection_method = COALESCE(:detectionMethod, detection_method),
+                            verified = COALESCE(:verified, verified)
                         WHERE company_id = :companyId
                           AND ats_type = :atsType
                           AND ats_url = :atsUrl
@@ -787,7 +839,7 @@ public class CrawlJdbcRepository {
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
                 rs.getString("company_name"),
-                rs.getString("latest_ats_type") == null ? null : AtsType.valueOf(rs.getString("latest_ats_type")),
+                parseAtsType(rs.getString("latest_ats_type")),
                 rs.getString("source_url"),
                 rs.getString("title"),
                 rs.getString("org_name"),
@@ -796,8 +848,8 @@ public class CrawlJdbcRepository {
                 rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
                 rs.getString("description_text"),
                 rs.getString("content_hash"),
-                rs.getTimestamp("first_seen_at").toInstant(),
-                rs.getTimestamp("last_seen_at").toInstant()
+                toInstant(rs.getTimestamp("first_seen_at")),
+                toInstant(rs.getTimestamp("last_seen_at"))
             )
         );
     }
@@ -807,7 +859,8 @@ public class CrawlJdbcRepository {
             rs.getLong("company_id"),
             rs.getString("ticker"),
             rs.getString("name"),
-            rs.getString("sector")
+            rs.getString("sector"),
+            rs.getString("wikipedia_title")
         );
     }
 
@@ -824,5 +877,21 @@ public class CrawlJdbcRepository {
 
     private Timestamp toTimestamp(Instant value) {
         return value == null ? null : Timestamp.from(value);
+    }
+
+    private Instant toInstant(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    private AtsType parseAtsType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return AtsType.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown ats_type value in job view: {}", raw);
+            return null;
+        }
     }
 }

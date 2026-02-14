@@ -77,9 +77,13 @@ class IngestWikipediaMockedTest {
                      .build()
                      .parse(reader)) {
                 for (CSVRecord record : parser) {
+                    String companyName = record.get("company_name");
+                    String title = toWikipediaTitle(companyName);
                     html.append("<tr>")
                         .append("<td>").append(escapeHtml(record.get("ticker"))).append("</td>")
-                        .append("<td>").append(escapeHtml(record.get("company_name"))).append("</td>")
+                        .append("<td><a href=\"/wiki/").append(escapeHtml(title)).append("\">")
+                        .append(escapeHtml(companyName))
+                        .append("</a></td>")
                         .append("<td>").append(escapeHtml(record.get("sector"))).append("</td>")
                         .append("<td>0000000000</td>")
                         .append("</tr>");
@@ -95,6 +99,15 @@ class IngestWikipediaMockedTest {
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;");
+        }
+
+        private static String toWikipediaTitle(String name) {
+            if (name == null || name.isBlank()) {
+                return "Unknown";
+            }
+            return name.trim()
+                .replace(' ', '_')
+                .replace("&", "and");
         }
     }
 }

@@ -140,6 +140,23 @@ public class CompanyCrawlerService {
             }
         }
 
+        if (candidateUrls.isEmpty()) {
+            boolean robotsUnavailable = robotsTxtService.isRobotsUnavailableForUrl("https://" + company.domain() + "/");
+            if (sitemapResult.fetchedSitemaps().isEmpty()) {
+                if (sitemapResult.errors().containsKey("blocked_by_robots")) {
+                    increment(errors, robotsUnavailable ? "robots_fetch_failed" : "sitemap_blocked_by_robots");
+                } else if (!sitemapResult.errors().isEmpty()) {
+                    increment(errors, "sitemap_fetch_failed");
+                } else {
+                    increment(errors, "no_sitemaps_found");
+                }
+            } else if (sitemapResult.discoveredUrls().isEmpty()) {
+                increment(errors, "sitemap_no_urls");
+            } else {
+                increment(errors, "no_candidate_urls");
+            }
+        }
+
         List<AtsDetectionRecord> discoveredAts = detectAtsEndpoints(crawlRunId, company, candidateUrls, atsLandingUrls, errors);
         atsDetections.addAll(discoveredAts);
 
@@ -236,7 +253,17 @@ public class CompanyCrawlerService {
         for (String probe : probes) {
             AtsType directType = atsDetector.detect(probe);
             if (directType != AtsType.UNKNOWN) {
-                registerAtsDetection(crawlRunId, company.companyId(), directType, probe, "ats_detected_from_hint", detections, seen);
+                registerAtsDetection(
+                    crawlRunId,
+                    company.companyId(),
+                    directType,
+                    probe,
+                    "ats_detected_from_hint",
+                    "pattern",
+                    false,
+                    detections,
+                    seen
+                );
             }
 
             if (!robotsTxtService.isAllowed(probe)) {
@@ -251,12 +278,16 @@ public class CompanyCrawlerService {
                 resolved = probe;
             }
             if (type != AtsType.UNKNOWN) {
+                boolean verified = fetch.isSuccessful();
+                String method = verified ? "html" : "pattern";
                 registerAtsDetection(
                     crawlRunId,
                     company.companyId(),
                     type,
                     resolved,
                     fetch.isSuccessful() ? "ats_detected" : "ats_detected_probe_failed",
+                    method,
+                    verified,
                     detections,
                     seen
                 );
@@ -273,6 +304,8 @@ public class CompanyCrawlerService {
         AtsType atsType,
         String url,
         String status,
+        String detectionMethod,
+        boolean verified,
         List<AtsDetectionRecord> detections,
         LinkedHashSet<String> seen
     ) {
@@ -282,7 +315,7 @@ public class CompanyCrawlerService {
         }
         seen.add(key);
         detections.add(new AtsDetectionRecord(atsType, url));
-        repository.upsertAtsEndpoint(companyId, atsType, url, url, 0.9, Instant.now());
+        repository.upsertAtsEndpoint(companyId, atsType, url, url, 0.9, Instant.now(), detectionMethod, verified);
         repository.upsertDiscoveredUrl(
             crawlRunId,
             companyId,

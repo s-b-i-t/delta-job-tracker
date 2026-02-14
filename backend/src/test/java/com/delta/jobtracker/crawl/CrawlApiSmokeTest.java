@@ -51,4 +51,12 @@ class CrawlApiSmokeTest {
             .andExpect(jsonPath("$.counts.company_domains").value(greaterThan(0)))
             .andExpect(jsonPath("$.counts.job_postings").value(0));
     }
+
+    @Test
+    void jobsEndpointReturnsEmptyListWhenNoJobs() throws Exception {
+        mockMvc.perform(get("/api/jobs"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(0));
+    }
 }

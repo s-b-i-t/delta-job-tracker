@@ -6,6 +6,8 @@ import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.RecentCrawlStatus;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -14,6 +16,7 @@ import java.util.Map;
 
 @Service
 public class CrawlStatusService {
+    private static final Logger log = LoggerFactory.getLogger(CrawlStatusService.class);
     private final CrawlJdbcRepository repository;
 
     public CrawlStatusService(CrawlJdbcRepository repository) {
@@ -49,6 +52,11 @@ public class CrawlStatusService {
 
     public List<JobPostingView> getNewestJobs(Integer limit, Long companyId, AtsType atsType) {
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
-        return repository.findNewestJobs(safeLimit, companyId, atsType);
+        try {
+            return repository.findNewestJobs(safeLimit, companyId, atsType);
+        } catch (Exception e) {
+            log.warn("Failed to load newest jobs", e);
+            return List.of();
+        }
     }
 }
