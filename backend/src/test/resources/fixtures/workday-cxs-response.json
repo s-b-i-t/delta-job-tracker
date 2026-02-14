@@ -1,0 +1,29 @@
+{
+  "total": 2,
+  "jobPostings": [
+    {
+      "title": "Senior Software Engineer",
+      "externalPath": "/en-US/External/job/Remote-USA/Senior-Software-Engineer_R12345",
+      "bulletinDate": "2026-02-01",
+      "locationsText": "Remote, USA",
+      "bulletinId": "R12345",
+      "timeType": "Full time",
+      "shortDescription": "Build distributed systems."
+    },
+    {
+      "jobTitle": "Data Engineer",
+      "externalPath": "/en-US/External/job/New-York-NY/Data-Engineer_R54321",
+      "postedOn": "2026-01-20",
+      "locations": [
+        {
+          "name": "New York, NY"
+        },
+        {
+          "name": "Remote"
+        }
+      ],
+      "id": "R54321",
+      "workerSubType": "Regular"
+    }
+  ]
+}

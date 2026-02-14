@@ -1,0 +1,21 @@
+ticker,company_name,domain,optional_careers_hint_url
+AAPL,Apple Inc.,apple.com,https://jobs.apple.com/en-us/search
+MSFT,Microsoft Corporation,microsoft.com,https://jobs.careers.microsoft.com/global/en
+GOOGL,Alphabet Inc.,abc.xyz,https://careers.google.com/jobs/results/
+AMZN,Amazon.com Inc.,amazon.com,https://www.amazon.jobs
+META,Meta Platforms Inc.,meta.com,https://www.metacareers.com/jobs
+NVDA,NVIDIA Corporation,nvidia.com,https://www.nvidia.com/en-us/about-nvidia/careers/
+TSLA,Tesla Inc.,tesla.com,https://www.tesla.com/careers/search
+JPM,JPMorgan Chase & Co.,jpmorganchase.com,https://careers.jpmorgan.com/us/en/home
+JNJ,Johnson & Johnson,jnj.com,https://www.careers.jnj.com
+PG,Procter & Gamble,pg.com,https://www.pgcareers.com
+HD,Home Depot Inc.,homedepot.com,https://careers.homedepot.com
+DIS,The Walt Disney Company,thewaltdisneycompany.com,https://jobs.disneycareers.com
+KO,The Coca-Cola Company,coca-colacompany.com,https://careers.coca-colacompany.com
+PEP,PepsiCo Inc.,pepsico.com,https://www.pepsicojobs.com/main/
+CRM,Salesforce Inc.,salesforce.com,https://careers.salesforce.com/en/jobs/
+ORCL,Oracle Corporation,oracle.com,https://careers.oracle.com/jobs
+UNH,UnitedHealth Group Inc.,unitedhealthgroup.com,https://careers.unitedhealthgroup.com
+WMT,Walmart Inc.,walmart.com,https://walmart.wd5.myworkdayjobs.com/WalmartExternal
+UBER,Uber Technologies Inc.,uber.com,https://boards.greenhouse.io/uber
+BKNG,Booking Holdings Inc.,bookingholdings.com,https://jobs.lever.co/booking

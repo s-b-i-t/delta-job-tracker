@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: delta-job-tracker-postgres
+    environment:
+      POSTGRES_DB: delta_job_tracker
+      POSTGRES_USER: delta
+      POSTGRES_PASSWORD: delta
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U delta -d delta_job_tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

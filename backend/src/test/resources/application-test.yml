@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:delta_job_tracker;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+crawler:
+  cli:
+    run: false
+  data:
+    sp500-csv: ../data/sp500_constituents.csv
+    domains-csv: ../data/domains.csv
