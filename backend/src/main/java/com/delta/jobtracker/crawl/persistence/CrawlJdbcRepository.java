@@ -121,7 +121,7 @@ public class CrawlJdbcRepository {
             .addValue("careersHintUrl", careersHintUrl)
             .addValue("source", source)
             .addValue("confidence", confidence)
-            .addValue("resolvedAt", resolvedAt);
+            .addValue("resolvedAt", toTimestamp(resolvedAt));
 
         int updated = jdbc.update(
             """
@@ -167,7 +167,7 @@ public class CrawlJdbcRepository {
 
     public long insertCrawlRun(Instant startedAt, String status, String notes) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("startedAt", startedAt)
+            .addValue("startedAt", toTimestamp(startedAt))
             .addValue("status", status)
             .addValue("notes", notes);
 
@@ -206,7 +206,7 @@ public class CrawlJdbcRepository {
     public void completeCrawlRun(long crawlRunId, Instant finishedAt, String status, String notes) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
-            .addValue("finishedAt", finishedAt)
+            .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("status", status)
             .addValue("notes", notes);
         jdbc.update(
@@ -411,7 +411,7 @@ public class CrawlJdbcRepository {
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("sitemapUrl", sitemapUrl)
-            .addValue("fetchedAt", fetchedAt)
+            .addValue("fetchedAt", toTimestamp(fetchedAt))
             .addValue("urlCount", urlCount);
         jdbc.update(
             """
@@ -436,7 +436,7 @@ public class CrawlJdbcRepository {
             .addValue("url", url)
             .addValue("urlType", urlType.name())
             .addValue("fetchStatus", fetchStatus)
-            .addValue("lastFetchedAt", lastFetchedAt);
+            .addValue("lastFetchedAt", toTimestamp(lastFetchedAt));
 
         int updated = jdbc.update(
             """
@@ -486,7 +486,7 @@ public class CrawlJdbcRepository {
             .addValue("companyId", companyId)
             .addValue("url", url)
             .addValue("fetchStatus", fetchStatus)
-            .addValue("lastFetchedAt", lastFetchedAt);
+            .addValue("lastFetchedAt", toTimestamp(lastFetchedAt));
         jdbc.update(
             """
                 UPDATE discovered_urls
@@ -534,7 +534,7 @@ public class CrawlJdbcRepository {
             .addValue("atsUrl", atsUrl)
             .addValue("discoveredFromUrl", discoveredFromUrl)
             .addValue("confidence", confidence)
-            .addValue("detectedAt", detectedAt);
+            .addValue("detectedAt", toTimestamp(detectedAt));
         int updated = jdbc.update(
             """
                 UPDATE ats_endpoints
@@ -590,7 +590,7 @@ public class CrawlJdbcRepository {
             .addValue("descriptionText", posting.descriptionText())
             .addValue("externalIdentifier", posting.externalIdentifier())
             .addValue("contentHash", posting.contentHash())
-            .addValue("fetchedAt", fetchedAt);
+            .addValue("fetchedAt", toTimestamp(fetchedAt));
 
         int updated = jdbc.update(
             """
@@ -820,5 +820,9 @@ public class CrawlJdbcRepository {
             rs.getString("domain"),
             rs.getString("careers_hint_url")
         );
+    }
+
+    private Timestamp toTimestamp(Instant value) {
+        return value == null ? null : Timestamp.from(value);
     }
 }

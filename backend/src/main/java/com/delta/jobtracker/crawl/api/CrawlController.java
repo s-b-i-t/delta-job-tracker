@@ -53,15 +53,17 @@ public class CrawlController {
     }
 
     @PostMapping("/ingest")
-    public IngestionSummary ingestUniverse() {
-        return ingestionService.ingest();
+    public IngestionSummary ingestUniverse(
+        @RequestParam(name = "source", required = false, defaultValue = "wiki") String source
+    ) {
+        return ingestionService.ingest(source);
     }
 
     @PostMapping("/crawl/run")
     public CrawlRunSummary runCrawl(@RequestBody(required = false) CrawlApiRunRequest request) {
         boolean ingestBeforeCrawl = request == null || request.ingestBeforeCrawl() == null || request.ingestBeforeCrawl();
         if (ingestBeforeCrawl) {
-            ingestionService.ingest();
+            ingestionService.ingest("wiki");
         }
         int companyLimit = request == null || request.companyLimit() == null
             ? crawlerProperties.getApi().getDefaultCompanyLimit()

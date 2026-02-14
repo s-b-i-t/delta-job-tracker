@@ -11,8 +11,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Comparator;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +25,7 @@ public class RobotsTxtService {
     private final CrawlerProperties properties;
     private final PoliteHttpClient httpClient;
     private final Map<String, RobotsRules> cache = new ConcurrentHashMap<>();
-    private final Map<String, Instant> robotsUnavailableByHost = new ConcurrentHashMap<>();
+    private final Map<String, Instant> robotsUnavailableAtByHost = new ConcurrentHashMap<>();
 
     public RobotsTxtService(CrawlerProperties properties, PoliteHttpClient httpClient) {
         this.properties = properties;
@@ -100,7 +99,7 @@ public class RobotsTxtService {
             );
             return failOpen ? RobotsRules.allowAll() : RobotsRules.disallowAll();
         }
-        robotsUnavailableByHost.remove(host);
+        clearRobotsUnavailable(host);
         RobotsRules rules = RobotsRules.parse(fetch.body());
         log.debug("Loaded robots for host {} with {} sitemap hints", host, rules.getSitemapUrls().size());
         return rules;
@@ -108,17 +107,21 @@ public class RobotsTxtService {
 
     private void markRobotsUnavailable(String host) {
         Instant now = Instant.now();
-        robotsUnavailableByHost.put(host, now);
+        robotsUnavailableAtByHost.put(host, now);
         evictUnavailableHosts(now);
     }
 
+    private void clearRobotsUnavailable(String host) {
+        robotsUnavailableAtByHost.remove(host);
+    }
+
     private boolean isRobotsUnavailableForHost(String host) {
-        Instant markedAt = robotsUnavailableByHost.get(host);
+        Instant markedAt = robotsUnavailableAtByHost.get(host);
         if (markedAt == null) {
             return false;
         }
         if (markedAt.plus(ROBOTS_UNAVAILABLE_TTL).isBefore(Instant.now())) {
-            robotsUnavailableByHost.remove(host, markedAt);
+            robotsUnavailableAtByHost.remove(host, markedAt);
             cache.remove(host);
             return false;
         }
@@ -127,27 +130,29 @@ public class RobotsTxtService {
 
     private void evictUnavailableHosts(Instant now) {
         Instant cutoff = now.minus(ROBOTS_UNAVAILABLE_TTL);
-        List<String> expiredHosts = robotsUnavailableByHost.entrySet().stream()
-            .filter(entry -> entry.getValue().isBefore(cutoff))
-            .map(Map.Entry::getKey)
-            .toList();
-        for (String host : expiredHosts) {
-            robotsUnavailableByHost.remove(host);
-            cache.remove(host);
+        Iterator<Map.Entry<String, Instant>> iterator = robotsUnavailableAtByHost.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Instant> entry = iterator.next();
+            if (entry.getValue().isBefore(cutoff)) {
+                iterator.remove();
+                cache.remove(entry.getKey());
+            }
         }
 
-        int overflow = robotsUnavailableByHost.size() - MAX_UNAVAILABLE_HOSTS;
-        if (overflow <= 0) {
-            return;
-        }
-        List<String> oldestHosts = robotsUnavailableByHost.entrySet().stream()
-            .sorted(Map.Entry.comparingByValue(Comparator.naturalOrder()))
-            .limit(overflow)
-            .map(Map.Entry::getKey)
-            .toList();
-        for (String host : oldestHosts) {
-            robotsUnavailableByHost.remove(host);
-            cache.remove(host);
+        while (robotsUnavailableAtByHost.size() > MAX_UNAVAILABLE_HOSTS) {
+            String oldestHost = null;
+            Instant oldestSeen = null;
+            for (Map.Entry<String, Instant> entry : robotsUnavailableAtByHost.entrySet()) {
+                if (oldestSeen == null || entry.getValue().isBefore(oldestSeen)) {
+                    oldestSeen = entry.getValue();
+                    oldestHost = entry.getKey();
+                }
+            }
+            if (oldestHost == null) {
+                break;
+            }
+            robotsUnavailableAtByHost.remove(oldestHost);
+            cache.remove(oldestHost);
         }
     }
 

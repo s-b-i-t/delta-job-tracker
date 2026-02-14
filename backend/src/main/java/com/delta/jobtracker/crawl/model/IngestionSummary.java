@@ -1,7 +1,11 @@
 package com.delta.jobtracker.crawl.model;
 
+import java.util.List;
+
 public record IngestionSummary(
     int companiesUpserted,
-    int domainsUpserted
+    int domainsSeeded,
+    int errorsCount,
+    List<String> sampleErrors
 ) {
 }

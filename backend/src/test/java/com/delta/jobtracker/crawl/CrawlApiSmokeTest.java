@@ -38,10 +38,11 @@ class CrawlApiSmokeTest {
 
     @Test
     void ingestThenStatusShowsCompanyCounts() throws Exception {
-        mockMvc.perform(post("/api/ingest"))
+        mockMvc.perform(post("/api/ingest").param("source", "file"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.companiesUpserted").value(greaterThanOrEqualTo(500)))
-            .andExpect(jsonPath("$.domainsUpserted").value(greaterThanOrEqualTo(20)));
+            .andExpect(jsonPath("$.domainsSeeded").value(greaterThanOrEqualTo(20)))
+            .andExpect(jsonPath("$.errorsCount").value(greaterThanOrEqualTo(0)));
 
         mockMvc.perform(get("/api/status"))
             .andExpect(status().isOk())

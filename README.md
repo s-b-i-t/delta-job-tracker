@@ -29,6 +29,12 @@ cd infra
 docker compose up -d
 ```
 
+Verify Docker from WSL:
+
+```bash
+docker info
+```
+
 ## Run backend
 
 ```bash
@@ -44,10 +50,16 @@ Default DB connection:
 
 ## Recommended V1.1 flow
 
-1. Ingest universe + sample domains:
+1. Ingest universe + sample domains (Wikipedia by default):
 
 ```bash
 curl -X POST http://localhost:8080/api/ingest
+```
+
+Fallback to local file source explicitly:
+
+```bash
+curl -X POST "http://localhost:8080/api/ingest?source=file"
 ```
 
 2. Resolve missing domains automatically (Wikidata P856):
@@ -93,7 +105,10 @@ curl "http://localhost:8080/api/jobs?limit=50&companyId=123"
 ## Endpoints
 
 - `POST /api/ingest`
-  - Loads S&P constituents and `data/domains.csv` into `companies` and `company_domains`.
+  - Default source is Wikipedia (`List_of_S%26P_500_companies`), parsed with Jsoup.
+  - Supports file fallback via `source=file` using `data/sp500_constituents.csv`.
+  - Always ingests `data/domains.csv` after companies as seed/override domains.
+  - Returns `companiesUpserted`, `domainsSeeded`, `errorsCount`, and up to 10 `sampleErrors`.
   - `GET /api/ingest` is intentionally not supported and returns `405`.
 - `POST /api/domains/resolve?limit=N`
   - Resolves official websites from Wikidata and upserts normalized domains with source metadata.
@@ -137,4 +152,41 @@ cd backend
 ```bash
 cd backend
 ./gradlew test
+```
+
+## Full cycle helper
+
+```bash
+./scripts/run_full_cycle.sh
+```
+
+The script starts Postgres, starts the backend, runs ingest/resolve/discover/crawl, and prints `/api/status`.
+Use `RESET_DB=1 ./scripts/run_full_cycle.sh` if you need a clean local Postgres volume.
+
+## Real Postgres smoke
+
+Terminal 1:
+
+```bash
+cd infra
+docker compose up -d
+cd ../backend
+./gradlew clean bootRun
+```
+
+Terminal 2:
+
+```bash
+curl -X POST http://localhost:8080/api/ingest
+curl -X POST "http://localhost:8080/api/domains/resolve?limit=600"
+curl -X POST "http://localhost:8080/api/careers/discover?limit=600"
+curl -X POST http://localhost:8080/api/crawl/run -H "Content-Type: application/json" -d '{"companyLimit":50,"resolveLimit":600,"discoverLimit":600,"maxSitemapUrls":200,"maxJobPages":50}'
+curl http://localhost:8080/api/status
+```
+
+Postgres counts:
+
+```bash
+docker exec -i delta-job-tracker-postgres psql -U delta -d delta_job_tracker -c "SELECT 'companies' AS table_name, COUNT(*) AS cnt FROM companies UNION ALL SELECT 'company_domains', COUNT(*) FROM company_domains UNION ALL SELECT 'ats_endpoints', COUNT(*) FROM ats_endpoints UNION ALL SELECT 'crawl_runs', COUNT(*) FROM crawl_runs UNION ALL SELECT 'discovered_urls', COUNT(*) FROM discovered_urls UNION ALL SELECT 'job_postings', COUNT(*) FROM job_postings;"
+docker exec -i delta-job-tracker-postgres psql -U delta -d delta_job_tracker -c "SELECT COUNT(*) FILTER (WHERE crawl_run_id IS NULL) AS crawl_run_id_null, COUNT(*) FILTER (WHERE crawl_run_id IS NOT NULL) AS crawl_run_id_non_null FROM job_postings;"
 ```

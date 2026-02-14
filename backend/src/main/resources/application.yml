@@ -43,6 +43,7 @@ crawler:
   extraction:
     max-job-pages: 50
   data:
+    sp500-wikipedia-url: https://en.wikipedia.org/wiki/List_of_S%26P_500_companies
     sp500-csv: ../data/sp500_constituents.csv
     domains-csv: ../data/domains.csv
   cli:
