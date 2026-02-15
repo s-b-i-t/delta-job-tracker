@@ -1,5 +1,7 @@
 (() => {
   const companyIdInput = document.getElementById("companyId");
+  const companySearchInput = document.getElementById("companySearch");
+  const companySuggestions = document.getElementById("companySuggestions");
   const queryInput = document.getElementById("query");
   const csModeToggle = document.getElementById("csMode");
   const usePresetBtn = document.getElementById("usePreset");
@@ -8,8 +10,10 @@
   const limitInput = document.getElementById("limit");
   const loadActiveBtn = document.getElementById("loadActive");
   const loadNewBtn = document.getElementById("loadNew");
+  const loadNewSinceCheckBtn = document.getElementById("loadNewSinceCheck");
   const loadClosedBtn = document.getElementById("loadClosed");
   const loadAllBtn = document.getElementById("loadAll");
+  const setLastCheckBtn = document.getElementById("setLastCheck");
   const resultsList = document.getElementById("resultsList");
   const resultsMeta = document.getElementById("resultsMeta");
   const detailPanel = document.getElementById("detailPanel");
@@ -26,7 +30,8 @@
     csMode: "dj_csMode",
     activeFilter: "dj_activeFilter",
     since: "dj_since",
-    limit: "dj_limit"
+    limit: "dj_limit",
+    lastCheckAt: "dj_lastCheckAt"
   };
 
   const state = {
@@ -38,6 +43,13 @@
 
   closeDetail.addEventListener("click", () => {
     detailPanel.classList.add("hidden");
+  });
+
+  setLastCheckBtn.addEventListener("click", () => {
+    const now = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEYS.lastCheckAt, now);
+    sinceInput.value = now;
+    persistSettings();
   });
 
   usePresetBtn.addEventListener("click", () => {
@@ -68,6 +80,16 @@
     await loadJobs("/api/jobs/new", params, "New Jobs");
   });
 
+  loadNewSinceCheckBtn.addEventListener("click", async () => {
+    const params = baseParams();
+    const lastCheck = localStorage.getItem(STORAGE_KEYS.lastCheckAt);
+    const since = lastCheck || sinceInput.value.trim();
+    if (since) {
+      params.since = since;
+    }
+    await loadJobs("/api/jobs/new", params, "New Jobs Since Last Check");
+  });
+
   loadClosedBtn.addEventListener("click", async () => {
     const params = baseParams();
     await loadJobs("/api/jobs/closed", params, "Closed Jobs");
@@ -77,6 +99,17 @@
     const params = baseParams();
     delete params.active;
     await loadJobs("/api/jobs", params, "All Jobs");
+  });
+
+  let searchTimeout = null;
+  companySearchInput.addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    const term = companySearchInput.value.trim();
+    if (!term) {
+      companySuggestions.innerHTML = "";
+      return;
+    }
+    searchTimeout = setTimeout(() => searchCompanies(term), 250);
   });
 
   function baseParams() {
@@ -171,7 +204,7 @@
     });
   }
 
-  function showDetail(job) {
+  async function showDetail(job) {
     detailTitle.textContent = job.title || "Job Detail";
     detailMeta.textContent = [
       job.companyName || job.ticker || "Unknown Company",
@@ -179,9 +212,22 @@
       job.isActive ? "Active" : "Closed"
     ].join(" • ");
 
-    if (job.sourceUrl) {
+    detailDescription.innerHTML = "<em>Loading description...</em>";
+    detailPanel.classList.remove("hidden");
+
+    let detail = job;
+    try {
+      const response = await fetch(`/api/jobs/${job.id}`);
+      if (response.ok) {
+        detail = await response.json();
+      }
+    } catch (err) {
+      detail = job;
+    }
+
+    if (detail.sourceUrl) {
       const link = document.createElement("a");
-      link.href = job.sourceUrl;
+      link.href = detail.sourceUrl;
       link.target = "_blank";
       link.rel = "noopener";
       link.textContent = "Open posting";
@@ -190,11 +236,9 @@
       detailMeta.appendChild(link);
     }
 
-    const rawHtml = job.descriptionText || "<em>No description available.</em>";
+    const rawHtml = detail.descriptionText || "<em>No description available.</em>";
     const sanitized = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml) : rawHtml;
     detailDescription.innerHTML = sanitized;
-
-    detailPanel.classList.remove("hidden");
   }
 
   function formatInstant(value) {
@@ -224,6 +268,7 @@
     const storedActiveFilter = localStorage.getItem(STORAGE_KEYS.activeFilter);
     const storedSince = localStorage.getItem(STORAGE_KEYS.since);
     const storedLimit = localStorage.getItem(STORAGE_KEYS.limit);
+    const storedLastCheck = localStorage.getItem(STORAGE_KEYS.lastCheckAt);
 
     if (storedCompanyId !== null) {
       companyIdInput.value = storedCompanyId;
@@ -241,6 +286,8 @@
     }
     if (storedSince !== null && storedSince.trim()) {
       sinceInput.value = storedSince;
+    } else if (storedLastCheck) {
+      sinceInput.value = storedLastCheck;
     } else {
       sinceInput.value = defaultSince;
     }
@@ -256,5 +303,42 @@
     localStorage.setItem(STORAGE_KEYS.activeFilter, activeFilter.value);
     localStorage.setItem(STORAGE_KEYS.since, sinceInput.value.trim());
     localStorage.setItem(STORAGE_KEYS.limit, limitInput.value.trim());
+  }
+
+  async function searchCompanies(term) {
+    companySuggestions.innerHTML = "<div class=\"meta\">Searching...</div>";
+    try {
+      const url = new URL("/api/companies", window.location.origin);
+      url.searchParams.set("search", term);
+      url.searchParams.set("limit", "10");
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        companySuggestions.innerHTML = "<div class=\"meta\">Search failed.</div>";
+        return;
+      }
+      const results = await response.json();
+      renderCompanySuggestions(results);
+    } catch (err) {
+      companySuggestions.innerHTML = "<div class=\"meta\">Search failed.</div>";
+    }
+  }
+
+  function renderCompanySuggestions(results) {
+    if (!results || results.length === 0) {
+      companySuggestions.innerHTML = "<div class=\"meta\">No matches.</div>";
+      return;
+    }
+    companySuggestions.innerHTML = "";
+    results.forEach((item) => {
+      const entry = document.createElement("div");
+      entry.className = "suggestion";
+      entry.textContent = `${item.ticker || ""} — ${item.name || ""} (ID ${item.id})`;
+      entry.addEventListener("click", () => {
+        companyIdInput.value = item.id;
+        persistSettings();
+        companySuggestions.innerHTML = "";
+      });
+      companySuggestions.appendChild(entry);
+    });
   }
 })();

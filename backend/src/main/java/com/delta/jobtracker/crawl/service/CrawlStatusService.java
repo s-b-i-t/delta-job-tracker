@@ -1,9 +1,11 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.crawl.model.AtsType;
+import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
+import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.RecentCrawlStatus;
 import com.delta.jobtracker.crawl.model.StatusResponse;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class CrawlStatusService {
@@ -56,7 +59,7 @@ public class CrawlStatusService {
         return new StatusResponse(true, counts, recent);
     }
 
-    public List<JobPostingView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {
+    public List<JobPostingListView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
         try {
             return repository.findNewestJobs(safeLimit, companyId, atsType, active, query);
@@ -94,16 +97,32 @@ public class CrawlStatusService {
         );
     }
 
-    public List<JobPostingView> getNewJobs(String since, Long companyId, Integer limit, String query) {
+    public List<JobPostingListView> getNewJobs(String since, Long companyId, Integer limit, String query) {
         Instant sinceInstant = parseSince(since);
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
         return repository.findNewJobsSince(sinceInstant, companyId, safeLimit, query);
     }
 
-    public List<JobPostingView> getClosedJobs(String since, Long companyId, Integer limit, String query) {
+    public List<JobPostingListView> getClosedJobs(String since, Long companyId, Integer limit, String query) {
         Instant sinceInstant = parseSince(since);
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
         return repository.findClosedJobsSince(sinceInstant, companyId, safeLimit, query);
+    }
+
+    public JobPostingView getJobDetail(long jobId) {
+        JobPostingView view = repository.findJobPostingById(jobId);
+        if (view == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Job not found: " + jobId);
+        }
+        return view;
+    }
+
+    public List<CompanySearchResult> searchCompanies(String search, Integer limit) {
+        if (search == null || search.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "search is required");
+        }
+        int safeLimit = limit == null ? 20 : Math.max(1, Math.min(limit, 100));
+        return repository.searchCompanies(search, safeLimit);
     }
 
     private Instant parseSince(String since) {

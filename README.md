@@ -132,6 +132,10 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
 - `GET /api/jobs/closed`
   - Returns jobs with `is_active=false AND last_seen_at > since`.
   - Filters: `since` (required), optional `companyId`, optional `limit`, optional `q`.
+- `GET /api/jobs/{id}`
+  - Returns full job detail including `descriptionText`.
+- `GET /api/companies`
+  - Search companies by ticker/name/domain: `?search=air&limit=20`.
 
 ## Search + CS Mode
 

@@ -2,11 +2,13 @@ package com.delta.jobtracker.crawl.persistence;
 
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
 import com.delta.jobtracker.crawl.model.AtsType;
+import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
+import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import org.jsoup.Jsoup;
@@ -1009,7 +1011,7 @@ public class CrawlJdbcRepository {
         );
     }
 
-    public List<JobPostingView> findNewestJobs(int limit, Long companyId, AtsType atsType, Boolean active, String query) {
+    public List<JobPostingListView> findNewestJobs(int limit, Long companyId, AtsType atsType, Boolean active, String query) {
         String normalizedQuery = normalizeQuery(query);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("limit", limit)
@@ -1031,8 +1033,6 @@ public class CrawlJdbcRepository {
                        jp.location_text,
                        jp.employment_type,
                        jp.date_posted,
-                       jp.description_text,
-                       jp.content_hash,
                        jp.first_seen_at,
                        jp.last_seen_at,
                        jp.is_active
@@ -1066,7 +1066,7 @@ public class CrawlJdbcRepository {
                 LIMIT :limit
                 """,
             params,
-            (rs, rowNum) -> new JobPostingView(
+            (rs, rowNum) -> new JobPostingListView(
                 rs.getLong("id"),
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
@@ -1078,8 +1078,6 @@ public class CrawlJdbcRepository {
                 rs.getString("location_text"),
                 rs.getString("employment_type"),
                 rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
-                rs.getString("description_text"),
-                rs.getString("content_hash"),
                 toInstant(rs.getTimestamp("first_seen_at")),
                 toInstant(rs.getTimestamp("last_seen_at")),
                 rs.getBoolean("is_active")
@@ -1087,7 +1085,7 @@ public class CrawlJdbcRepository {
         );
     }
 
-    public List<JobPostingView> findNewJobsSince(Instant since, Long companyId, int limit, String query) {
+    public List<JobPostingListView> findNewJobsSince(Instant since, Long companyId, int limit, String query) {
         String normalizedQuery = normalizeQuery(query);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("since", toTimestamp(since))
@@ -1108,8 +1106,6 @@ public class CrawlJdbcRepository {
                        jp.location_text,
                        jp.employment_type,
                        jp.date_posted,
-                       jp.description_text,
-                       jp.content_hash,
                        jp.first_seen_at,
                        jp.last_seen_at,
                        jp.is_active
@@ -1134,7 +1130,7 @@ public class CrawlJdbcRepository {
                 LIMIT :limit
                 """,
             params,
-            (rs, rowNum) -> new JobPostingView(
+            (rs, rowNum) -> new JobPostingListView(
                 rs.getLong("id"),
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
@@ -1146,8 +1142,6 @@ public class CrawlJdbcRepository {
                 rs.getString("location_text"),
                 rs.getString("employment_type"),
                 rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
-                rs.getString("description_text"),
-                rs.getString("content_hash"),
                 toInstant(rs.getTimestamp("first_seen_at")),
                 toInstant(rs.getTimestamp("last_seen_at")),
                 rs.getBoolean("is_active")
@@ -1155,7 +1149,7 @@ public class CrawlJdbcRepository {
         );
     }
 
-    public List<JobPostingView> findClosedJobsSince(Instant since, Long companyId, int limit, String query) {
+    public List<JobPostingListView> findClosedJobsSince(Instant since, Long companyId, int limit, String query) {
         String normalizedQuery = normalizeQuery(query);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("since", toTimestamp(since))
@@ -1176,8 +1170,6 @@ public class CrawlJdbcRepository {
                        jp.location_text,
                        jp.employment_type,
                        jp.date_posted,
-                       jp.description_text,
-                       jp.content_hash,
                        jp.first_seen_at,
                        jp.last_seen_at,
                        jp.is_active
@@ -1203,6 +1195,64 @@ public class CrawlJdbcRepository {
                 LIMIT :limit
                 """,
             params,
+            (rs, rowNum) -> new JobPostingListView(
+                rs.getLong("id"),
+                rs.getLong("company_id"),
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                parseAtsType(rs.getString("latest_ats_type")),
+                rs.getString("source_url"),
+                rs.getString("title"),
+                rs.getString("org_name"),
+                rs.getString("location_text"),
+                rs.getString("employment_type"),
+                rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
+                toInstant(rs.getTimestamp("first_seen_at")),
+                toInstant(rs.getTimestamp("last_seen_at")),
+                rs.getBoolean("is_active")
+            )
+        );
+    }
+
+    public JobPostingView findJobPostingById(long jobId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("jobId", jobId);
+
+        List<JobPostingView> rows = jdbc.query(
+            """
+                SELECT jp.id,
+                       jp.company_id,
+                       c.ticker,
+                       c.name AS company_name,
+                       latest_ats.ats_type AS latest_ats_type,
+                       jp.source_url,
+                       jp.title,
+                       jp.org_name,
+                       jp.location_text,
+                       jp.employment_type,
+                       jp.date_posted,
+                       jp.description_text,
+                       jp.content_hash,
+                       jp.first_seen_at,
+                       jp.last_seen_at,
+                       jp.is_active
+                FROM job_postings jp
+                JOIN companies c ON c.id = jp.company_id
+                LEFT JOIN (
+                    SELECT ae.company_id,
+                           ae.ats_type
+                    FROM ats_endpoints ae
+                    JOIN (
+                        SELECT company_id, MAX(detected_at) AS max_detected_at
+                        FROM ats_endpoints
+                        GROUP BY company_id
+                    ) ranked
+                      ON ranked.company_id = ae.company_id
+                     AND ranked.max_detected_at = ae.detected_at
+                ) latest_ats ON latest_ats.company_id = jp.company_id
+                WHERE jp.id = :jobId
+                """,
+            params,
             (rs, rowNum) -> new JobPostingView(
                 rs.getLong("id"),
                 rs.getLong("company_id"),
@@ -1220,6 +1270,51 @@ public class CrawlJdbcRepository {
                 toInstant(rs.getTimestamp("first_seen_at")),
                 toInstant(rs.getTimestamp("last_seen_at")),
                 rs.getBoolean("is_active")
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public List<CompanySearchResult> searchCompanies(String search, int limit) {
+        String normalized = search == null ? null : search.trim();
+        String lowered = normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("search", lowered, Types.VARCHAR)
+            .addValue("searchLike", lowered == null ? null : "%" + lowered + "%", Types.VARCHAR)
+            .addValue("limit", limit);
+
+        return jdbc.query(
+            """
+                SELECT c.id,
+                       c.ticker,
+                       c.name,
+                       cd.domain
+                FROM companies c
+                LEFT JOIN (
+                    SELECT company_id, MIN(domain) AS domain
+                    FROM company_domains
+                    GROUP BY company_id
+                ) cd ON cd.company_id = c.id
+                WHERE :search IS NOT NULL
+                  AND (
+                    LOWER(c.ticker) LIKE :searchLike
+                    OR LOWER(c.name) LIKE :searchLike
+                    OR LOWER(COALESCE(cd.domain, '')) LIKE :searchLike
+                  )
+                ORDER BY CASE
+                    WHEN LOWER(c.ticker) = :search THEN 0
+                    WHEN LOWER(c.name) = :search THEN 1
+                    ELSE 2
+                  END,
+                  c.ticker
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new CompanySearchResult(
+                rs.getLong("id"),
+                rs.getString("ticker"),
+                rs.getString("name"),
+                rs.getString("domain")
             )
         );
     }

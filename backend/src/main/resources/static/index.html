@@ -23,6 +23,11 @@
           <input id="companyId" type="text" placeholder="Optional (e.g., 12)" />
         </div>
         <div class="control wide">
+          <label for="companySearch">Search Company</label>
+          <input id="companySearch" type="text" placeholder="Type a ticker or name (e.g., air)" />
+          <div id="companySuggestions" class="suggestions"></div>
+        </div>
+        <div class="control wide">
           <label for="query">Query</label>
           <input id="query" type="text" placeholder="software engineer OR data scientist" />
         </div>
@@ -53,7 +58,9 @@
           <button id="loadActive" class="btn primary">Load Active</button>
           <button id="loadAll" class="btn">Load All</button>
           <button id="loadNew" class="btn">Load New Since</button>
+          <button id="loadNewSinceCheck" class="btn">Load New Since Last Check</button>
           <button id="loadClosed" class="btn">Load Closed Since</button>
+          <button id="setLastCheck" class="btn">Set Last Check = Now</button>
         </div>
       </section>
 

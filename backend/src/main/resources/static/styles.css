@@ -74,6 +74,25 @@ body {
   gap: 12px;
 }
 
+.suggestions {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.suggestion {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffaf5;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.suggestion:hover {
+  border-color: var(--accent);
+}
+
 .control label {
   display: block;
   font-weight: 600;

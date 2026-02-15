@@ -5,9 +5,11 @@ import com.delta.jobtracker.crawl.model.CrawlRunRequest;
 import com.delta.jobtracker.crawl.model.CrawlRunSummary;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
+import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
+import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -99,7 +102,7 @@ public class CrawlController {
     }
 
     @GetMapping("/jobs")
-    public List<JobPostingView> getJobs(
+    public List<JobPostingListView> getJobs(
         @RequestParam(name = "limit", required = false) Integer limit,
         @RequestParam(name = "companyId", required = false) Long companyId,
         @RequestParam(name = "ats", required = false) String ats,
@@ -118,7 +121,7 @@ public class CrawlController {
     }
 
     @GetMapping("/jobs/new")
-    public List<JobPostingView> getNewJobs(
+    public List<JobPostingListView> getNewJobs(
         @RequestParam(name = "since") String since,
         @RequestParam(name = "companyId", required = false) Long companyId,
         @RequestParam(name = "limit", required = false) Integer limit,
@@ -128,7 +131,7 @@ public class CrawlController {
     }
 
     @GetMapping("/jobs/closed")
-    public List<JobPostingView> getClosedJobs(
+    public List<JobPostingListView> getClosedJobs(
         @RequestParam(name = "since") String since,
         @RequestParam(name = "companyId", required = false) Long companyId,
         @RequestParam(name = "limit", required = false) Integer limit,
@@ -148,5 +151,18 @@ public class CrawlController {
             throw new ResponseStatusException(BAD_REQUEST, "companyId, fromRunId, and toRunId are required");
         }
         return crawlStatusService.getJobDelta(companyId, fromRunId, toRunId, limit);
+    }
+
+    @GetMapping("/jobs/{id}")
+    public JobPostingView getJobDetail(@PathVariable("id") long jobId) {
+        return crawlStatusService.getJobDetail(jobId);
+    }
+
+    @GetMapping("/companies")
+    public List<CompanySearchResult> searchCompanies(
+        @RequestParam(name = "search") String search,
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return crawlStatusService.searchCompanies(search, limit);
     }
 }
