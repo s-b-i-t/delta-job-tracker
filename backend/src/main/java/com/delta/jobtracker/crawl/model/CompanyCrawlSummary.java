@@ -12,6 +12,7 @@ public record CompanyCrawlSummary(
     List<AtsDetectionRecord> atsDetected,
     int jobpostingPagesFoundCount,
     int jobsExtractedCount,
+    boolean closeoutSafe,
     Map<String, Integer> topErrors
 ) {
 }

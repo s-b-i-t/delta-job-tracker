@@ -64,6 +64,7 @@ public class AtsAdapterIngestionService {
 
         int jobsExtractedCount = 0;
         int jobpostingPagesFoundCount = 0;
+        boolean successfulFetch = false;
         Map<String, Integer> errors = new LinkedHashMap<>();
         boolean attemptedSupportedAdapter = false;
 
@@ -74,6 +75,7 @@ public class AtsAdapterIngestionService {
                 jobsExtractedCount += result.jobsExtractedCount();
                 jobpostingPagesFoundCount += result.jobpostingPagesFoundCount();
                 merge(errors, result.errors());
+                successfulFetch = successfulFetch || result.successfulFetch();
                 if (result.jobsExtractedCount() > 0) {
                     break;
                 }
@@ -83,6 +85,7 @@ public class AtsAdapterIngestionService {
                 jobsExtractedCount += result.jobsExtractedCount();
                 jobpostingPagesFoundCount += result.jobpostingPagesFoundCount();
                 merge(errors, result.errors());
+                successfulFetch = successfulFetch || result.successfulFetch();
                 if (result.jobsExtractedCount() > 0) {
                     break;
                 }
@@ -92,6 +95,7 @@ public class AtsAdapterIngestionService {
                 jobsExtractedCount += result.jobsExtractedCount();
                 jobpostingPagesFoundCount += result.jobpostingPagesFoundCount();
                 merge(errors, result.errors());
+                successfulFetch = successfulFetch || result.successfulFetch();
                 if (result.jobsExtractedCount() > 0) {
                     break;
                 }
@@ -101,7 +105,7 @@ public class AtsAdapterIngestionService {
         if (!attemptedSupportedAdapter) {
             return null;
         }
-        return new AtsAdapterResult(jobsExtractedCount, jobpostingPagesFoundCount, errors);
+        return new AtsAdapterResult(jobsExtractedCount, jobpostingPagesFoundCount, errors, successfulFetch);
     }
 
     private AdapterFetchResult ingestFromGreenhouse(long crawlRunId, CompanyTarget company, String endpointUrl) {
@@ -109,7 +113,7 @@ public class AtsAdapterIngestionService {
         Map<String, Integer> errors = new LinkedHashMap<>();
         if (token == null) {
             increment(errors, "greenhouse_token_parse_failed");
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
 
         String primaryUrl = "https://boards-api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
@@ -117,17 +121,17 @@ public class AtsAdapterIngestionService {
 
         GreenhouseAttempt primary = fetchGreenhouseFeed(crawlRunId, company, primaryUrl, errors);
         if (primary.success()) {
-            return new AdapterFetchResult(primary.jobsExtractedCount(), primary.jobpostingPagesFoundCount(), errors);
+            return new AdapterFetchResult(primary.jobsExtractedCount(), primary.jobpostingPagesFoundCount(), errors, true);
         }
         if (primary.payloadInvalid()) {
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
         if (!primary.shouldFallback()) {
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
 
         GreenhouseAttempt fallback = fetchGreenhouseFeed(crawlRunId, company, fallbackUrl, errors);
-        return new AdapterFetchResult(fallback.jobsExtractedCount(), fallback.jobpostingPagesFoundCount(), errors);
+        return new AdapterFetchResult(fallback.jobsExtractedCount(), fallback.jobpostingPagesFoundCount(), errors, fallback.success());
     }
 
     private GreenhouseAttempt fetchGreenhouseFeed(
@@ -185,7 +189,7 @@ public class AtsAdapterIngestionService {
         Map<String, Integer> errors = new LinkedHashMap<>();
         if (account == null) {
             increment(errors, "lever_account_parse_failed");
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
 
         String feedUrl = "https://api.lever.co/v0/postings/" + account + "?mode=json";
@@ -193,7 +197,7 @@ public class AtsAdapterIngestionService {
             String status = "lever_blocked_by_robots";
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, null, "blocked_by_robots");
             increment(errors, status);
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
 
         HttpFetchResult fetch = httpClient.get(feedUrl, "application/json,*/*;q=0.8");
@@ -201,7 +205,7 @@ public class AtsAdapterIngestionService {
             String status = adapterFetchStatus("lever", fetch);
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, fetch, null);
             increment(errors, status);
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
 
         try {
@@ -210,7 +214,7 @@ public class AtsAdapterIngestionService {
                 String status = "lever_invalid_payload";
                 recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, fetch, "invalid_payload");
                 increment(errors, status);
-                return new AdapterFetchResult(0, 0, errors);
+                return new AdapterFetchResult(0, 0, errors, false);
             }
             int extracted = 0;
             for (JsonNode job : root) {
@@ -222,13 +226,13 @@ public class AtsAdapterIngestionService {
                 extracted++;
             }
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, "ats_fetch_success", fetch, null);
-            return new AdapterFetchResult(extracted, extracted > 0 ? 1 : 0, errors);
+            return new AdapterFetchResult(extracted, extracted > 0 ? 1 : 0, errors, true);
         } catch (Exception e) {
             log.warn("Failed to parse Lever payload for {}", company.ticker(), e);
             String status = "lever_parse_error";
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, fetch, "parse_error");
             increment(errors, status);
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
     }
 
@@ -237,7 +241,7 @@ public class AtsAdapterIngestionService {
         WorkdayEndpoint endpoint = deriveWorkdayEndpoint(endpointUrl);
         if (endpoint == null) {
             increment(errors, "workday_endpoint_parse_failed");
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
 
         String cxsUrl = "https://" + endpoint.host() + "/wday/cxs/" + endpoint.tenant() + "/" + endpoint.site() + "/jobs";
@@ -245,11 +249,12 @@ public class AtsAdapterIngestionService {
             String status = "workday_blocked_by_robots";
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, status, null, "blocked_by_robots");
             increment(errors, status);
-            return new AdapterFetchResult(0, 0, errors);
+            return new AdapterFetchResult(0, 0, errors, false);
         }
 
         int extracted = 0;
         int pagesWithJobs = 0;
+        boolean successfulFetch = false;
         int offset = 0;
         for (int page = 0; page < WORKDAY_MAX_PAGES; page++) {
             HttpFetchResult fetch = fetchWorkdayPage(cxsUrl, offset);
@@ -264,9 +269,11 @@ public class AtsAdapterIngestionService {
                 JsonNode root = objectMapper.readTree(fetch.body());
                 List<NormalizedJobPosting> postings = parseWorkdayJobPostings(endpoint.host(), root, cxsUrl);
                 if (postings.isEmpty()) {
+                    successfulFetch = true;
                     recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, "ats_fetch_success", fetch, null);
                     break;
                 }
+                successfulFetch = true;
                 pagesWithJobs++;
                 for (NormalizedJobPosting posting : postings) {
                     repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
@@ -285,18 +292,22 @@ public class AtsAdapterIngestionService {
                 break;
             }
         }
-        return new AdapterFetchResult(extracted, pagesWithJobs, errors);
+        return new AdapterFetchResult(extracted, pagesWithJobs, errors, successfulFetch);
     }
 
     private NormalizedJobPosting normalizeGreenhousePosting(CompanyTarget company, JsonNode job, String sourceUrl) {
         String title = text(job, "title");
-        String canonicalUrl = text(job, "absolute_url");
-        String description = htmlToText(text(job, "content"));
+        String absoluteUrl = text(job, "absolute_url");
+        String canonicalUrl = absoluteUrl;
+        String rawHtml = text(job, "content");
+        String description = rawHtml == null ? null : org.jsoup.parser.Parser.unescapeEntities(rawHtml, false);
         String identifier = text(job, "id");
         String location = text(job.path("location"), "name");
         LocalDate datePosted = parseIsoDate(text(job, "updated_at"));
         String employmentType = extractGreenhouseEmploymentType(job.path("metadata"));
-        return buildPosting(sourceUrl, canonicalUrl, title, company.name(), location, employmentType, datePosted, description, identifier);
+        String humanUrl = firstNonBlank(absoluteUrl, sourceUrl);
+        String canonical = firstNonBlank(canonicalUrl, humanUrl, sourceUrl);
+        return buildPosting(humanUrl, canonical, title, company.name(), location, employmentType, datePosted, description, identifier);
     }
 
     private String extractGreenhouseEmploymentType(JsonNode metadata) {
@@ -329,7 +340,10 @@ public class AtsAdapterIngestionService {
 
     private NormalizedJobPosting normalizeLeverPosting(CompanyTarget company, JsonNode job, String sourceUrl) {
         String title = text(job, "text");
-        String canonicalUrl = text(job, "hostedUrl");
+        String hostedUrl = text(job, "hostedUrl");
+        String applyUrl = text(job, "applyUrl");
+        String humanUrl = firstNonBlank(hostedUrl, applyUrl, sourceUrl);
+        String canonicalUrl = firstNonBlank(hostedUrl, applyUrl);
         String description = htmlToText(firstNonBlank(text(job, "descriptionPlain"), text(job, "description")));
         String identifier = text(job, "id");
         String location = text(job.path("categories"), "location");
@@ -341,7 +355,7 @@ public class AtsAdapterIngestionService {
             datePosted = Instant.ofEpochMilli(createdAtNode.asLong()).atZone(ZoneOffset.UTC).toLocalDate();
         }
 
-        return buildPosting(sourceUrl, canonicalUrl, title, company.name(), location, employmentType, datePosted, description, identifier);
+        return buildPosting(humanUrl, firstNonBlank(canonicalUrl, humanUrl, sourceUrl), title, company.name(), location, employmentType, datePosted, description, identifier);
     }
 
     private NormalizedJobPosting buildPosting(
@@ -490,9 +504,10 @@ public class AtsAdapterIngestionService {
                 htmlToText(text(job, "jobDescription"))
             );
 
+            String humanUrl = firstNonBlank(canonicalUrl, sourceUrl);
             NormalizedJobPosting posting = buildPosting(
-                sourceUrl,
-                canonicalUrl,
+                humanUrl,
+                firstNonBlank(canonicalUrl, humanUrl, sourceUrl),
                 title,
                 null,
                 location,
@@ -732,7 +747,12 @@ public class AtsAdapterIngestionService {
     private record WorkdayEndpoint(String host, String tenant, String site) {
     }
 
-    private record AdapterFetchResult(int jobsExtractedCount, int jobpostingPagesFoundCount, Map<String, Integer> errors) {
+    private record AdapterFetchResult(
+        int jobsExtractedCount,
+        int jobpostingPagesFoundCount,
+        Map<String, Integer> errors,
+        boolean successfulFetch
+    ) {
     }
 
     private record GreenhouseAttempt(

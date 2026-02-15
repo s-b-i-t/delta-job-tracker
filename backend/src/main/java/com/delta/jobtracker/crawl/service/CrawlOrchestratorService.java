@@ -104,7 +104,9 @@ public class CrawlOrchestratorService {
             try {
                 CompanyCrawlSummary summary = futures.get(i).join();
                 summaries.add(summary);
-                repository.markPostingsInactiveNotSeenInRun(target.companyId(), crawlRunId);
+                if (summary.closeoutSafe()) {
+                    repository.markPostingsInactiveNotSeenInRun(target.companyId(), crawlRunId);
+                }
             } catch (Exception e) {
                 hadErrors = true;
                 log.warn("Company crawl failed for {} ({})", target.ticker(), target.domain(), e);
@@ -119,6 +121,7 @@ public class CrawlOrchestratorService {
                     List.of(),
                     0,
                     0,
+                    false,
                     errorMap
                 ));
             }

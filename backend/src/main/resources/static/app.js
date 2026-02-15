@@ -6,6 +6,7 @@
   const loadActiveBtn = document.getElementById("loadActive");
   const loadNewBtn = document.getElementById("loadNew");
   const loadClosedBtn = document.getElementById("loadClosed");
+  const loadAllBtn = document.getElementById("loadAll");
   const resultsList = document.getElementById("resultsList");
   const resultsMeta = document.getElementById("resultsMeta");
   const detailPanel = document.getElementById("detailPanel");
@@ -27,9 +28,7 @@
 
   loadActiveBtn.addEventListener("click", async () => {
     const params = baseParams();
-    if (activeFilter.value !== "all") {
-      params.active = activeFilter.value;
-    }
+    params.active = "true";
     await loadJobs("/api/jobs", params, "Active Jobs");
   });
 
@@ -43,6 +42,12 @@
     await loadJobs("/api/jobs/closed", params, "Closed Jobs");
   });
 
+  loadAllBtn.addEventListener("click", async () => {
+    const params = baseParams();
+    delete params.active;
+    await loadJobs("/api/jobs", params, "All Jobs");
+  });
+
   function baseParams() {
     const params = {};
     const companyId = companyIdInput.value.trim();
@@ -54,6 +59,9 @@
     }
     if (since) {
       params.since = since;
+    }
+    if (activeFilter.value === "true" || activeFilter.value === "false") {
+      params.active = activeFilter.value;
     }
     if (limit) {
       params.limit = limit;
@@ -132,9 +140,19 @@
     detailMeta.textContent = [
       job.companyName || job.ticker || "Unknown Company",
       job.locationText || "Location N/A",
-      job.sourceUrl || "Source N/A",
       job.isActive ? "Active" : "Closed"
     ].join(" • ");
+
+    if (job.sourceUrl) {
+      const link = document.createElement("a");
+      link.href = job.sourceUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "Open posting";
+      link.className = "detail-link";
+      detailMeta.appendChild(document.createTextNode(" • "));
+      detailMeta.appendChild(link);
+    }
 
     const rawHtml = job.descriptionText || "<em>No description available.</em>";
     const sanitized = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml) : rawHtml;

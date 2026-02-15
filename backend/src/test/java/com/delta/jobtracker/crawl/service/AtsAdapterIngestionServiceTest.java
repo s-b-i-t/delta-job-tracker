@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,8 +69,10 @@ class AtsAdapterIngestionServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(1);
-        verify(repository, atLeastOnce()).upsertJobPosting(eq(1L), eq(10L), any(NormalizedJobPosting.class), any(Instant.class));
-        verify(httpClient, org.mockito.Mockito.never()).get(eq(fallbackUrl), anyString());
+        var captor = org.mockito.ArgumentCaptor.forClass(NormalizedJobPosting.class);
+        verify(repository, atLeastOnce()).upsertJobPosting(eq(1L), eq(10L), captor.capture(), any(Instant.class));
+        assertThat(captor.getValue().sourceUrl()).isEqualTo("https://boards.greenhouse.io/uber/jobs/123");
+        verify(httpClient, never()).get(eq(fallbackUrl), anyString());
     }
 
     @Test

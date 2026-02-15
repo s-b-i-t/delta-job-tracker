@@ -189,6 +189,16 @@ body {
   margin-bottom: 12px;
 }
 
+.detail-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.detail-link:hover {
+  text-decoration: underline;
+}
+
 .detail-description {
   font-size: 0.95rem;
   line-height: 1.5;

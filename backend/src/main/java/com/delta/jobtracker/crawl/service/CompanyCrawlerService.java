@@ -73,6 +73,8 @@ public class CompanyCrawlerService {
         Map<String, Integer> errors = new LinkedHashMap<>();
         Instant now = Instant.now();
         List<AtsDetectionRecord> atsDetections = new ArrayList<>();
+        boolean adapterSuccess = false;
+        boolean fallbackSuccess = false;
 
         List<AtsEndpointRecord> existingEndpoints = repository.findAtsEndpoints(company.companyId());
         for (AtsEndpointRecord endpoint : existingEndpoints) {
@@ -81,6 +83,7 @@ public class CompanyCrawlerService {
         AtsAdapterResult adapterResult = atsAdapterIngestionService.ingestIfSupported(crawlRunId, company, existingEndpoints);
         if (adapterResult != null) {
             mergeErrors(errors, adapterResult.errors());
+            adapterSuccess = adapterResult.successfulFetch();
             if (adapterResult.jobsExtractedCount() > 0) {
                 return new CompanyCrawlSummary(
                     company.companyId(),
@@ -91,6 +94,7 @@ public class CompanyCrawlerService {
                     dedupeAtsDetections(atsDetections),
                     adapterResult.jobpostingPagesFoundCount(),
                     adapterResult.jobsExtractedCount(),
+                    true,
                     topErrors(errors, 5)
                 );
             }
@@ -199,6 +203,7 @@ public class CompanyCrawlerService {
                 continue;
             }
 
+            fallbackSuccess = true;
             List<NormalizedJobPosting> postings = jobPostingExtractor.extract(fetch.body(), fetch.finalUrlOrRequested());
             if (postings.isEmpty()) {
                 repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "no_jobposting_structured_data", fetchedAt);
@@ -213,6 +218,7 @@ public class CompanyCrawlerService {
             }
         }
 
+        boolean closeoutSafe = adapterSuccess || fallbackSuccess;
         Map<String, Integer> topErrors = topErrors(errors, 5);
         return new CompanyCrawlSummary(
             company.companyId(),
@@ -223,6 +229,7 @@ public class CompanyCrawlerService {
             dedupeAtsDetections(atsDetections),
             pagesWithJobPosting,
             jobsExtracted,
+            closeoutSafe,
             topErrors
         );
     }

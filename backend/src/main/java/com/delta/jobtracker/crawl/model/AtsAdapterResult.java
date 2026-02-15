@@ -5,6 +5,7 @@ import java.util.Map;
 public record AtsAdapterResult(
     int jobsExtractedCount,
     int jobpostingPagesFoundCount,
-    Map<String, Integer> errors
+    Map<String, Integer> errors,
+    boolean successfulFetch
 ) {
 }
