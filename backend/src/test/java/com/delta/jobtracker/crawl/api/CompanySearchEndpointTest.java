@@ -8,6 +8,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -24,10 +25,10 @@ class CompanySearchEndpointTest {
 
     @Test
     void companySearchOrdersExactTickerFirst() {
-        String suffix = String.valueOf(System.nanoTime());
-        String searchTerm = "air" + suffix;
-        long companyAir = repository.upsertCompany(searchTerm.toUpperCase(), "Air Inc " + searchTerm, "Technology");
-        long companyAirbnb = repository.upsertCompany("AB" + suffix.substring(0, 4), "Airbnb " + searchTerm, "Technology");
+        String suffix = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        String searchTerm = "air" + suffix.toLowerCase();
+        long companyAir = repository.upsertCompany(("AIR" + suffix), "Air Inc " + searchTerm, "Technology");
+        long companyAirbnb = repository.upsertCompany(("AB" + suffix), "Airbnb " + searchTerm, "Technology");
 
         repository.upsertCompanyDomain(companyAir, "air.example.com", null, "test", 1.0, Instant.now());
         repository.upsertCompanyDomain(companyAirbnb, "airbnb.com", null, "test", 1.0, Instant.now());
@@ -35,6 +36,6 @@ class CompanySearchEndpointTest {
         var results = controller.searchCompanies(searchTerm, 20);
         assertEquals(2, results.size());
         assertEquals(companyAir, results.getFirst().id());
-        assertEquals(searchTerm.toUpperCase(), results.getFirst().ticker());
+        assertEquals(("AIR" + suffix), results.getFirst().ticker());
     }
 }

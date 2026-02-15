@@ -10,6 +10,7 @@ public record JobPostingView(
     String companyName,
     AtsType atsType,
     String sourceUrl,
+    String canonicalUrl,
     String title,
     String orgName,
     String locationText,

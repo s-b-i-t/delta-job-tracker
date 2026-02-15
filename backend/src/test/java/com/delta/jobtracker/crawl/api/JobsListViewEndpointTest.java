@@ -83,16 +83,19 @@ class JobsListViewEndpointTest {
 
         mockMvc.perform(get("/api/jobs").param("companyId", String.valueOf(companyId)).param("active", "true"))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].canonicalUrl").value("https://example.com/jobs/a"))
             .andExpect(jsonPath("$[0].descriptionText").doesNotExist())
             .andExpect(jsonPath("$[0].contentHash").doesNotExist());
 
         mockMvc.perform(get("/api/jobs/new").param("companyId", String.valueOf(companyId)).param("since", since))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].canonicalUrl").exists())
             .andExpect(jsonPath("$[0].descriptionText").doesNotExist())
             .andExpect(jsonPath("$[0].contentHash").doesNotExist());
 
         mockMvc.perform(get("/api/jobs/closed").param("companyId", String.valueOf(companyId)).param("since", since))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].canonicalUrl").exists())
             .andExpect(jsonPath("$[0].descriptionText").doesNotExist())
             .andExpect(jsonPath("$[0].contentHash").doesNotExist());
     }

@@ -23,6 +23,10 @@
           <input id="companyId" type="text" placeholder="Optional (e.g., 12)" />
         </div>
         <div class="control wide">
+          <label for="apiBase">API Base URL</label>
+          <input id="apiBase" type="text" placeholder="http://localhost:8080" />
+        </div>
+        <div class="control wide">
           <label for="companySearch">Search Company</label>
           <input id="companySearch" type="text" placeholder="Type a ticker or name (e.g., air)" />
           <div id="companySuggestions" class="suggestions"></div>
@@ -30,13 +34,6 @@
         <div class="control wide">
           <label for="query">Query</label>
           <input id="query" type="text" placeholder="software engineer OR data scientist" />
-        </div>
-        <div class="control inline">
-          <label class="checkbox" for="csMode">
-            <input id="csMode" type="checkbox" />
-            CS Mode
-          </label>
-          <button id="usePreset" class="btn small" type="button">Use CS preset</button>
         </div>
         <div class="control">
           <label for="activeFilter">List Filter</label>

@@ -55,6 +55,7 @@ class JobDetailEndpointTest {
         var detail = controller.getJobDetail(listItem.id());
 
         assertNotNull(detail);
+        assertEquals("https://example.com/jobs/a", detail.canonicalUrl());
         assertEquals("<p>Detail HTML</p>", detail.descriptionText());
     }
 }

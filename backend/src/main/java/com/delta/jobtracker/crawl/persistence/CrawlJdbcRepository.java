@@ -679,10 +679,15 @@ public class CrawlJdbcRepository {
         if (posting.descriptionText() != null && !posting.descriptionText().isBlank()) {
             descriptionPlain = Jsoup.parse(posting.descriptionText()).text();
         }
+        String canonicalUrl = posting.canonicalUrl();
+        if (canonicalUrl == null || canonicalUrl.isBlank()) {
+            canonicalUrl = posting.sourceUrl();
+        }
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("crawlRunId", crawlRunId)
             .addValue("sourceUrl", posting.sourceUrl())
+            .addValue("canonicalUrl", canonicalUrl)
             .addValue("title", posting.title())
             .addValue("orgName", posting.orgName())
             .addValue("locationText", posting.locationText())
@@ -699,6 +704,7 @@ public class CrawlJdbcRepository {
             """
                 UPDATE job_postings
                 SET source_url = :sourceUrl,
+                    canonical_url = COALESCE(:canonicalUrl, canonical_url),
                     crawl_run_id = COALESCE(:crawlRunId, crawl_run_id),
                     title = :title,
                     org_name = :orgName,
@@ -720,12 +726,12 @@ public class CrawlJdbcRepository {
                 jdbc.update(
                     """
                         INSERT INTO job_postings (
-                            company_id, crawl_run_id, source_url, title, org_name, location_text,
+                            company_id, crawl_run_id, source_url, canonical_url, title, org_name, location_text,
                             employment_type, date_posted, description_text, description_plain, external_identifier,
                             content_hash, first_seen_at, last_seen_at, is_active
                         )
                         VALUES (
-                            :companyId, :crawlRunId, :sourceUrl, :title, :orgName, :locationText,
+                            :companyId, :crawlRunId, :sourceUrl, :canonicalUrl, :title, :orgName, :locationText,
                             :employmentType, :datePosted, :descriptionText, :descriptionPlain, :externalIdentifier,
                             :contentHash, :fetchedAt, :fetchedAt, :isActive
                         )
@@ -737,6 +743,7 @@ public class CrawlJdbcRepository {
                     """
                         UPDATE job_postings
                         SET source_url = :sourceUrl,
+                            canonical_url = COALESCE(:canonicalUrl, canonical_url),
                             crawl_run_id = COALESCE(:crawlRunId, crawl_run_id),
                             title = :title,
                             org_name = :orgName,
@@ -1028,6 +1035,7 @@ public class CrawlJdbcRepository {
                        c.name AS company_name,
                        latest_ats.ats_type AS latest_ats_type,
                        jp.source_url,
+                       jp.canonical_url,
                        jp.title,
                        jp.org_name,
                        jp.location_text,
@@ -1073,6 +1081,7 @@ public class CrawlJdbcRepository {
                 rs.getString("company_name"),
                 parseAtsType(rs.getString("latest_ats_type")),
                 rs.getString("source_url"),
+                rs.getString("canonical_url"),
                 rs.getString("title"),
                 rs.getString("org_name"),
                 rs.getString("location_text"),
@@ -1101,6 +1110,7 @@ public class CrawlJdbcRepository {
                        c.name AS company_name,
                        latest_ats.ats_type AS latest_ats_type,
                        jp.source_url,
+                       jp.canonical_url,
                        jp.title,
                        jp.org_name,
                        jp.location_text,
@@ -1137,6 +1147,7 @@ public class CrawlJdbcRepository {
                 rs.getString("company_name"),
                 parseAtsType(rs.getString("latest_ats_type")),
                 rs.getString("source_url"),
+                rs.getString("canonical_url"),
                 rs.getString("title"),
                 rs.getString("org_name"),
                 rs.getString("location_text"),
@@ -1165,6 +1176,7 @@ public class CrawlJdbcRepository {
                        c.name AS company_name,
                        latest_ats.ats_type AS latest_ats_type,
                        jp.source_url,
+                       jp.canonical_url,
                        jp.title,
                        jp.org_name,
                        jp.location_text,
@@ -1202,6 +1214,7 @@ public class CrawlJdbcRepository {
                 rs.getString("company_name"),
                 parseAtsType(rs.getString("latest_ats_type")),
                 rs.getString("source_url"),
+                rs.getString("canonical_url"),
                 rs.getString("title"),
                 rs.getString("org_name"),
                 rs.getString("location_text"),
@@ -1226,6 +1239,7 @@ public class CrawlJdbcRepository {
                        c.name AS company_name,
                        latest_ats.ats_type AS latest_ats_type,
                        jp.source_url,
+                       jp.canonical_url,
                        jp.title,
                        jp.org_name,
                        jp.location_text,
@@ -1260,6 +1274,7 @@ public class CrawlJdbcRepository {
                 rs.getString("company_name"),
                 parseAtsType(rs.getString("latest_ats_type")),
                 rs.getString("source_url"),
+                rs.getString("canonical_url"),
                 rs.getString("title"),
                 rs.getString("org_name"),
                 rs.getString("location_text"),
