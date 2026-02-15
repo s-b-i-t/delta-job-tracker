@@ -45,10 +45,18 @@ public class PoliteHttpClient {
     }
 
     public HttpFetchResult postJson(String url, String jsonBody, String acceptHeader) {
-        return send(url, "POST", acceptHeader, jsonBody == null ? "" : jsonBody);
+        return send(url, "POST", acceptHeader, jsonBody == null ? "" : jsonBody, "application/json");
+    }
+
+    public HttpFetchResult postForm(String url, String formBody, String acceptHeader) {
+        return send(url, "POST", acceptHeader, formBody == null ? "" : formBody, "application/x-www-form-urlencoded");
     }
 
     private HttpFetchResult send(String url, String method, String acceptHeader, String body) {
+        return send(url, method, acceptHeader, body, "application/json");
+    }
+
+    private HttpFetchResult send(String url, String method, String acceptHeader, String body, String contentType) {
         Instant startedAt = Instant.now();
         URI uri = normalizeUri(url);
         if (uri == null || uri.getHost() == null) {
@@ -80,12 +88,11 @@ public class PoliteHttpClient {
                 .timeout(Duration.ofSeconds(properties.getRequestTimeoutSeconds()))
                 .header("User-Agent", safeUserAgent)
                 .header("Accept", safeAccept)
-                .header("Accept-Language", "en-US,en;q=0.8")
-                .header("Connection", "close");
+                .header("Accept-Language", "en-US,en;q=0.8");
             HttpRequest request;
             if ("POST".equalsIgnoreCase(method)) {
                 request = builder
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", contentType == null || contentType.isBlank() ? "application/json" : contentType)
                     .POST(HttpRequest.BodyPublishers.ofString(body == null ? "" : body, StandardCharsets.UTF_8))
                     .build();
             } else {

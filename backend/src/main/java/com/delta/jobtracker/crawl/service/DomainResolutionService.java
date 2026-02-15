@@ -33,6 +33,10 @@ public class DomainResolutionService {
     private static final String WDQS_ENDPOINT = "https://query.wikidata.org/bigdata/namespace/wdq/sparql";
     private static final String SPARQL_ACCEPT = "application/sparql-results+json";
     private static final int MAX_ERROR_SAMPLES = 10;
+    private static final int WDQS_MAX_ATTEMPTS = 3;
+    private static final long WDQS_RETRY_BASE_MS = 750L;
+    private static final long WDQS_RETRY_MAX_MS = 4000L;
+    private static final int WDQS_BODY_SAMPLE_CHARS = 500;
 
     private final CrawlerProperties properties;
     private final CrawlJdbcRepository repository;
@@ -78,10 +82,23 @@ public class DomainResolutionService {
         int batchSize = Math.min(properties.getDomainResolution().getBatchSize(), limit);
         Counts counts = new Counts();
         ErrorCollector errors = new ErrorCollector();
+        int totalWithTitle = 0;
+        for (CompanyIdentity company : missingDomain) {
+            if (company.wikipediaTitle() != null && !company.wikipediaTitle().isBlank()) {
+                totalWithTitle++;
+            }
+        }
+        int batchCount = (missingDomain.size() + batchSize - 1) / batchSize;
+        log.info("Domain resolver starting: companies={}, with_wikipedia_title={}, batch_size={}",
+            missingDomain.size(),
+            totalWithTitle,
+            batchSize
+        );
 
         for (int from = 0; from < missingDomain.size(); from += batchSize) {
             int to = Math.min(missingDomain.size(), from + batchSize);
             List<CompanyIdentity> batch = missingDomain.subList(from, to);
+            int batchIndex = (from / batchSize) + 1;
 
             Map<CompanyIdentity, List<String>> titlesByCompany = new LinkedHashMap<>();
             Map<String, List<CompanyIdentity>> companiesByTitle = new LinkedHashMap<>();
@@ -100,9 +117,17 @@ public class DomainResolutionService {
             }
 
             if (titlesByCompany.isEmpty()) {
+                log.info("Domain resolver batch {}/{} skipped (no wikipedia_title)", batchIndex, batchCount);
                 continue;
             }
 
+            log.info(
+                "Domain resolver batch {}/{} companies={} titles={}",
+                batchIndex,
+                batchCount,
+                batch.size(),
+                companiesByTitle.keySet().size()
+            );
             WdqsLookup lookup = fetchWdqsMatches(new ArrayList<>(companiesByTitle.keySet()));
             if (lookup == null) {
                 counts.wdqsError += titlesByCompany.size();
@@ -181,17 +206,17 @@ public class DomainResolutionService {
         }
 
         String values = titles.stream()
-            .map(this::sparqlLiteral)
+            .map(title -> sparqlLangLiteral(title, "en"))
             .reduce((a, b) -> a + " " + b)
             .orElse("");
 
         String query =
             """
                 PREFIX schema: <http://schema.org/>
-                SELECT ?title ?item ?officialWebsite WHERE {
-                  VALUES ?title { %s }
+                SELECT ?articleTitle ?item ?officialWebsite WHERE {
+                  VALUES ?articleTitle { %s }
                   ?article schema:isPartOf <https://en.wikipedia.org/> ;
-                           schema:name ?title ;
+                           schema:name ?articleTitle ;
                            schema:about ?item .
                   OPTIONAL { ?item wdt:P856 ?officialWebsite . }
                 }
@@ -206,7 +231,7 @@ public class DomainResolutionService {
         JsonNode bindings = root.path("results").path("bindings");
         if (bindings.isArray()) {
             for (JsonNode row : bindings) {
-                String title = row.path("title").path("value").asText(null);
+                String title = row.path("articleTitle").path("value").asText(null);
                 String item = row.path("item").path("value").asText(null);
                 String website = row.path("officialWebsite").path("value").asText(null);
                 if (title == null || item == null) {
@@ -225,20 +250,35 @@ public class DomainResolutionService {
     }
 
     private JsonNode executeWdqsQuery(String sparql) {
-        waitForWdqsSlot();
         String encoded = URLEncoder.encode(sparql, StandardCharsets.UTF_8);
-        String url = WDQS_ENDPOINT + "?query=" + encoded;
-        HttpFetchResult fetch = httpClient.get(url, SPARQL_ACCEPT);
-        if (!fetch.isSuccessful() || fetch.statusCode() < 200 || fetch.statusCode() >= 300 || fetch.body() == null) {
-            log.warn("WDQS query failed: status={}, errorCode={}", fetch.statusCode(), fetch.errorCode());
-            return null;
+        String formBody = "query=" + encoded;
+
+        for (int attempt = 1; attempt <= WDQS_MAX_ATTEMPTS; attempt++) {
+            waitForWdqsSlot();
+            HttpFetchResult fetch = httpClient.postForm(WDQS_ENDPOINT, formBody, SPARQL_ACCEPT);
+            if (fetch.isSuccessful() && fetch.statusCode() >= 200 && fetch.statusCode() < 300 && fetch.body() != null) {
+                try {
+                    return objectMapper.readTree(fetch.body());
+                } catch (Exception e) {
+                    log.warn("Failed to parse WDQS response on attempt {}", attempt, e);
+                    return null;
+                }
+            }
+
+            log.warn(
+                "WDQS query failed attempt={} status={} errorCode={} bodySample={}",
+                attempt,
+                fetch.statusCode(),
+                fetch.errorCode(),
+                sampleBody(fetch.body())
+            );
+
+            if (!shouldRetry(fetch) || attempt == WDQS_MAX_ATTEMPTS) {
+                return null;
+            }
+            sleepBackoff(attempt);
         }
-        try {
-            return objectMapper.readTree(fetch.body());
-        } catch (Exception e) {
-            log.warn("Failed to parse WDQS response", e);
-            return null;
-        }
+        return null;
     }
 
     private void waitForWdqsSlot() {
@@ -268,14 +308,11 @@ public class DomainResolutionService {
         }
 
         String decoded = decodeTitle(trimmed);
-        String spaced = decoded.replace('_', ' ');
-
-        LinkedHashSet<String> variants = new LinkedHashSet<>();
-        variants.add(trimmed);
-        variants.add(decoded);
-        variants.add(spaced);
-        variants.removeIf(value -> value == null || value.isBlank());
-        return new ArrayList<>(variants);
+        String spaced = decoded.replace('_', ' ').trim();
+        if (spaced.isBlank()) {
+            return List.of();
+        }
+        return List.of(spaced);
     }
 
     private String stripFragmentAndQuery(String value) {
@@ -330,6 +367,14 @@ public class DomainResolutionService {
         return "\"" + escaped + "\"";
     }
 
+    private String sparqlLangLiteral(String raw, String lang) {
+        String literal = sparqlLiteral(raw);
+        if (lang == null || lang.isBlank()) {
+            return literal;
+        }
+        return literal + "@" + lang;
+    }
+
     private String extractQid(String itemUrl) {
         if (itemUrl == null || itemUrl.isBlank()) {
             return null;
@@ -340,6 +385,37 @@ public class DomainResolutionService {
         }
         String candidate = itemUrl.substring(idx + 1);
         return candidate.isBlank() ? null : candidate;
+    }
+
+    private boolean shouldRetry(HttpFetchResult fetch) {
+        if (fetch == null) {
+            return true;
+        }
+        if (fetch.errorCode() != null) {
+            return true;
+        }
+        int status = fetch.statusCode();
+        return status == 429 || status >= 500;
+    }
+
+    private void sleepBackoff(int attempt) {
+        long backoffMs = Math.min(WDQS_RETRY_MAX_MS, WDQS_RETRY_BASE_MS * (1L << (attempt - 1)));
+        try {
+            Thread.sleep(backoffMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private String sampleBody(String body) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        String cleaned = body.replaceAll("\\s+", " ").trim();
+        if (cleaned.length() <= WDQS_BODY_SAMPLE_CHARS) {
+            return cleaned;
+        }
+        return cleaned.substring(0, WDQS_BODY_SAMPLE_CHARS) + "...";
     }
 
     private static class Counts {

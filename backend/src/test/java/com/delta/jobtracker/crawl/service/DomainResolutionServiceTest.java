@@ -50,7 +50,7 @@ class DomainResolutionServiceTest {
     void resolvesWikipediaTitleWithP856() {
         CompanyIdentity company = new CompanyIdentity(1L, "AAPL", "Apple Inc.", "Tech", "Apple_Inc.");
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.get(anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithWebsite()));
+        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithWebsite()));
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -72,7 +72,7 @@ class DomainResolutionServiceTest {
     void reportsNoP856WhenItemHasNoWebsite() {
         CompanyIdentity company = new CompanyIdentity(2L, "TEST", "Test Co", null, "Test_Company");
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.get(anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithoutWebsite()));
+        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithoutWebsite()));
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -87,7 +87,7 @@ class DomainResolutionServiceTest {
     void reportsNoItemWhenSitelinkMissing() {
         CompanyIdentity company = new CompanyIdentity(3L, "NONE", "Missing Co", null, "Missing_Co");
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.get(anyString(), anyString())).thenReturn(successFetch(wdqsEmptyResponse()));
+        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsEmptyResponse()));
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -102,7 +102,7 @@ class DomainResolutionServiceTest {
     void reportsWdqsErrorWhenQueryFails() {
         CompanyIdentity company = new CompanyIdentity(4L, "FAIL", "Failure Inc", null, "Failure_Inc");
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.get(anyString(), anyString())).thenReturn(failureFetch());
+        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(failureFetch());
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -148,7 +148,7 @@ class DomainResolutionServiceTest {
     private String wdqsResponseWithWebsite() {
         return """
             {"results":{"bindings":[
-              {"title":{"value":"Apple_Inc."},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
+              {"articleTitle":{"value":"Apple Inc."},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
             ]}}
             """;
     }
@@ -156,7 +156,7 @@ class DomainResolutionServiceTest {
     private String wdqsResponseWithoutWebsite() {
         return """
             {"results":{"bindings":[
-              {"title":{"value":"Test_Company"},"item":{"value":"http://www.wikidata.org/entity/Q999"}}
+              {"articleTitle":{"value":"Test Company"},"item":{"value":"http://www.wikidata.org/entity/Q999"}}
             ]}}
             """;
     }
