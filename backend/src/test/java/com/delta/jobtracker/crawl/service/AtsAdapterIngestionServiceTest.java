@@ -59,7 +59,8 @@ class AtsAdapterIngestionServiceTest {
             0.9,
             Instant.now()
         );
-        String feedUrl = "https://api.greenhouse.io/v1/boards/uber/jobs?content=true";
+        String feedUrl = "https://boards-api.greenhouse.io/v1/boards/uber/jobs?content=true";
+        String fallbackUrl = "https://api.greenhouse.io/v1/boards/uber/jobs?content=true";
         when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
         when(httpClient.get(eq(feedUrl), anyString())).thenReturn(successFetch(feedUrl, greenhousePayload()));
 
@@ -68,6 +69,7 @@ class AtsAdapterIngestionServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(1);
         verify(repository, atLeastOnce()).upsertJobPosting(eq(1L), eq(10L), any(NormalizedJobPosting.class), any(Instant.class));
+        verify(httpClient, org.mockito.Mockito.never()).get(eq(fallbackUrl), anyString());
     }
 
     @Test

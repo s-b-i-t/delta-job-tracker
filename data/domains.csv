@@ -1,5 +1,6 @@
 ticker,company_name,domain,optional_careers_hint_url
 AAPL,Apple Inc.,apple.com,https://jobs.apple.com/en-us/search
+ABNB,Airbnb Inc.,airbnb.com,https://boards.greenhouse.io/airbnb
 MSFT,Microsoft Corporation,microsoft.com,https://jobs.careers.microsoft.com/global/en
 GOOGL,Alphabet Inc.,abc.xyz,https://careers.google.com/jobs/results/
 AMZN,Amazon.com Inc.,amazon.com,https://www.amazon.jobs

@@ -112,53 +112,72 @@ public class AtsAdapterIngestionService {
             return new AdapterFetchResult(0, 0, errors);
         }
 
-        String primaryUrl = "https://api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
-        String fallbackUrl = "https://boards-api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
-        List<String> attempts = List.of(primaryUrl, fallbackUrl);
+        String primaryUrl = "https://boards-api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
+        String fallbackUrl = "https://api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
 
-        for (String feedUrl : attempts) {
-            if (!robotsTxtService.isAllowedForAtsAdapter(feedUrl)) {
-                String status = "greenhouse_blocked_by_robots";
-                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, null, "blocked_by_robots");
-                increment(errors, status);
-                continue;
-            }
-            HttpFetchResult fetch = httpClient.get(feedUrl, "application/json,*/*;q=0.8");
-            if (!fetch.isSuccessful() || fetch.body() == null || fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
-                String status = adapterFetchStatus("greenhouse", fetch);
-                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, null);
-                increment(errors, status);
-                continue;
-            }
+        GreenhouseAttempt primary = fetchGreenhouseFeed(crawlRunId, company, primaryUrl, errors);
+        if (primary.success()) {
+            return new AdapterFetchResult(primary.jobsExtractedCount(), primary.jobpostingPagesFoundCount(), errors);
+        }
+        if (primary.payloadInvalid()) {
+            return new AdapterFetchResult(0, 0, errors);
+        }
+        if (!primary.shouldFallback()) {
+            return new AdapterFetchResult(0, 0, errors);
+        }
 
-            try {
-                JsonNode root = objectMapper.readTree(fetch.body());
-                JsonNode jobs = root.path("jobs");
-                if (!jobs.isArray()) {
-                    String status = "greenhouse_invalid_payload";
-                    recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, "invalid_payload");
-                    increment(errors, status);
+        GreenhouseAttempt fallback = fetchGreenhouseFeed(crawlRunId, company, fallbackUrl, errors);
+        return new AdapterFetchResult(fallback.jobsExtractedCount(), fallback.jobpostingPagesFoundCount(), errors);
+    }
+
+    private GreenhouseAttempt fetchGreenhouseFeed(
+        long crawlRunId,
+        CompanyTarget company,
+        String feedUrl,
+        Map<String, Integer> errors
+    ) {
+        if (!robotsTxtService.isAllowedForAtsAdapter(feedUrl)) {
+            String status = "greenhouse_blocked_by_robots";
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, null, "blocked_by_robots");
+            increment(errors, status);
+            return new GreenhouseAttempt(0, 0, false, false, false);
+        }
+
+        HttpFetchResult fetch = httpClient.get(feedUrl, "application/json,*/*;q=0.8");
+        if (!fetch.isSuccessful() || fetch.body() == null || fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
+            String status = adapterFetchStatus("greenhouse", fetch);
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, null);
+            increment(errors, status);
+            return new GreenhouseAttempt(0, 0, false, true, false);
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(fetch.body());
+            JsonNode jobs = root.path("jobs");
+            if (!jobs.isArray()) {
+                String status = "greenhouse_invalid_payload";
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, "invalid_payload");
+                increment(errors, status);
+                return new GreenhouseAttempt(0, 0, false, false, true);
+            }
+            int extracted = 0;
+            for (JsonNode job : jobs) {
+                NormalizedJobPosting posting = normalizeGreenhousePosting(company, job, feedUrl);
+                if (posting == null) {
                     continue;
                 }
-                int extracted = 0;
-                for (JsonNode job : jobs) {
-                    NormalizedJobPosting posting = normalizeGreenhousePosting(company, job, feedUrl);
-                    if (posting == null) {
-                        continue;
-                    }
-                    repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
-                    extracted++;
-                }
-                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, "ats_fetch_success", fetch, null);
-                return new AdapterFetchResult(extracted, extracted > 0 ? 1 : 0, errors);
-            } catch (Exception e) {
-                log.warn("Failed to parse Greenhouse payload for {}", company.ticker(), e);
-                String status = "greenhouse_parse_error";
-                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, "parse_error");
-                increment(errors, status);
+                repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
+                extracted++;
             }
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, "ats_fetch_success", fetch, null);
+            return new GreenhouseAttempt(extracted, extracted > 0 ? 1 : 0, true, false, false);
+        } catch (Exception e) {
+            log.warn("Failed to parse Greenhouse payload for {}", company.ticker(), e);
+            String status = "greenhouse_parse_error";
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, "parse_error");
+            increment(errors, status);
+            return new GreenhouseAttempt(0, 0, false, false, false);
         }
-        return new AdapterFetchResult(0, 0, errors);
     }
 
     private AdapterFetchResult ingestFromLever(long crawlRunId, CompanyTarget company, String endpointUrl) {
@@ -714,5 +733,14 @@ public class AtsAdapterIngestionService {
     }
 
     private record AdapterFetchResult(int jobsExtractedCount, int jobpostingPagesFoundCount, Map<String, Integer> errors) {
+    }
+
+    private record GreenhouseAttempt(
+        int jobsExtractedCount,
+        int jobpostingPagesFoundCount,
+        boolean success,
+        boolean shouldFallback,
+        boolean payloadInvalid
+    ) {
     }
 }
