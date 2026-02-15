@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Delta Job Tracker</title>
     <link rel="stylesheet" href="/styles.css" />
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.4/dist/purify.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -54,6 +54,12 @@
           <label for="limit">Limit</label>
           <input id="limit" type="number" min="1" max="500" value="50" />
         </div>
+        <div class="control inline">
+          <label class="checkbox" for="autoUpdateLastCheck">
+            <input id="autoUpdateLastCheck" type="checkbox" />
+            Auto-update Last Check
+          </label>
+        </div>
         <div class="actions">
           <button id="loadActive" class="btn primary">Load Active</button>
           <button id="loadAll" class="btn">Load All</button>
@@ -62,6 +68,7 @@
           <button id="loadClosed" class="btn">Load Closed Since</button>
           <button id="setLastCheck" class="btn">Set Last Check = Now</button>
         </div>
+        <div id="lastCheckHint" class="meta"></div>
       </section>
 
       <section class="results">

@@ -14,6 +14,8 @@
   const loadClosedBtn = document.getElementById("loadClosed");
   const loadAllBtn = document.getElementById("loadAll");
   const setLastCheckBtn = document.getElementById("setLastCheck");
+  const lastCheckHint = document.getElementById("lastCheckHint");
+  const autoUpdateLastCheckToggle = document.getElementById("autoUpdateLastCheck");
   const resultsList = document.getElementById("resultsList");
   const resultsMeta = document.getElementById("resultsMeta");
   const detailPanel = document.getElementById("detailPanel");
@@ -31,7 +33,8 @@
     activeFilter: "dj_activeFilter",
     since: "dj_since",
     limit: "dj_limit",
-    lastCheckAt: "dj_lastCheckAt"
+    lastCheckAt: "dj_lastCheckAt",
+    autoUpdateLastCheck: "dj_autoUpdateLastCheck"
   };
 
   const state = {
@@ -47,9 +50,7 @@
 
   setLastCheckBtn.addEventListener("click", () => {
     const now = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEYS.lastCheckAt, now);
-    sinceInput.value = now;
-    persistSettings();
+    setLastCheck(now, true);
   });
 
   usePresetBtn.addEventListener("click", () => {
@@ -69,6 +70,8 @@
     input.addEventListener("change", persistSettings);
   });
 
+  autoUpdateLastCheckToggle.addEventListener("change", persistSettings);
+
   loadActiveBtn.addEventListener("click", async () => {
     const params = baseParams();
     params.active = "true";
@@ -87,7 +90,11 @@
     if (since) {
       params.since = since;
     }
-    await loadJobs("/api/jobs/new", params, "New Jobs Since Last Check");
+    const result = await loadJobs("/api/jobs/new", params, "New Jobs Since Last Check");
+    if (result.success && autoUpdateLastCheckToggle.checked) {
+      const now = new Date().toISOString();
+      setLastCheck(now, true);
+    }
   });
 
   loadClosedBtn.addEventListener("click", async () => {
@@ -155,8 +162,10 @@
       state.jobs = jobs;
       resultsMeta.textContent = `${label} (${jobs.length})`;
       renderResults(jobs);
+      return { success: true, jobs };
     } catch (err) {
       resultsMeta.textContent = `Error: ${err.message}`;
+      return { success: false, jobs: [] };
     }
   }
 
@@ -269,6 +278,7 @@
     const storedSince = localStorage.getItem(STORAGE_KEYS.since);
     const storedLimit = localStorage.getItem(STORAGE_KEYS.limit);
     const storedLastCheck = localStorage.getItem(STORAGE_KEYS.lastCheckAt);
+    const storedAutoUpdate = localStorage.getItem(STORAGE_KEYS.autoUpdateLastCheck);
 
     if (storedCompanyId !== null) {
       companyIdInput.value = storedCompanyId;
@@ -294,6 +304,12 @@
     if (storedLimit !== null) {
       limitInput.value = storedLimit;
     }
+    if (storedAutoUpdate !== null) {
+      autoUpdateLastCheckToggle.checked = storedAutoUpdate === "true";
+    } else {
+      autoUpdateLastCheckToggle.checked = true;
+    }
+    updateLastCheckHint();
   }
 
   function persistSettings() {
@@ -303,6 +319,31 @@
     localStorage.setItem(STORAGE_KEYS.activeFilter, activeFilter.value);
     localStorage.setItem(STORAGE_KEYS.since, sinceInput.value.trim());
     localStorage.setItem(STORAGE_KEYS.limit, limitInput.value.trim());
+    localStorage.setItem(
+      STORAGE_KEYS.autoUpdateLastCheck,
+      autoUpdateLastCheckToggle.checked ? "true" : "false"
+    );
+  }
+
+  function setLastCheck(timestamp, updateSinceInput) {
+    localStorage.setItem(STORAGE_KEYS.lastCheckAt, timestamp);
+    if (updateSinceInput) {
+      sinceInput.value = timestamp;
+    }
+    updateLastCheckHint();
+    persistSettings();
+  }
+
+  function updateLastCheckHint() {
+    const storedLastCheck = localStorage.getItem(STORAGE_KEYS.lastCheckAt);
+    if (!lastCheckHint) {
+      return;
+    }
+    if (!storedLastCheck) {
+      lastCheckHint.textContent = "Last check: Not set";
+      return;
+    }
+    lastCheckHint.textContent = `Last check: ${storedLastCheck}`;
   }
 
   async function searchCompanies(term) {
