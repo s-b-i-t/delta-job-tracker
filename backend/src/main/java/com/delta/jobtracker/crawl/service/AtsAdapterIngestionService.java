@@ -5,6 +5,7 @@ import com.delta.jobtracker.crawl.model.AtsAdapterResult;
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
+import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -117,12 +118,16 @@ public class AtsAdapterIngestionService {
 
         for (String feedUrl : attempts) {
             if (!robotsTxtService.isAllowedForAtsAdapter(feedUrl)) {
-                increment(errors, "greenhouse_blocked_by_robots");
+                String status = "greenhouse_blocked_by_robots";
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, null, "blocked_by_robots");
+                increment(errors, status);
                 continue;
             }
             HttpFetchResult fetch = httpClient.get(feedUrl, "application/json,*/*;q=0.8");
             if (!fetch.isSuccessful() || fetch.body() == null || fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
-                increment(errors, fetch.errorCode() == null ? "greenhouse_http_" + fetch.statusCode() : fetch.errorCode());
+                String status = adapterFetchStatus("greenhouse", fetch);
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, null);
+                increment(errors, status);
                 continue;
             }
 
@@ -130,7 +135,9 @@ public class AtsAdapterIngestionService {
                 JsonNode root = objectMapper.readTree(fetch.body());
                 JsonNode jobs = root.path("jobs");
                 if (!jobs.isArray()) {
-                    increment(errors, "greenhouse_invalid_payload");
+                    String status = "greenhouse_invalid_payload";
+                    recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, "invalid_payload");
+                    increment(errors, status);
                     continue;
                 }
                 int extracted = 0;
@@ -142,10 +149,13 @@ public class AtsAdapterIngestionService {
                     repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
                     extracted++;
                 }
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, "ats_fetch_success", fetch, null);
                 return new AdapterFetchResult(extracted, extracted > 0 ? 1 : 0, errors);
             } catch (Exception e) {
                 log.warn("Failed to parse Greenhouse payload for {}", company.ticker(), e);
-                increment(errors, "greenhouse_parse_error");
+                String status = "greenhouse_parse_error";
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, "parse_error");
+                increment(errors, status);
             }
         }
         return new AdapterFetchResult(0, 0, errors);
@@ -161,20 +171,26 @@ public class AtsAdapterIngestionService {
 
         String feedUrl = "https://api.lever.co/v0/postings/" + account + "?mode=json";
         if (!robotsTxtService.isAllowedForAtsAdapter(feedUrl)) {
-            increment(errors, "lever_blocked_by_robots");
+            String status = "lever_blocked_by_robots";
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, null, "blocked_by_robots");
+            increment(errors, status);
             return new AdapterFetchResult(0, 0, errors);
         }
 
         HttpFetchResult fetch = httpClient.get(feedUrl, "application/json,*/*;q=0.8");
         if (!fetch.isSuccessful() || fetch.body() == null || fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
-            increment(errors, fetch.errorCode() == null ? "lever_http_" + fetch.statusCode() : fetch.errorCode());
+            String status = adapterFetchStatus("lever", fetch);
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, fetch, null);
+            increment(errors, status);
             return new AdapterFetchResult(0, 0, errors);
         }
 
         try {
             JsonNode root = objectMapper.readTree(fetch.body());
             if (!root.isArray()) {
-                increment(errors, "lever_invalid_payload");
+                String status = "lever_invalid_payload";
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, fetch, "invalid_payload");
+                increment(errors, status);
                 return new AdapterFetchResult(0, 0, errors);
             }
             int extracted = 0;
@@ -186,10 +202,13 @@ public class AtsAdapterIngestionService {
                 repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
                 extracted++;
             }
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, "ats_fetch_success", fetch, null);
             return new AdapterFetchResult(extracted, extracted > 0 ? 1 : 0, errors);
         } catch (Exception e) {
             log.warn("Failed to parse Lever payload for {}", company.ticker(), e);
-            increment(errors, "lever_parse_error");
+            String status = "lever_parse_error";
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, fetch, "parse_error");
+            increment(errors, status);
             return new AdapterFetchResult(0, 0, errors);
         }
     }
@@ -204,7 +223,9 @@ public class AtsAdapterIngestionService {
 
         String cxsUrl = "https://" + endpoint.host() + "/wday/cxs/" + endpoint.tenant() + "/" + endpoint.site() + "/jobs";
         if (!robotsTxtService.isAllowedForAtsAdapter(cxsUrl)) {
-            increment(errors, "workday_blocked_by_robots");
+            String status = "workday_blocked_by_robots";
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, status, null, "blocked_by_robots");
+            increment(errors, status);
             return new AdapterFetchResult(0, 0, errors);
         }
 
@@ -214,7 +235,9 @@ public class AtsAdapterIngestionService {
         for (int page = 0; page < WORKDAY_MAX_PAGES; page++) {
             HttpFetchResult fetch = fetchWorkdayPage(cxsUrl, offset);
             if (!fetch.isSuccessful() || fetch.body() == null || fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
-                increment(errors, fetch.errorCode() == null ? "workday_http_" + fetch.statusCode() : fetch.errorCode());
+                String status = adapterFetchStatus("workday", fetch);
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, status, fetch, null);
+                increment(errors, status);
                 break;
             }
 
@@ -222,6 +245,7 @@ public class AtsAdapterIngestionService {
                 JsonNode root = objectMapper.readTree(fetch.body());
                 List<NormalizedJobPosting> postings = parseWorkdayJobPostings(endpoint.host(), root, cxsUrl);
                 if (postings.isEmpty()) {
+                    recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, "ats_fetch_success", fetch, null);
                     break;
                 }
                 pagesWithJobs++;
@@ -229,13 +253,16 @@ public class AtsAdapterIngestionService {
                     repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
                     extracted++;
                 }
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, "ats_fetch_success", fetch, null);
                 if (postings.size() < WORKDAY_PAGE_SIZE) {
                     break;
                 }
                 offset += WORKDAY_PAGE_SIZE;
             } catch (Exception e) {
                 log.warn("Failed to parse Workday payload for {} endpoint={}", company.ticker(), endpointUrl, e);
-                increment(errors, "workday_parse_error");
+                String status = "workday_parse_error";
+                recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, status, fetch, "parse_error");
+                increment(errors, status);
                 break;
             }
         }
@@ -638,6 +665,49 @@ public class AtsAdapterIngestionService {
 
     private void merge(Map<String, Integer> target, Map<String, Integer> source) {
         source.forEach((key, value) -> target.put(key, target.getOrDefault(key, 0) + value));
+    }
+
+    private String adapterFetchStatus(String prefix, HttpFetchResult fetch) {
+        if (fetch == null) {
+            return prefix + "_unknown_error";
+        }
+        if (fetch.errorCode() != null && !fetch.errorCode().isBlank()) {
+            return prefix + "_" + fetch.errorCode();
+        }
+        if (fetch.statusCode() > 0) {
+            return prefix + "_http_" + fetch.statusCode();
+        }
+        return prefix + "_unknown_error";
+    }
+
+    private void recordAtsAttempt(
+        long crawlRunId,
+        long companyId,
+        AtsType atsType,
+        String url,
+        String fetchStatus,
+        HttpFetchResult fetch,
+        String errorOverride
+    ) {
+        Integer httpStatus = null;
+        if (fetch != null && fetch.statusCode() > 0) {
+            httpStatus = fetch.statusCode();
+        }
+        String errorCode = errorOverride;
+        if (errorCode == null && fetch != null) {
+            errorCode = fetch.errorCode();
+        }
+        repository.upsertDiscoveredUrl(
+            crawlRunId,
+            companyId,
+            url,
+            DiscoveredUrlType.ATS_API,
+            fetchStatus,
+            Instant.now(),
+            httpStatus,
+            errorCode,
+            atsType.name()
+        );
     }
 
     private record WorkdayEndpoint(String host, String tenant, String site) {

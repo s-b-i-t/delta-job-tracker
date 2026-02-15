@@ -137,6 +137,7 @@ public class CareersDiscoveryService {
                 if (registerPatternEndpoint(company, candidate, patternType, seen) && detectedByPattern == AtsType.UNKNOWN) {
                     detectedByPattern = patternType;
                 }
+                continue;
             }
 
             if (!robotsTxtService.isAllowed(candidate)) {

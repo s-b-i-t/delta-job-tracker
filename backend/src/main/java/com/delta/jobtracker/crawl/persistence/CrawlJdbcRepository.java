@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -461,20 +462,50 @@ public class CrawlJdbcRepository {
         String fetchStatus,
         Instant lastFetchedAt
     ) {
+        upsertDiscoveredUrl(
+            crawlRunId,
+            companyId,
+            url,
+            urlType,
+            fetchStatus,
+            lastFetchedAt,
+            null,
+            null,
+            null
+        );
+    }
+
+    public void upsertDiscoveredUrl(
+        long crawlRunId,
+        long companyId,
+        String url,
+        DiscoveredUrlType urlType,
+        String fetchStatus,
+        Instant lastFetchedAt,
+        Integer httpStatus,
+        String errorCode,
+        String adapter
+    ) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("url", url)
             .addValue("urlType", urlType.name())
             .addValue("fetchStatus", fetchStatus)
-            .addValue("lastFetchedAt", toTimestamp(lastFetchedAt));
+            .addValue("lastFetchedAt", toTimestamp(lastFetchedAt))
+            .addValue("httpStatus", httpStatus)
+            .addValue("errorCode", errorCode)
+            .addValue("adapter", adapter);
 
         int updated = jdbc.update(
             """
                 UPDATE discovered_urls
                 SET url_type = :urlType,
                     fetch_status = COALESCE(:fetchStatus, fetch_status),
-                    last_fetched_at = COALESCE(:lastFetchedAt, last_fetched_at)
+                    last_fetched_at = COALESCE(:lastFetchedAt, last_fetched_at),
+                    http_status = COALESCE(:httpStatus, http_status),
+                    error_code = COALESCE(:errorCode, error_code),
+                    adapter = COALESCE(:adapter, adapter)
                 WHERE crawl_run_id = :crawlRunId
                   AND company_id = :companyId
                   AND url = :url
@@ -486,10 +517,12 @@ public class CrawlJdbcRepository {
                 jdbc.update(
                     """
                         INSERT INTO discovered_urls (
-                            crawl_run_id, company_id, url, url_type, fetch_status, last_fetched_at
+                            crawl_run_id, company_id, url, url_type, fetch_status, last_fetched_at,
+                            http_status, error_code, adapter
                         )
                         VALUES (
-                            :crawlRunId, :companyId, :url, :urlType, :fetchStatus, :lastFetchedAt
+                            :crawlRunId, :companyId, :url, :urlType, :fetchStatus, :lastFetchedAt,
+                            :httpStatus, :errorCode, :adapter
                         )
                         """,
                     params
@@ -500,7 +533,10 @@ public class CrawlJdbcRepository {
                         UPDATE discovered_urls
                         SET url_type = :urlType,
                             fetch_status = COALESCE(:fetchStatus, fetch_status),
-                            last_fetched_at = COALESCE(:lastFetchedAt, last_fetched_at)
+                            last_fetched_at = COALESCE(:lastFetchedAt, last_fetched_at),
+                            http_status = COALESCE(:httpStatus, http_status),
+                            error_code = COALESCE(:errorCode, error_code),
+                            adapter = COALESCE(:adapter, adapter)
                         WHERE crawl_run_id = :crawlRunId
                           AND company_id = :companyId
                           AND url = :url
@@ -766,6 +802,7 @@ public class CrawlJdbcRepository {
                     'ats_detected',
                     'ats_detected_probe_failed',
                     'ats_detected_from_hint',
+                    'ats_fetch_success',
                     'no_jobposting_structured_data',
                     'skipped_known_no_structured_data'
                   )
@@ -786,8 +823,8 @@ public class CrawlJdbcRepository {
     public List<JobPostingView> findNewestJobs(int limit, Long companyId, AtsType atsType) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("limit", limit)
-            .addValue("companyId", companyId)
-            .addValue("atsType", atsType == null ? null : atsType.name());
+            .addValue("companyId", companyId, Types.BIGINT)
+            .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR);
 
         return jdbc.query(
             """
