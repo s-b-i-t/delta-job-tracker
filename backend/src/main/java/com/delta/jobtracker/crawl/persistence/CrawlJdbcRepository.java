@@ -9,6 +9,7 @@ import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
+import org.jsoup.Jsoup;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -19,20 +20,25 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Repository
 public class CrawlJdbcRepository {
     private static final Logger log = LoggerFactory.getLogger(CrawlJdbcRepository.class);
     private final NamedParameterJdbcTemplate jdbc;
+    private final boolean postgres;
 
     public CrawlJdbcRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
+        this.postgres = detectPostgres(jdbc);
     }
 
     public boolean isDbReachable() {
@@ -667,6 +673,10 @@ public class CrawlJdbcRepository {
     }
 
     public void upsertJobPosting(long companyId, Long crawlRunId, NormalizedJobPosting posting, Instant fetchedAt) {
+        String descriptionPlain = null;
+        if (posting.descriptionText() != null && !posting.descriptionText().isBlank()) {
+            descriptionPlain = Jsoup.parse(posting.descriptionText()).text();
+        }
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("crawlRunId", crawlRunId)
@@ -677,6 +687,7 @@ public class CrawlJdbcRepository {
             .addValue("employmentType", posting.employmentType())
             .addValue("datePosted", posting.datePosted())
             .addValue("descriptionText", posting.descriptionText())
+            .addValue("descriptionPlain", descriptionPlain)
             .addValue("externalIdentifier", posting.externalIdentifier())
             .addValue("contentHash", posting.contentHash())
             .addValue("fetchedAt", toTimestamp(fetchedAt))
@@ -693,6 +704,7 @@ public class CrawlJdbcRepository {
                     employment_type = :employmentType,
                     date_posted = :datePosted,
                     description_text = :descriptionText,
+                    description_plain = :descriptionPlain,
                     external_identifier = :externalIdentifier,
                     last_seen_at = :fetchedAt,
                     is_active = :isActive
@@ -707,12 +719,12 @@ public class CrawlJdbcRepository {
                     """
                         INSERT INTO job_postings (
                             company_id, crawl_run_id, source_url, title, org_name, location_text,
-                            employment_type, date_posted, description_text, external_identifier,
+                            employment_type, date_posted, description_text, description_plain, external_identifier,
                             content_hash, first_seen_at, last_seen_at, is_active
                         )
                         VALUES (
                             :companyId, :crawlRunId, :sourceUrl, :title, :orgName, :locationText,
-                            :employmentType, :datePosted, :descriptionText, :externalIdentifier,
+                            :employmentType, :datePosted, :descriptionText, :descriptionPlain, :externalIdentifier,
                             :contentHash, :fetchedAt, :fetchedAt, :isActive
                         )
                         """,
@@ -730,6 +742,7 @@ public class CrawlJdbcRepository {
                             employment_type = :employmentType,
                             date_posted = :datePosted,
                             description_text = :descriptionText,
+                            description_plain = :descriptionPlain,
                             external_identifier = :externalIdentifier,
                             last_seen_at = :fetchedAt,
                             is_active = :isActive
@@ -996,12 +1009,14 @@ public class CrawlJdbcRepository {
         );
     }
 
-    public List<JobPostingView> findNewestJobs(int limit, Long companyId, AtsType atsType, Boolean active) {
+    public List<JobPostingView> findNewestJobs(int limit, Long companyId, AtsType atsType, Boolean active, String query) {
+        String normalizedQuery = normalizeQuery(query);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("limit", limit)
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR)
             .addValue("active", active, Types.BOOLEAN);
+        addSearchParams(params, normalizedQuery);
 
         return jdbc.query(
             """
@@ -1046,6 +1061,7 @@ public class CrawlJdbcRepository {
                           AND ae2.ats_type = :atsType
                     )
                   )
+                """ + searchClause("jp", normalizedQuery) + """
                 ORDER BY jp.last_seen_at DESC
                 LIMIT :limit
                 """,
@@ -1071,11 +1087,13 @@ public class CrawlJdbcRepository {
         );
     }
 
-    public List<JobPostingView> findNewJobsSince(Instant since, Long companyId, int limit) {
+    public List<JobPostingView> findNewJobsSince(Instant since, Long companyId, int limit, String query) {
+        String normalizedQuery = normalizeQuery(query);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("since", toTimestamp(since))
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("limit", limit);
+        addSearchParams(params, normalizedQuery);
 
         return jdbc.query(
             """
@@ -1111,6 +1129,7 @@ public class CrawlJdbcRepository {
                 ) latest_ats ON latest_ats.company_id = jp.company_id
                 WHERE jp.first_seen_at > :since
                   AND (:companyId IS NULL OR jp.company_id = :companyId)
+                """ + searchClause("jp", normalizedQuery) + """
                 ORDER BY jp.first_seen_at DESC
                 LIMIT :limit
                 """,
@@ -1136,11 +1155,13 @@ public class CrawlJdbcRepository {
         );
     }
 
-    public List<JobPostingView> findClosedJobsSince(Instant since, Long companyId, int limit) {
+    public List<JobPostingView> findClosedJobsSince(Instant since, Long companyId, int limit, String query) {
+        String normalizedQuery = normalizeQuery(query);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("since", toTimestamp(since))
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("limit", limit);
+        addSearchParams(params, normalizedQuery);
 
         return jdbc.query(
             """
@@ -1177,6 +1198,7 @@ public class CrawlJdbcRepository {
                 WHERE jp.is_active = FALSE
                   AND jp.last_seen_at > :since
                   AND (:companyId IS NULL OR jp.company_id = :companyId)
+                """ + searchClause("jp", normalizedQuery) + """
                 ORDER BY jp.last_seen_at DESC
                 LIMIT :limit
                 """,
@@ -1241,5 +1263,55 @@ public class CrawlJdbcRepository {
             log.warn("Unknown ats_type value in job view: {}", raw);
             return null;
         }
+    }
+
+    private boolean detectPostgres(NamedParameterJdbcTemplate jdbcTemplate) {
+        if (jdbcTemplate.getJdbcTemplate().getDataSource() == null) {
+            return false;
+        }
+        try (Connection connection = jdbcTemplate.getJdbcTemplate().getDataSource().getConnection()) {
+            DatabaseMetaData metaData = connection.getMetaData();
+            String productName = metaData == null ? null : metaData.getDatabaseProductName();
+            String url = metaData == null ? null : metaData.getURL();
+            if (url != null && url.toLowerCase(Locale.ROOT).startsWith("jdbc:h2:")) {
+                return false;
+            }
+            return productName != null && productName.toLowerCase(Locale.ROOT).contains("postgres");
+        } catch (Exception e) {
+            log.warn("Unable to detect database product; defaulting to non-Postgres search", e);
+            return false;
+        }
+    }
+
+    private String normalizeQuery(String query) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        return query.trim();
+    }
+
+    private void addSearchParams(MapSqlParameterSource params, String query) {
+        params.addValue("q", query, Types.VARCHAR);
+        params.addValue(
+            "qLike",
+            query == null ? null : "%" + query.toLowerCase(Locale.ROOT) + "%",
+            Types.VARCHAR
+        );
+    }
+
+    private String searchClause(String alias, String query) {
+        if (query == null) {
+            return "";
+        }
+        if (postgres) {
+            return " AND " + alias + ".search_tsv @@ websearch_to_tsquery('english', :q)";
+        }
+        return " AND (" +
+            "LOWER(CAST(" + alias + ".title AS VARCHAR)) LIKE :qLike OR " +
+            "LOWER(CAST(" + alias + ".org_name AS VARCHAR)) LIKE :qLike OR " +
+            "LOWER(CAST(" + alias + ".location_text AS VARCHAR)) LIKE :qLike OR " +
+            "LOWER(CAST(" + alias + ".employment_type AS VARCHAR)) LIKE :qLike OR " +
+            "LOWER(CAST(" + alias + ".description_plain AS VARCHAR)) LIKE :qLike" +
+            ")";
     }
 }

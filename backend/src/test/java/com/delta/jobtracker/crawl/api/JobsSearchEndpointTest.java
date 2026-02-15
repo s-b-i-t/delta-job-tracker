@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-class JobsClosedEndpointTest {
+class JobsSearchEndpointTest {
 
     @Autowired
     private CrawlController controller;
@@ -27,17 +27,18 @@ class JobsClosedEndpointTest {
     private CrawlJdbcRepository repository;
 
     @Test
-    void closedJobsEndpointReturnsInactivePostings() throws Exception {
+    void jobsSearchFiltersByQuery() {
         String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        long companyId = repository.upsertCompany("JC" + suffix, "Jobs Closed Co " + suffix, "Technology");
+        long companyId = repository.upsertCompany("JS" + suffix, "Jobs Search Co " + suffix, "Technology");
 
-        Instant run1Start = Instant.now().minusSeconds(120);
-        long run1Id = repository.insertCrawlRun(run1Start, "RUNNING", "run1");
+        Instant runStart = Instant.now().minusSeconds(120);
+        long runId = repository.insertCrawlRun(runStart, "RUNNING", "run1");
+
         NormalizedJobPosting postingA = new NormalizedJobPosting(
             "https://example.com/jobs/a",
             "https://example.com/jobs/a",
-            "Engineer A",
-            "Jobs Closed Co",
+            "Software Engineer",
+            "Jobs Search Co",
             "Remote",
             "FULL_TIME",
             LocalDate.parse("2026-01-01"),
@@ -48,8 +49,8 @@ class JobsClosedEndpointTest {
         NormalizedJobPosting postingB = new NormalizedJobPosting(
             "https://example.com/jobs/b",
             "https://example.com/jobs/b",
-            "Engineer B",
-            "Jobs Closed Co",
+            "Account Executive",
+            "Jobs Search Co",
             "Remote",
             "FULL_TIME",
             LocalDate.parse("2026-01-02"),
@@ -57,20 +58,18 @@ class JobsClosedEndpointTest {
             "req-b",
             "hash-b-" + UUID.randomUUID()
         );
-        repository.upsertJobPosting(companyId, run1Id, postingA, run1Start.plusSeconds(5));
-        repository.upsertJobPosting(companyId, run1Id, postingB, run1Start.plusSeconds(6));
-        repository.completeCrawlRun(run1Id, run1Start.plusSeconds(30), "COMPLETED", "run1 done");
 
-        Instant run2Start = run1Start.plusSeconds(60);
-        long run2Id = repository.insertCrawlRun(run2Start, "RUNNING", "run2");
-        repository.upsertJobPosting(companyId, run2Id, postingA, run2Start.plusSeconds(5));
-        repository.markPostingsInactiveNotSeenInRun(companyId, run2Id);
-        repository.completeCrawlRun(run2Id, run2Start.plusSeconds(30), "COMPLETED", "run2 done");
+        repository.upsertJobPosting(companyId, runId, postingA, runStart.plusSeconds(5));
+        repository.upsertJobPosting(companyId, runId, postingB, runStart.plusSeconds(6));
+        repository.completeCrawlRun(runId, runStart.plusSeconds(30), "COMPLETED", "run1 done");
 
-        String since = run1Start.minusSeconds(1).toString();
-        var payload = controller.getClosedJobs(since, companyId, 50, null);
+        assertEquals(2L, repository.countTable("job_postings"));
+
+        var allJobs = controller.getJobs(50, companyId, null, true, null);
+        assertEquals(2, allJobs.size());
+
+        var payload = controller.getJobs(50, companyId, null, true, "software");
         assertEquals(1, payload.size());
-        assertTrue(payload.getFirst().title().contains("Engineer B"));
-        assertEquals(false, payload.getFirst().isActive());
+        assertTrue(payload.getFirst().title().contains("Software"));
     }
 }

@@ -100,6 +100,7 @@ curl http://localhost:8080/api/status
 curl "http://localhost:8080/api/jobs?limit=50"
 curl "http://localhost:8080/api/jobs?limit=50&ats=GREENHOUSE"
 curl "http://localhost:8080/api/jobs?limit=50&companyId=123"
+curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
 ```
 
 ## Endpoints
@@ -123,7 +124,19 @@ curl "http://localhost:8080/api/jobs?limit=50&companyId=123"
 - `GET /api/status`
   - Returns DB connectivity, key table counts, and latest crawl summary (start/end, jobs extracted, top errors).
 - `GET /api/jobs`
-  - Returns newest normalized jobs (`limit`, optional `companyId`, optional `ats` filter).
+  - Returns newest normalized jobs.
+  - Filters: `limit`, optional `companyId`, optional `ats`, optional `active`, optional `q` (full-text search).
+- `GET /api/jobs/new`
+  - Returns jobs with `first_seen_at > since`.
+  - Filters: `since` (required), optional `companyId`, optional `limit`, optional `q`.
+- `GET /api/jobs/closed`
+  - Returns jobs with `is_active=false AND last_seen_at > since`.
+  - Filters: `since` (required), optional `companyId`, optional `limit`, optional `q`.
+
+## Search + CS Mode
+
+- Search uses Postgres full-text (`websearch_to_tsquery`) across title, org, location, employment type, and description.
+- The static UI includes a **Query** input and a **CS Mode** toggle that fills a preset query for common CS roles while excluding obvious non-CS roles.
 
 ## Crawl safeguards
 

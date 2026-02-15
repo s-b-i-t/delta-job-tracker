@@ -56,10 +56,10 @@ public class CrawlStatusService {
         return new StatusResponse(true, counts, recent);
     }
 
-    public List<JobPostingView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active) {
+    public List<JobPostingView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
         try {
-            return repository.findNewestJobs(safeLimit, companyId, atsType, active);
+            return repository.findNewestJobs(safeLimit, companyId, atsType, active, query);
         } catch (Exception e) {
             log.warn("Failed to load newest jobs", e);
             return List.of();
@@ -94,16 +94,16 @@ public class CrawlStatusService {
         );
     }
 
-    public List<JobPostingView> getNewJobs(String since, Long companyId, Integer limit) {
+    public List<JobPostingView> getNewJobs(String since, Long companyId, Integer limit, String query) {
         Instant sinceInstant = parseSince(since);
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
-        return repository.findNewJobsSince(sinceInstant, companyId, safeLimit);
+        return repository.findNewJobsSince(sinceInstant, companyId, safeLimit, query);
     }
 
-    public List<JobPostingView> getClosedJobs(String since, Long companyId, Integer limit) {
+    public List<JobPostingView> getClosedJobs(String since, Long companyId, Integer limit, String query) {
         Instant sinceInstant = parseSince(since);
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
-        return repository.findClosedJobsSince(sinceInstant, companyId, safeLimit);
+        return repository.findClosedJobsSince(sinceInstant, companyId, safeLimit, query);
     }
 
     private Instant parseSince(String since) {

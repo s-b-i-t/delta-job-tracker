@@ -103,7 +103,8 @@ public class CrawlController {
         @RequestParam(name = "limit", required = false) Integer limit,
         @RequestParam(name = "companyId", required = false) Long companyId,
         @RequestParam(name = "ats", required = false) String ats,
-        @RequestParam(name = "active", required = false) Boolean active
+        @RequestParam(name = "active", required = false) Boolean active,
+        @RequestParam(name = "q", required = false) String query
     ) {
         AtsType atsType = null;
         if (ats != null && !ats.isBlank()) {
@@ -113,25 +114,27 @@ public class CrawlController {
                 throw new ResponseStatusException(BAD_REQUEST, "Unsupported ats value: " + ats);
             }
         }
-        return crawlStatusService.getNewestJobs(limit, companyId, atsType, active);
+        return crawlStatusService.getNewestJobs(limit, companyId, atsType, active, query);
     }
 
     @GetMapping("/jobs/new")
     public List<JobPostingView> getNewJobs(
         @RequestParam(name = "since") String since,
         @RequestParam(name = "companyId", required = false) Long companyId,
-        @RequestParam(name = "limit", required = false) Integer limit
+        @RequestParam(name = "limit", required = false) Integer limit,
+        @RequestParam(name = "q", required = false) String query
     ) {
-        return crawlStatusService.getNewJobs(since, companyId, limit);
+        return crawlStatusService.getNewJobs(since, companyId, limit, query);
     }
 
     @GetMapping("/jobs/closed")
     public List<JobPostingView> getClosedJobs(
         @RequestParam(name = "since") String since,
         @RequestParam(name = "companyId", required = false) Long companyId,
-        @RequestParam(name = "limit", required = false) Integer limit
+        @RequestParam(name = "limit", required = false) Integer limit,
+        @RequestParam(name = "q", required = false) String query
     ) {
-        return crawlStatusService.getClosedJobs(since, companyId, limit);
+        return crawlStatusService.getClosedJobs(since, companyId, limit, query);
     }
 
     @GetMapping("/jobs/delta")

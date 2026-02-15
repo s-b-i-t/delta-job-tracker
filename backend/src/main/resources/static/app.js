@@ -1,5 +1,8 @@
 (() => {
   const companyIdInput = document.getElementById("companyId");
+  const queryInput = document.getElementById("query");
+  const csModeToggle = document.getElementById("csMode");
+  const usePresetBtn = document.getElementById("usePreset");
   const activeFilter = document.getElementById("activeFilter");
   const sinceInput = document.getElementById("since");
   const limitInput = document.getElementById("limit");
@@ -15,15 +18,43 @@
   const detailDescription = document.getElementById("detailDescription");
   const closeDetail = document.getElementById("closeDetail");
 
+  const CS_PRESET_QUERY = "(\"software engineer\" OR \"software developer\" OR \"data engineer\" OR \"data scientist\" OR \"machine learning\" OR \"ml engineer\" OR backend OR \"front end\" OR frontend OR \"full stack\" OR devops OR sre OR \"site reliability\" OR security OR cloud OR platform OR infrastructure OR \"distributed systems\" OR ios OR android OR embedded OR firmware) -recruiter -recruiting -sales -marketing -warehouse -cashier -nurse -driver";
+
+  const STORAGE_KEYS = {
+    companyId: "dj_companyId",
+    query: "dj_query",
+    csMode: "dj_csMode",
+    activeFilter: "dj_activeFilter",
+    since: "dj_since",
+    limit: "dj_limit"
+  };
+
   const state = {
     jobs: []
   };
 
   const defaultSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  sinceInput.value = defaultSince;
+  loadSettings();
 
   closeDetail.addEventListener("click", () => {
     detailPanel.classList.add("hidden");
+  });
+
+  usePresetBtn.addEventListener("click", () => {
+    queryInput.value = CS_PRESET_QUERY;
+    csModeToggle.checked = true;
+    persistSettings();
+  });
+
+  csModeToggle.addEventListener("change", () => {
+    if (csModeToggle.checked && !queryInput.value.trim()) {
+      queryInput.value = CS_PRESET_QUERY;
+    }
+    persistSettings();
+  });
+
+  [companyIdInput, queryInput, activeFilter, sinceInput, limitInput].forEach((input) => {
+    input.addEventListener("change", persistSettings);
   });
 
   loadActiveBtn.addEventListener("click", async () => {
@@ -53,9 +84,13 @@
     const companyId = companyIdInput.value.trim();
     const since = sinceInput.value.trim();
     const limit = limitInput.value.trim();
+    const query = resolveQuery();
 
     if (companyId) {
       params.companyId = companyId;
+    }
+    if (query) {
+      params.q = query;
     }
     if (since) {
       params.since = since;
@@ -70,6 +105,7 @@
   }
 
   async function loadJobs(path, params, label) {
+    persistSettings();
     resultsMeta.textContent = "Loading...";
     resultsList.innerHTML = "";
     try {
@@ -170,5 +206,55 @@
     } catch (err) {
       return value;
     }
+  }
+
+  function resolveQuery() {
+    const raw = queryInput.value.trim();
+    if (!raw && csModeToggle.checked) {
+      queryInput.value = CS_PRESET_QUERY;
+      return CS_PRESET_QUERY;
+    }
+    return raw;
+  }
+
+  function loadSettings() {
+    const storedCompanyId = localStorage.getItem(STORAGE_KEYS.companyId);
+    const storedQuery = localStorage.getItem(STORAGE_KEYS.query);
+    const storedCsMode = localStorage.getItem(STORAGE_KEYS.csMode);
+    const storedActiveFilter = localStorage.getItem(STORAGE_KEYS.activeFilter);
+    const storedSince = localStorage.getItem(STORAGE_KEYS.since);
+    const storedLimit = localStorage.getItem(STORAGE_KEYS.limit);
+
+    if (storedCompanyId !== null) {
+      companyIdInput.value = storedCompanyId;
+    }
+    if (storedQuery !== null) {
+      queryInput.value = storedQuery;
+    }
+    if (storedCsMode !== null) {
+      csModeToggle.checked = storedCsMode === "true";
+    } else {
+      csModeToggle.checked = true;
+    }
+    if (storedActiveFilter !== null) {
+      activeFilter.value = storedActiveFilter;
+    }
+    if (storedSince !== null && storedSince.trim()) {
+      sinceInput.value = storedSince;
+    } else {
+      sinceInput.value = defaultSince;
+    }
+    if (storedLimit !== null) {
+      limitInput.value = storedLimit;
+    }
+  }
+
+  function persistSettings() {
+    localStorage.setItem(STORAGE_KEYS.companyId, companyIdInput.value.trim());
+    localStorage.setItem(STORAGE_KEYS.query, queryInput.value.trim());
+    localStorage.setItem(STORAGE_KEYS.csMode, csModeToggle.checked ? "true" : "false");
+    localStorage.setItem(STORAGE_KEYS.activeFilter, activeFilter.value);
+    localStorage.setItem(STORAGE_KEYS.since, sinceInput.value.trim());
+    localStorage.setItem(STORAGE_KEYS.limit, limitInput.value.trim());
   }
 })();

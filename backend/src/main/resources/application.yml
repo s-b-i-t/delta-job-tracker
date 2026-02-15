@@ -8,6 +8,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    placeholders:
+      search_tsv_type: "tsvector"
+      search_tsv_generated: "GENERATED ALWAYS AS (to_tsvector('english', coalesce(title,'') || ' ' || coalesce(org_name,'') || ' ' || coalesce(location_text,'') || ' ' || coalesce(employment_type,'') || ' ' || coalesce(description_plain,''))) STORED"
+      search_tsv_index: "CREATE INDEX IF NOT EXISTS idx_job_postings_search_tsv ON job_postings USING gin(search_tsv);"
 
 server:
   port: ${PORT:8080}

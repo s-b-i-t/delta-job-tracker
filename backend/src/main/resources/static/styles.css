@@ -64,10 +64,35 @@ body {
   margin-bottom: 24px;
 }
 
+.control.wide {
+  grid-column: 1 / -1;
+}
+
+.control.inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .control label {
   display: block;
   font-weight: 600;
   margin-bottom: 6px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.control.inline .checkbox {
+  margin-bottom: 0;
+}
+
+.checkbox input {
+  width: auto;
 }
 
 .control input,

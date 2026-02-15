@@ -8,6 +8,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    placeholders:
+      search_tsv_type: "VARCHAR(1000)"
+      search_tsv_generated: ""
+      search_tsv_index: "CREATE INDEX IF NOT EXISTS idx_job_postings_search_tsv ON job_postings(search_tsv);"
 
 crawler:
   cli:
