@@ -7,6 +7,7 @@ import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
+import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
@@ -101,7 +102,8 @@ public class CrawlController {
     public List<JobPostingView> getJobs(
         @RequestParam(name = "limit", required = false) Integer limit,
         @RequestParam(name = "companyId", required = false) Long companyId,
-        @RequestParam(name = "ats", required = false) String ats
+        @RequestParam(name = "ats", required = false) String ats,
+        @RequestParam(name = "active", required = false) Boolean active
     ) {
         AtsType atsType = null;
         if (ats != null && !ats.isBlank()) {
@@ -111,6 +113,37 @@ public class CrawlController {
                 throw new ResponseStatusException(BAD_REQUEST, "Unsupported ats value: " + ats);
             }
         }
-        return crawlStatusService.getNewestJobs(limit, companyId, atsType);
+        return crawlStatusService.getNewestJobs(limit, companyId, atsType, active);
+    }
+
+    @GetMapping("/jobs/new")
+    public List<JobPostingView> getNewJobs(
+        @RequestParam(name = "since") String since,
+        @RequestParam(name = "companyId", required = false) Long companyId,
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return crawlStatusService.getNewJobs(since, companyId, limit);
+    }
+
+    @GetMapping("/jobs/closed")
+    public List<JobPostingView> getClosedJobs(
+        @RequestParam(name = "since") String since,
+        @RequestParam(name = "companyId", required = false) Long companyId,
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return crawlStatusService.getClosedJobs(since, companyId, limit);
+    }
+
+    @GetMapping("/jobs/delta")
+    public JobDeltaResponse getJobDelta(
+        @RequestParam(name = "companyId") Long companyId,
+        @RequestParam(name = "fromRunId") Long fromRunId,
+        @RequestParam(name = "toRunId") Long toRunId,
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        if (companyId == null || fromRunId == null || toRunId == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "companyId, fromRunId, and toRunId are required");
+        }
+        return crawlStatusService.getJobDelta(companyId, fromRunId, toRunId, limit);
     }
 }

@@ -18,6 +18,7 @@ public record JobPostingView(
     String descriptionText,
     String contentHash,
     Instant firstSeenAt,
-    Instant lastSeenAt
+    Instant lastSeenAt,
+    boolean isActive
 ) {
 }

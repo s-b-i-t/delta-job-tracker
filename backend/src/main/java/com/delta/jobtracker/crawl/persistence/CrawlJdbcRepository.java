@@ -6,6 +6,7 @@ import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
+import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import org.springframework.jdbc.core.RowMapper;
@@ -678,7 +679,8 @@ public class CrawlJdbcRepository {
             .addValue("descriptionText", posting.descriptionText())
             .addValue("externalIdentifier", posting.externalIdentifier())
             .addValue("contentHash", posting.contentHash())
-            .addValue("fetchedAt", toTimestamp(fetchedAt));
+            .addValue("fetchedAt", toTimestamp(fetchedAt))
+            .addValue("isActive", true);
 
         int updated = jdbc.update(
             """
@@ -692,7 +694,8 @@ public class CrawlJdbcRepository {
                     date_posted = :datePosted,
                     description_text = :descriptionText,
                     external_identifier = :externalIdentifier,
-                    last_seen_at = :fetchedAt
+                    last_seen_at = :fetchedAt,
+                    is_active = :isActive
                 WHERE company_id = :companyId
                   AND content_hash = :contentHash
                 """,
@@ -705,12 +708,12 @@ public class CrawlJdbcRepository {
                         INSERT INTO job_postings (
                             company_id, crawl_run_id, source_url, title, org_name, location_text,
                             employment_type, date_posted, description_text, external_identifier,
-                            content_hash, first_seen_at, last_seen_at
+                            content_hash, first_seen_at, last_seen_at, is_active
                         )
                         VALUES (
                             :companyId, :crawlRunId, :sourceUrl, :title, :orgName, :locationText,
                             :employmentType, :datePosted, :descriptionText, :externalIdentifier,
-                            :contentHash, :fetchedAt, :fetchedAt
+                            :contentHash, :fetchedAt, :fetchedAt, :isActive
                         )
                         """,
                     params
@@ -728,7 +731,8 @@ public class CrawlJdbcRepository {
                             date_posted = :datePosted,
                             description_text = :descriptionText,
                             external_identifier = :externalIdentifier,
-                            last_seen_at = :fetchedAt
+                            last_seen_at = :fetchedAt,
+                            is_active = :isActive
                         WHERE company_id = :companyId
                           AND content_hash = :contentHash
                         """,
@@ -759,6 +763,42 @@ public class CrawlJdbcRepository {
             )
         );
         return runs.isEmpty() ? null : runs.getFirst();
+    }
+
+    public CrawlRunMeta findCrawlRunById(long crawlRunId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId);
+        List<CrawlRunMeta> runs = jdbc.query(
+            """
+                SELECT id, started_at, finished_at, status
+                FROM crawl_runs
+                WHERE id = :crawlRunId
+                """,
+            params,
+            (rs, rowNum) -> new CrawlRunMeta(
+                rs.getLong("id"),
+                rs.getTimestamp("started_at").toInstant(),
+                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
+                rs.getString("status")
+            )
+        );
+        return runs.isEmpty() ? null : runs.getFirst();
+    }
+
+    public void markPostingsInactiveNotSeenInRun(long companyId, long crawlRunId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("crawlRunId", crawlRunId);
+        jdbc.update(
+            """
+                UPDATE job_postings
+                SET is_active = FALSE
+                WHERE company_id = :companyId
+                  AND is_active = TRUE
+                  AND (crawl_run_id IS NULL OR crawl_run_id <> :crawlRunId)
+                """,
+            params
+        );
     }
 
     public long countJobsForRun(CrawlRunMeta runMeta) {
@@ -820,11 +860,148 @@ public class CrawlJdbcRepository {
         return out;
     }
 
-    public List<JobPostingView> findNewestJobs(int limit, Long companyId, AtsType atsType) {
+    public int countNewJobsForRun(long companyId, long toRunId, Instant startedAt, Instant finishedAt) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("toRunId", toRunId)
+            .addValue("startedAt", toTimestamp(startedAt))
+            .addValue("finishedAt", toTimestamp(finishedAt));
+        Integer count = jdbc.queryForObject(
+            """
+                SELECT COUNT(*)
+                FROM job_postings
+                WHERE company_id = :companyId
+                  AND crawl_run_id = :toRunId
+                  AND first_seen_at >= :startedAt
+                  AND first_seen_at <= :finishedAt
+                """,
+            params,
+            Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
+    public int countRemovedJobsForRun(long companyId, long fromRunId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("fromRunId", fromRunId);
+        Integer count = jdbc.queryForObject(
+            """
+                SELECT COUNT(*)
+                FROM job_postings
+                WHERE company_id = :companyId
+                  AND is_active = FALSE
+                  AND crawl_run_id = :fromRunId
+                """,
+            params,
+            Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
+    public List<JobDeltaItem> findNewJobsForRun(long companyId, long toRunId, Instant startedAt, Instant finishedAt, int limit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("toRunId", toRunId)
+            .addValue("startedAt", toTimestamp(startedAt))
+            .addValue("finishedAt", toTimestamp(finishedAt))
+            .addValue("limit", limit);
+
+        return jdbc.query(
+            """
+                SELECT jp.id,
+                       jp.title,
+                       jp.location_text,
+                       jp.source_url,
+                       latest_ats.ats_type AS latest_ats_type,
+                       jp.first_seen_at,
+                       jp.last_seen_at
+                FROM job_postings jp
+                LEFT JOIN (
+                    SELECT ae.company_id,
+                           ae.ats_type
+                    FROM ats_endpoints ae
+                    JOIN (
+                        SELECT company_id, MAX(detected_at) AS max_detected_at
+                        FROM ats_endpoints
+                        GROUP BY company_id
+                    ) ranked
+                      ON ranked.company_id = ae.company_id
+                     AND ranked.max_detected_at = ae.detected_at
+                ) latest_ats ON latest_ats.company_id = jp.company_id
+                WHERE jp.company_id = :companyId
+                  AND jp.crawl_run_id = :toRunId
+                  AND jp.first_seen_at >= :startedAt
+                  AND jp.first_seen_at <= :finishedAt
+                ORDER BY jp.first_seen_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new JobDeltaItem(
+                rs.getLong("id"),
+                rs.getString("title"),
+                rs.getString("location_text"),
+                rs.getString("source_url"),
+                parseAtsType(rs.getString("latest_ats_type")),
+                toInstant(rs.getTimestamp("first_seen_at")),
+                toInstant(rs.getTimestamp("last_seen_at"))
+            )
+        );
+    }
+
+    public List<JobDeltaItem> findRemovedJobsForRun(long companyId, long fromRunId, int limit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("fromRunId", fromRunId)
+            .addValue("limit", limit);
+
+        return jdbc.query(
+            """
+                SELECT jp.id,
+                       jp.title,
+                       jp.location_text,
+                       jp.source_url,
+                       latest_ats.ats_type AS latest_ats_type,
+                       jp.first_seen_at,
+                       jp.last_seen_at
+                FROM job_postings jp
+                LEFT JOIN (
+                    SELECT ae.company_id,
+                           ae.ats_type
+                    FROM ats_endpoints ae
+                    JOIN (
+                        SELECT company_id, MAX(detected_at) AS max_detected_at
+                        FROM ats_endpoints
+                        GROUP BY company_id
+                    ) ranked
+                      ON ranked.company_id = ae.company_id
+                     AND ranked.max_detected_at = ae.detected_at
+                ) latest_ats ON latest_ats.company_id = jp.company_id
+                WHERE jp.company_id = :companyId
+                  AND jp.is_active = FALSE
+                  AND jp.crawl_run_id = :fromRunId
+                ORDER BY jp.last_seen_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new JobDeltaItem(
+                rs.getLong("id"),
+                rs.getString("title"),
+                rs.getString("location_text"),
+                rs.getString("source_url"),
+                parseAtsType(rs.getString("latest_ats_type")),
+                toInstant(rs.getTimestamp("first_seen_at")),
+                toInstant(rs.getTimestamp("last_seen_at"))
+            )
+        );
+    }
+
+    public List<JobPostingView> findNewestJobs(int limit, Long companyId, AtsType atsType, Boolean active) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("limit", limit)
             .addValue("companyId", companyId, Types.BIGINT)
-            .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR);
+            .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR)
+            .addValue("active", active, Types.BOOLEAN);
 
         return jdbc.query(
             """
@@ -842,7 +1019,8 @@ public class CrawlJdbcRepository {
                        jp.description_text,
                        jp.content_hash,
                        jp.first_seen_at,
-                       jp.last_seen_at
+                       jp.last_seen_at,
+                       jp.is_active
                 FROM job_postings jp
                 JOIN companies c ON c.id = jp.company_id
                 LEFT JOIN (
@@ -858,6 +1036,7 @@ public class CrawlJdbcRepository {
                      AND ranked.max_detected_at = ae.detected_at
                 ) latest_ats ON latest_ats.company_id = jp.company_id
                 WHERE (:companyId IS NULL OR jp.company_id = :companyId)
+                  AND (:active IS NULL OR jp.is_active = :active)
                   AND (
                     :atsType IS NULL
                     OR EXISTS (
@@ -886,7 +1065,139 @@ public class CrawlJdbcRepository {
                 rs.getString("description_text"),
                 rs.getString("content_hash"),
                 toInstant(rs.getTimestamp("first_seen_at")),
-                toInstant(rs.getTimestamp("last_seen_at"))
+                toInstant(rs.getTimestamp("last_seen_at")),
+                rs.getBoolean("is_active")
+            )
+        );
+    }
+
+    public List<JobPostingView> findNewJobsSince(Instant since, Long companyId, int limit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("since", toTimestamp(since))
+            .addValue("companyId", companyId, Types.BIGINT)
+            .addValue("limit", limit);
+
+        return jdbc.query(
+            """
+                SELECT jp.id,
+                       jp.company_id,
+                       c.ticker,
+                       c.name AS company_name,
+                       latest_ats.ats_type AS latest_ats_type,
+                       jp.source_url,
+                       jp.title,
+                       jp.org_name,
+                       jp.location_text,
+                       jp.employment_type,
+                       jp.date_posted,
+                       jp.description_text,
+                       jp.content_hash,
+                       jp.first_seen_at,
+                       jp.last_seen_at,
+                       jp.is_active
+                FROM job_postings jp
+                JOIN companies c ON c.id = jp.company_id
+                LEFT JOIN (
+                    SELECT ae.company_id,
+                           ae.ats_type
+                    FROM ats_endpoints ae
+                    JOIN (
+                        SELECT company_id, MAX(detected_at) AS max_detected_at
+                        FROM ats_endpoints
+                        GROUP BY company_id
+                    ) ranked
+                      ON ranked.company_id = ae.company_id
+                     AND ranked.max_detected_at = ae.detected_at
+                ) latest_ats ON latest_ats.company_id = jp.company_id
+                WHERE jp.first_seen_at > :since
+                  AND (:companyId IS NULL OR jp.company_id = :companyId)
+                ORDER BY jp.first_seen_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new JobPostingView(
+                rs.getLong("id"),
+                rs.getLong("company_id"),
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                parseAtsType(rs.getString("latest_ats_type")),
+                rs.getString("source_url"),
+                rs.getString("title"),
+                rs.getString("org_name"),
+                rs.getString("location_text"),
+                rs.getString("employment_type"),
+                rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
+                rs.getString("description_text"),
+                rs.getString("content_hash"),
+                toInstant(rs.getTimestamp("first_seen_at")),
+                toInstant(rs.getTimestamp("last_seen_at")),
+                rs.getBoolean("is_active")
+            )
+        );
+    }
+
+    public List<JobPostingView> findClosedJobsSince(Instant since, Long companyId, int limit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("since", toTimestamp(since))
+            .addValue("companyId", companyId, Types.BIGINT)
+            .addValue("limit", limit);
+
+        return jdbc.query(
+            """
+                SELECT jp.id,
+                       jp.company_id,
+                       c.ticker,
+                       c.name AS company_name,
+                       latest_ats.ats_type AS latest_ats_type,
+                       jp.source_url,
+                       jp.title,
+                       jp.org_name,
+                       jp.location_text,
+                       jp.employment_type,
+                       jp.date_posted,
+                       jp.description_text,
+                       jp.content_hash,
+                       jp.first_seen_at,
+                       jp.last_seen_at,
+                       jp.is_active
+                FROM job_postings jp
+                JOIN companies c ON c.id = jp.company_id
+                LEFT JOIN (
+                    SELECT ae.company_id,
+                           ae.ats_type
+                    FROM ats_endpoints ae
+                    JOIN (
+                        SELECT company_id, MAX(detected_at) AS max_detected_at
+                        FROM ats_endpoints
+                        GROUP BY company_id
+                    ) ranked
+                      ON ranked.company_id = ae.company_id
+                     AND ranked.max_detected_at = ae.detected_at
+                ) latest_ats ON latest_ats.company_id = jp.company_id
+                WHERE jp.is_active = FALSE
+                  AND jp.last_seen_at > :since
+                  AND (:companyId IS NULL OR jp.company_id = :companyId)
+                ORDER BY jp.last_seen_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new JobPostingView(
+                rs.getLong("id"),
+                rs.getLong("company_id"),
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                parseAtsType(rs.getString("latest_ats_type")),
+                rs.getString("source_url"),
+                rs.getString("title"),
+                rs.getString("org_name"),
+                rs.getString("location_text"),
+                rs.getString("employment_type"),
+                rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
+                rs.getString("description_text"),
+                rs.getString("content_hash"),
+                toInstant(rs.getTimestamp("first_seen_at")),
+                toInstant(rs.getTimestamp("last_seen_at")),
+                rs.getBoolean("is_active")
             )
         );
     }
