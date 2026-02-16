@@ -11,6 +11,7 @@ public record CrawlApiRunRequest(
     Integer maxSitemapUrls,
     Boolean ingestBeforeCrawl,
     Boolean resolveDomains,
-    Boolean discoverCareers
+    Boolean discoverCareers,
+    Boolean atsOnly
 ) {
 }

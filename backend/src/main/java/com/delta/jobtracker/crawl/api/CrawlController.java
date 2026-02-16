@@ -4,9 +4,12 @@ import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.CrawlRunRequest;
 import com.delta.jobtracker.crawl.model.CrawlRunSummary;
 import com.delta.jobtracker.crawl.model.AtsType;
+import com.delta.jobtracker.crawl.model.AtsAttemptsDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
+import com.delta.jobtracker.crawl.model.CrawlTargetsDiagnosticsResponse;
+import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.FullCycleSummary;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -84,7 +88,9 @@ public class CrawlController {
             request == null ? null : request.maxJobPages(),
             request == null ? null : request.maxSitemapUrls(),
             request == null ? null : request.resolveDomains(),
-            request == null ? null : request.discoverCareers()
+            request == null ? null : request.discoverCareers(),
+            request == null ? null : request.atsOnly(),
+            null
         );
         return crawlOrchestratorService.run(runRequest);
     }
@@ -106,7 +112,8 @@ public class CrawlController {
         @RequestParam(name = "discoverLimit", required = false) Integer discoverLimit,
         @RequestParam(name = "crawlLimit", required = false) Integer crawlLimit,
         @RequestParam(name = "maxJobPages", required = false) Integer maxJobPages,
-        @RequestParam(name = "maxSitemapUrls", required = false) Integer maxSitemapUrls
+        @RequestParam(name = "maxSitemapUrls", required = false) Integer maxSitemapUrls,
+        @RequestParam(name = "atsOnly", required = false) Boolean atsOnly
     ) {
         int base = companies == null
             ? crawlerProperties.getAutomation().getDiscoverLimit()
@@ -114,8 +121,10 @@ public class CrawlController {
         int safeResolve = resolveLimit == null ? base : Math.max(1, resolveLimit);
         int safeDiscover = discoverLimit == null ? base : Math.max(1, discoverLimit);
         int safeCrawl = crawlLimit == null ? base : Math.max(1, crawlLimit);
+        boolean crawlAtsOnly = atsOnly == null ? true : atsOnly;
 
         DomainResolutionResult resolution = domainResolutionService.resolveMissingDomains(safeResolve);
+        Instant discoveryStartedAt = Instant.now();
         CareersDiscoveryResult discovery = careersDiscoveryService.discover(safeDiscover);
 
         CrawlRunRequest runRequest = new CrawlRunRequest(
@@ -126,7 +135,9 @@ public class CrawlController {
             maxJobPages,
             maxSitemapUrls,
             false,
-            false
+            false,
+            crawlAtsOnly,
+            crawlAtsOnly ? discoveryStartedAt : null
         );
         CrawlRunSummary crawlSummary = crawlOrchestratorService.run(runRequest);
 
@@ -155,6 +166,43 @@ public class CrawlController {
     @GetMapping("/diagnostics/coverage")
     public CoverageDiagnosticsResponse getCoverageDiagnostics() {
         return crawlStatusService.getCoverageDiagnostics();
+    }
+
+    @GetMapping("/diagnostics/discovery-failures")
+    public DiscoveryFailuresDiagnosticsResponse getDiscoveryFailuresDiagnostics() {
+        return crawlStatusService.getDiscoveryFailuresDiagnostics();
+    }
+
+    @GetMapping("/diagnostics/ats-attempts")
+    public AtsAttemptsDiagnosticsResponse getAtsAttemptsDiagnostics() {
+        return crawlStatusService.getAtsAttemptsDiagnostics();
+    }
+
+    @GetMapping("/diagnostics/crawl-targets")
+    public CrawlTargetsDiagnosticsResponse getCrawlTargetsDiagnostics(
+        @RequestParam(name = "limit", required = false) Integer limit,
+        @RequestParam(name = "atsOnly", required = false) Boolean atsOnly
+    ) {
+        int safeLimit = limit == null
+            ? crawlerProperties.getApi().getDefaultCompanyLimit()
+            : Math.max(1, limit);
+        boolean crawlAtsOnly = atsOnly == null ? true : atsOnly;
+        CrawlRunRequest request = new CrawlRunRequest(
+            List.of(),
+            safeLimit,
+            null,
+            null,
+            null,
+            null,
+            false,
+            false,
+            crawlAtsOnly,
+            null
+        );
+        List<String> tickers = crawlOrchestratorService.previewTargets(request).stream()
+            .map(target -> target.ticker())
+            .toList();
+        return new CrawlTargetsDiagnosticsResponse(crawlAtsOnly, safeLimit, tickers.size(), tickers);
     }
 
     @GetMapping("/jobs")

@@ -1,9 +1,12 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.crawl.model.AtsType;
+import com.delta.jobtracker.crawl.model.AtsAttemptsDiagnosticsResponse;
+import com.delta.jobtracker.crawl.model.AtsAttemptSample;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
+import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
@@ -16,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,13 +52,21 @@ public class CrawlStatusService {
         CrawlRunMeta latestMeta = repository.findMostRecentCrawlRun();
         RecentCrawlStatus recent = null;
         if (latestMeta != null) {
+            Instant lastActivityAt = repository.findLastActivityAtForRun(latestMeta.crawlRunId());
+            if (lastActivityAt == null) {
+                lastActivityAt = latestMeta.startedAt();
+            }
+            Instant finishedOrNow = latestMeta.finishedAt() == null ? Instant.now() : latestMeta.finishedAt();
+            long secondsRunning = Duration.between(latestMeta.startedAt(), finishedOrNow).getSeconds();
             recent = new RecentCrawlStatus(
                 latestMeta.crawlRunId(),
                 latestMeta.startedAt(),
                 latestMeta.finishedAt(),
                 latestMeta.status(),
                 repository.countJobsForRun(latestMeta),
-                repository.findTopErrorsForRun(latestMeta.crawlRunId(), 5)
+                repository.findTopErrorsForRun(latestMeta.crawlRunId(), 5),
+                secondsRunning,
+                lastActivityAt
             );
         }
         return new StatusResponse(true, counts, recent);
@@ -73,6 +85,38 @@ public class CrawlStatusService {
         Map<String, Long> counts = repository.coverageCounts();
         Map<String, Long> atsByType = repository.countAtsEndpointsByType();
         return new CoverageDiagnosticsResponse(counts, atsByType);
+    }
+
+    public DiscoveryFailuresDiagnosticsResponse getDiscoveryFailuresDiagnostics() {
+        boolean dbConnected;
+        try {
+            dbConnected = repository.isDbReachable();
+        } catch (Exception ignored) {
+            dbConnected = false;
+        }
+        if (!dbConnected) {
+            return new DiscoveryFailuresDiagnosticsResponse(new LinkedHashMap<>(), List.of());
+        }
+        Map<String, Long> counts = repository.countDiscoveryFailuresByReason();
+        return new DiscoveryFailuresDiagnosticsResponse(
+            counts,
+            repository.findRecentDiscoveryFailures(20)
+        );
+    }
+
+    public AtsAttemptsDiagnosticsResponse getAtsAttemptsDiagnostics() {
+        boolean dbConnected;
+        try {
+            dbConnected = repository.isDbReachable();
+        } catch (Exception ignored) {
+            dbConnected = false;
+        }
+        if (!dbConnected) {
+            return new AtsAttemptsDiagnosticsResponse(new LinkedHashMap<>(), List.of());
+        }
+        Map<String, Long> counts = repository.countAtsApiAttemptsByStatus();
+        List<AtsAttemptSample> samples = repository.findRecentAtsApiFailures(20);
+        return new AtsAttemptsDiagnosticsResponse(counts, samples);
     }
 
     public List<JobPostingListView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {

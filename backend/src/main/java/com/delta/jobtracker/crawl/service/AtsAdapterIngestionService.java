@@ -295,19 +295,20 @@ public class AtsAdapterIngestionService {
         return new AdapterFetchResult(extracted, pagesWithJobs, errors, successfulFetch);
     }
 
-    private NormalizedJobPosting normalizeGreenhousePosting(CompanyTarget company, JsonNode job, String sourceUrl) {
+    NormalizedJobPosting normalizeGreenhousePosting(CompanyTarget company, JsonNode job, String sourceUrl) {
         String title = text(job, "title");
-        String absoluteUrl = text(job, "absolute_url");
-        String canonicalUrl = absoluteUrl;
+        String absoluteUrl = normalizeGreenhouseJobUrl(text(job, "absolute_url"));
         String rawHtml = text(job, "content");
         String description = rawHtml == null ? null : org.jsoup.parser.Parser.unescapeEntities(rawHtml, false);
         String identifier = text(job, "id");
         String location = text(job.path("location"), "name");
         LocalDate datePosted = parseIsoDate(text(job, "updated_at"));
         String employmentType = extractGreenhouseEmploymentType(job.path("metadata"));
-        String humanUrl = firstNonBlank(absoluteUrl, sourceUrl);
-        String canonical = firstNonBlank(canonicalUrl, humanUrl, sourceUrl);
-        return buildPosting(humanUrl, canonical, title, company.name(), location, employmentType, datePosted, description, identifier);
+        String derivedUrl = buildGreenhouseJobUrl(sourceUrl, identifier);
+        String humanUrl = firstNonBlank(absoluteUrl, derivedUrl);
+        String canonical = firstNonBlank(absoluteUrl, derivedUrl, humanUrl);
+        String source = firstNonBlank(humanUrl, sourceUrl);
+        return buildPosting(source, canonical, title, company.name(), location, employmentType, datePosted, description, identifier);
     }
 
     private String extractGreenhouseEmploymentType(JsonNode metadata) {
@@ -412,7 +413,7 @@ public class AtsAdapterIngestionService {
         }
         String host = uri.getHost().toLowerCase(Locale.ROOT);
         List<String> segments = pathSegments(uri.getPath());
-        if (host.contains("boards.greenhouse.io") || host.endsWith("greenhouse.io")) {
+        if (host.contains("boards.greenhouse.io") || host.contains("job-boards.greenhouse.io") || host.endsWith("greenhouse.io")) {
             if (!segments.isEmpty()) {
                 return segments.getFirst();
             }
@@ -431,6 +432,41 @@ public class AtsAdapterIngestionService {
         return null;
     }
 
+    private String buildGreenhouseJobUrl(String endpointUrl, String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            return null;
+        }
+        String token = extractGreenhouseToken(endpointUrl);
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        return normalizeGreenhouseJobUrl("https://boards.greenhouse.io/" + token + "/jobs/" + jobId);
+    }
+
+    private String normalizeGreenhouseJobUrl(String raw) {
+        URI uri = safeUri(raw);
+        if (uri == null || uri.getHost() == null) {
+            return raw == null ? null : raw.trim();
+        }
+        String host = uri.getHost().toLowerCase(Locale.ROOT);
+        if (host.contains("boards-api.greenhouse.io") || host.contains("api.greenhouse.io")) {
+            return null;
+        }
+        if (host.equals("job-boards.greenhouse.io")) {
+            host = "boards.greenhouse.io";
+        }
+        String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+        String query = uri.getRawQuery();
+        String normalized = "https://" + host + path;
+        if (query != null && !query.isBlank()) {
+            normalized = normalized + "?" + query;
+        }
+        if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
     private String extractLeverAccount(String endpointUrl) {
         URI uri = safeUri(endpointUrl);
         if (uri == null || uri.getHost() == null) {
@@ -440,6 +476,9 @@ public class AtsAdapterIngestionService {
         List<String> segments = pathSegments(uri.getPath());
 
         if (host.contains("jobs.lever.co") && !segments.isEmpty()) {
+            return segments.getFirst();
+        }
+        if (host.contains("apply.lever.co") && !segments.isEmpty()) {
             return segments.getFirst();
         }
         if (host.contains("api.lever.co") && segments.size() >= 3 && "postings".equals(segments.get(1))) {
@@ -579,11 +618,14 @@ public class AtsAdapterIngestionService {
 
         List<String> segments = pathSegments(uri.getPath());
         String site = null;
-        if (segments.size() >= 2 && isLocaleSegment(segments.getFirst())) {
+        if (segments.size() >= 4 && "wday".equals(segments.get(0)) && "cxs".equals(segments.get(1))) {
+            site = segments.get(3);
+        } else if (segments.size() >= 2 && isLocaleSegment(segments.getFirst())) {
             site = segments.get(1);
         } else if (!segments.isEmpty()) {
             site = segments.getFirst();
         }
+        site = stripTrailingPunctuation(site);
         if (site == null || site.isBlank()) {
             return null;
         }
@@ -726,6 +768,22 @@ public class AtsAdapterIngestionService {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String stripTrailingPunctuation(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        while (!trimmed.isEmpty()) {
+            char last = trimmed.charAt(trimmed.length() - 1);
+            if (last == '.' || last == ',' || last == ';' || last == ')' || last == ']' || last == '}' || last == '"' || last == '&' || last == '?') {
+                trimmed = trimmed.substring(0, trimmed.length() - 1);
+                continue;
+            }
+            break;
+        }
+        return trimmed;
     }
 
     private void increment(Map<String, Integer> errors, String key) {

@@ -49,7 +49,9 @@ public final class UrlClassifier {
             || h.contains("greenhouse.io")
             || h.contains("grnh.se")
             || h.contains("jobs.lever.co")
-            || h.contains("api.lever.co");
+            || h.contains("api.lever.co")
+            || h.contains("apply.lever.co")
+            || h.contains("smartrecruiters.com");
     }
 
     public static URI safeUri(String url) {

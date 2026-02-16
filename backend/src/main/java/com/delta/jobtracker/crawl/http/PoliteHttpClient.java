@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class PoliteHttpClient {
@@ -57,6 +58,21 @@ public class PoliteHttpClient {
     }
 
     private HttpFetchResult send(String url, String method, String acceptHeader, String body, String contentType) {
+        int maxAttempts = Math.max(1, 1 + properties.getRequestMaxRetries());
+        HttpFetchResult lastResult = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            lastResult = executeOnce(url, method, acceptHeader, body, contentType);
+            if (lastResult == null || !shouldRetry(lastResult) || attempt >= maxAttempts) {
+                return lastResult;
+            }
+            if (!sleepBackoff(attempt)) {
+                return lastResult;
+            }
+        }
+        return lastResult;
+    }
+
+    private HttpFetchResult executeOnce(String url, String method, String acceptHeader, String body, String contentType) {
         Instant startedAt = Instant.now();
         URI uri = normalizeUri(url);
         if (uri == null || uri.getHost() == null) {
@@ -131,6 +147,42 @@ public class PoliteHttpClient {
             if (acquired) {
                 globalLimiter.release();
             }
+        }
+    }
+
+    private boolean shouldRetry(HttpFetchResult result) {
+        if (result == null) {
+            return false;
+        }
+        String errorCode = result.errorCode();
+        if (errorCode != null && !errorCode.isBlank()) {
+            return !errorCode.equals("invalid_url") && !errorCode.equals("interrupted");
+        }
+        int status = result.statusCode();
+        return status == 408 || status == 429 || status >= 500;
+    }
+
+    private boolean sleepBackoff(int attempt) {
+        int baseDelayMs = properties.getRequestRetryBaseDelayMs();
+        if (baseDelayMs <= 0) {
+            return true;
+        }
+        int maxDelayMs = properties.getRequestRetryMaxDelayMs();
+        long delay = (long) baseDelayMs * (1L << Math.max(0, attempt - 1));
+        if (maxDelayMs > 0) {
+            delay = Math.min(delay, maxDelayMs);
+        }
+        if (delay <= 0) {
+            return true;
+        }
+        long jitter = ThreadLocalRandom.current().nextLong(Math.max(1L, delay / 2));
+        long sleepMs = (delay / 2) + jitter;
+        try {
+            Thread.sleep(sleepMs);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 

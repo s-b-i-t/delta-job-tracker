@@ -37,7 +37,10 @@ public class CareersDiscoveryService {
         "/careers/jobs",
         "/about/careers",
         "/join-us",
-        "/careers/search"
+        "/careers/search",
+        "/careers/opportunities",
+        "/careers/openings",
+        "/jobs/search"
     );
 
     private static final List<String> HINT_TOKENS = List.of(

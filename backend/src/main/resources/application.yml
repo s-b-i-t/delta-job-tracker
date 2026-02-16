@@ -20,7 +20,11 @@ crawler:
   user-agent: ${CRAWLER_USER_AGENT:delta-job-tracker-bot/0.1}
   per-host-delay-ms: 1000
   global-concurrency: 5
-  request-timeout-seconds: 20
+  request-timeout-seconds: 60
+  request-max-retries: 2
+  request-retry-base-delay-ms: 250
+  request-retry-max-delay-ms: 2000
+  max-company-seconds: 300
 
   # these paths match your repo layout
   data:

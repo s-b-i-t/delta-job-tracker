@@ -81,7 +81,7 @@ public class CrawlOrchestratorService {
             log.info("Careers discovery before crawl: discovered={}, failed={}", discovery.discoveredCountByAtsType(), discovery.failedCount());
         }
 
-        List<CompanyTarget> targets = repository.findCompanyTargets(tickers, companyLimit);
+        List<CompanyTarget> targets = selectTargets(request, tickers, companyLimit);
 
         if (targets.isEmpty()) {
             Instant finishedAt = Instant.now();
@@ -138,6 +138,14 @@ public class CrawlOrchestratorService {
         return new CrawlRunSummary(crawlRunId, startedAt, finishedAt, status, summaries);
     }
 
+    public List<CompanyTarget> previewTargets(CrawlRunRequest request) {
+        List<String> tickers = request.normalizedTickers();
+        int companyLimit = request.companyLimit() == null
+            ? properties.getApi().getDefaultCompanyLimit()
+            : Math.max(1, request.companyLimit());
+        return selectTargets(request, tickers, companyLimit);
+    }
+
     private boolean shouldResolveDomains(CrawlRunRequest request) {
         if (request.resolveDomains() != null) {
             return request.resolveDomains();
@@ -150,5 +158,36 @@ public class CrawlOrchestratorService {
             return request.discoverCareers();
         }
         return properties.getAutomation().isDiscoverCareersEndpoints();
+    }
+
+    private List<CompanyTarget> selectTargets(CrawlRunRequest request, List<String> tickers, int companyLimit) {
+        boolean atsOnly = request.atsOnly() != null ? request.atsOnly() : tickers.isEmpty();
+        if (!tickers.isEmpty()) {
+            return atsOnly
+                ? repository.findCompanyTargetsWithAts(tickers, companyLimit)
+                : repository.findCompanyTargets(tickers, companyLimit);
+        }
+        if (!atsOnly) {
+            return repository.findCompanyTargets(tickers, companyLimit);
+        }
+        List<CompanyTarget> recentTargets = new ArrayList<>();
+        if (request.atsDetectedSince() != null) {
+            recentTargets = repository.findCompanyTargetsWithAtsDetectedSince(tickers, companyLimit, request.atsDetectedSince());
+        }
+        if (recentTargets.size() >= companyLimit) {
+            return recentTargets;
+        }
+        List<CompanyTarget> fallbackTargets = repository.findCompanyTargetsWithAts(tickers, companyLimit);
+        Map<Long, CompanyTarget> merged = new LinkedHashMap<>();
+        for (CompanyTarget target : recentTargets) {
+            merged.put(target.companyId(), target);
+        }
+        for (CompanyTarget target : fallbackTargets) {
+            merged.putIfAbsent(target.companyId(), target);
+            if (merged.size() >= companyLimit) {
+                break;
+            }
+        }
+        return new ArrayList<>(merged.values());
     }
 }

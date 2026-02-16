@@ -17,12 +17,18 @@ import java.util.regex.Pattern;
 @Component
 public class AtsEndpointExtractor {
     private static final Pattern GREENHOUSE_BOARD = Pattern.compile("(?i)(?:https?:)?//boards\\.greenhouse\\.io/([A-Za-z0-9._-]+)");
+    private static final Pattern GREENHOUSE_JOB_BOARDS = Pattern.compile("(?i)(?:https?:)?//job-boards\\.greenhouse\\.io/([A-Za-z0-9._-]+)");
     private static final Pattern GREENHOUSE_API = Pattern.compile("(?i)(?:https?:)?//(?:boards-api|api)\\.greenhouse\\.io/v1/boards/([A-Za-z0-9._-]+)");
     private static final Pattern GREENHOUSE_EMBED = Pattern.compile("(?i)(?:https?:)?//boards\\.greenhouse\\.io/embed/job_board[^\"'\\s>]*");
     private static final Pattern GREENHOUSE_SHORT = Pattern.compile("(?i)(?:https?:)?//grnh\\.se/([A-Za-z0-9._-]+)");
     private static final Pattern LEVER_JOBS = Pattern.compile("(?i)(?:https?:)?//jobs\\.lever\\.co/([A-Za-z0-9._-]+)");
+    private static final Pattern LEVER_APPLY = Pattern.compile("(?i)(?:https?:)?//apply\\.lever\\.co/([A-Za-z0-9._-]+)");
     private static final Pattern LEVER_API = Pattern.compile("(?i)(?:https?:)?//api\\.lever\\.co/v0/postings/([A-Za-z0-9._-]+)");
     private static final Pattern WORKDAY = Pattern.compile("(?i)(?:https?:)?//([A-Za-z0-9-]+\\.[A-Za-z0-9.-]*myworkdayjobs\\.com)(/[^\"'\\s<>]*)?");
+    private static final Pattern SMARTRECRUITERS_JOBS = Pattern.compile("(?i)(?:https?:)?//jobs\\.smartrecruiters\\.com/([A-Za-z0-9._-]+)");
+    private static final Pattern SMARTRECRUITERS_CAREERS = Pattern.compile("(?i)(?:https?:)?//careers\\.smartrecruiters\\.com/([A-Za-z0-9._-]+)");
+    private static final Pattern SMARTRECRUITERS_WEB = Pattern.compile("(?i)(?:https?:)?//www\\.smartrecruiters\\.com/([A-Za-z0-9._-]+)");
+    private static final Pattern SMARTRECRUITERS_API = Pattern.compile("(?i)(?:https?:)?//api\\.smartrecruiters\\.com/v1/companies/([A-Za-z0-9._-]+)");
 
     public List<AtsDetectionRecord> extract(String url, String html) {
         Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
@@ -59,6 +65,15 @@ public class AtsEndpointExtractor {
             addEndpoint(unique, AtsType.GREENHOUSE, "https://boards.greenhouse.io/" + token);
         }
 
+        Matcher jobBoardsMatcher = GREENHOUSE_JOB_BOARDS.matcher(text);
+        while (jobBoardsMatcher.find()) {
+            String token = cleanToken(jobBoardsMatcher.group(1));
+            if (token == null || "embed".equalsIgnoreCase(token)) {
+                continue;
+            }
+            addEndpoint(unique, AtsType.GREENHOUSE, "https://boards.greenhouse.io/" + token);
+        }
+
         Matcher apiMatcher = GREENHOUSE_API.matcher(text);
         while (apiMatcher.find()) {
             String token = cleanToken(apiMatcher.group(1));
@@ -84,6 +99,14 @@ public class AtsEndpointExtractor {
             }
         }
 
+        Matcher leverApplyMatcher = LEVER_APPLY.matcher(text);
+        while (leverApplyMatcher.find()) {
+            String account = cleanToken(leverApplyMatcher.group(1));
+            if (account != null) {
+                addEndpoint(unique, AtsType.LEVER, "https://jobs.lever.co/" + account);
+            }
+        }
+
         Matcher leverApiMatcher = LEVER_API.matcher(text);
         while (leverApiMatcher.find()) {
             String account = cleanToken(leverApiMatcher.group(1));
@@ -99,6 +122,43 @@ public class AtsEndpointExtractor {
             String normalized = normalizeWorkdayEndpoint(host, path);
             if (normalized != null) {
                 addEndpoint(unique, AtsType.WORKDAY, normalized);
+            }
+        }
+
+        addSmartRecruitersEndpoints(text, unique);
+    }
+
+    private void addSmartRecruitersEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+        Matcher jobsMatcher = SMARTRECRUITERS_JOBS.matcher(text);
+        while (jobsMatcher.find()) {
+            String company = cleanToken(jobsMatcher.group(1));
+            String endpoint = smartRecruitersEndpoint(company);
+            if (endpoint != null) {
+                addEndpoint(unique, AtsType.SMARTRECRUITERS, endpoint);
+            }
+        }
+        Matcher careersMatcher = SMARTRECRUITERS_CAREERS.matcher(text);
+        while (careersMatcher.find()) {
+            String company = cleanToken(careersMatcher.group(1));
+            String endpoint = smartRecruitersEndpoint(company);
+            if (endpoint != null) {
+                addEndpoint(unique, AtsType.SMARTRECRUITERS, endpoint);
+            }
+        }
+        Matcher webMatcher = SMARTRECRUITERS_WEB.matcher(text);
+        while (webMatcher.find()) {
+            String company = cleanToken(webMatcher.group(1));
+            String endpoint = smartRecruitersEndpoint(company);
+            if (endpoint != null) {
+                addEndpoint(unique, AtsType.SMARTRECRUITERS, endpoint);
+            }
+        }
+        Matcher apiMatcher = SMARTRECRUITERS_API.matcher(text);
+        while (apiMatcher.find()) {
+            String company = cleanToken(apiMatcher.group(1));
+            String endpoint = smartRecruitersEndpoint(company);
+            if (endpoint != null) {
+                addEndpoint(unique, AtsType.SMARTRECRUITERS, endpoint);
             }
         }
     }
@@ -121,6 +181,9 @@ public class AtsEndpointExtractor {
             return null;
         }
         String host = uri.getHost().toLowerCase(Locale.ROOT);
+        if (host.equals("job-boards.greenhouse.io")) {
+            host = "boards.greenhouse.io";
+        }
         String path = uri.getPath() == null ? "" : uri.getPath();
         String normalized = "https://" + host + path;
         if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
@@ -142,17 +205,27 @@ public class AtsEndpointExtractor {
         }
         String site;
         String locale = null;
-        if (segments.size() >= 2 && isLocaleSegment(segments.get(0))) {
+        if (segments.size() >= 4 && "wday".equalsIgnoreCase(segments.get(0)) && "cxs".equalsIgnoreCase(segments.get(1))) {
+            site = segments.get(3);
+        } else if (segments.size() >= 2 && isLocaleSegment(segments.get(0))) {
             locale = segments.get(0);
             site = segments.get(1);
         } else {
             site = segments.get(0);
         }
+        site = stripTrailingPunctuation(site);
         if (site == null || site.isBlank()) {
             return null;
         }
         String normalizedPath = locale == null ? "/" + site : "/" + locale + "/" + site;
         return "https://" + cleanedHost + normalizedPath;
+    }
+
+    private String smartRecruitersEndpoint(String company) {
+        if (company == null || company.isBlank()) {
+            return null;
+        }
+        return "https://careers.smartrecruiters.com/" + company;
     }
 
     private boolean isLocaleSegment(String segment) {
@@ -193,7 +266,7 @@ public class AtsEndpointExtractor {
         String trimmed = value.trim();
         while (!trimmed.isEmpty()) {
             char last = trimmed.charAt(trimmed.length() - 1);
-            if (last == '.' || last == ',' || last == ';' || last == ')' || last == ']' || last == '}' || last == '"') {
+            if (last == '.' || last == ',' || last == ';' || last == ')' || last == ']' || last == '}' || last == '"' || last == '&' || last == '?') {
                 trimmed = trimmed.substring(0, trimmed.length() - 1);
                 continue;
             }

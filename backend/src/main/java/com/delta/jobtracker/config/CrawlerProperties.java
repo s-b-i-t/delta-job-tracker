@@ -9,7 +9,11 @@ public class CrawlerProperties {
     private String userAgent;
     private int perHostDelayMs = 1000;
     private int globalConcurrency = 5;
-    private int requestTimeoutSeconds = 20;
+    private int requestTimeoutSeconds = 60;
+    private int requestMaxRetries = 2;
+    private int requestRetryBaseDelayMs = 250;
+    private int requestRetryMaxDelayMs = 2000;
+    private int maxCompanySeconds = 300;
     private Api api = new Api();
     private Automation automation = new Automation();
     private DomainResolution domainResolution = new DomainResolution();
@@ -45,11 +49,43 @@ public class CrawlerProperties {
     }
 
     public int getRequestTimeoutSeconds() {
-        return requestTimeoutSeconds;
+        return Math.max(1, requestTimeoutSeconds);
     }
 
     public void setRequestTimeoutSeconds(int requestTimeoutSeconds) {
         this.requestTimeoutSeconds = requestTimeoutSeconds;
+    }
+
+    public int getRequestMaxRetries() {
+        return Math.max(0, requestMaxRetries);
+    }
+
+    public void setRequestMaxRetries(int requestMaxRetries) {
+        this.requestMaxRetries = requestMaxRetries;
+    }
+
+    public int getRequestRetryBaseDelayMs() {
+        return Math.max(0, requestRetryBaseDelayMs);
+    }
+
+    public void setRequestRetryBaseDelayMs(int requestRetryBaseDelayMs) {
+        this.requestRetryBaseDelayMs = requestRetryBaseDelayMs;
+    }
+
+    public int getRequestRetryMaxDelayMs() {
+        return Math.max(0, requestRetryMaxDelayMs);
+    }
+
+    public void setRequestRetryMaxDelayMs(int requestRetryMaxDelayMs) {
+        this.requestRetryMaxDelayMs = requestRetryMaxDelayMs;
+    }
+
+    public int getMaxCompanySeconds() {
+        return Math.max(1, maxCompanySeconds);
+    }
+
+    public void setMaxCompanySeconds(int maxCompanySeconds) {
+        this.maxCompanySeconds = maxCompanySeconds;
     }
 
     public Automation getAutomation() {

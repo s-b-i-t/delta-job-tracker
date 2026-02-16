@@ -59,6 +59,8 @@ public class CrawlCliRunner implements ApplicationRunner {
             properties.getExtraction().getMaxJobPages(),
             properties.getSitemap().getMaxUrlsPerDomain(),
             null,
+            null,
+            null,
             null
         );
 

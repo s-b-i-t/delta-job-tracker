@@ -9,6 +9,8 @@ public record RecentCrawlStatus(
     Instant finishedAt,
     String status,
     long jobsExtractedCount,
-    Map<String, Integer> topErrors
+    Map<String, Integer> topErrors,
+    Long secondsRunning,
+    Instant lastActivityAt
 ) {
 }

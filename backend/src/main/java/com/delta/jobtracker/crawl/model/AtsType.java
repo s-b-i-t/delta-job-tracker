@@ -4,5 +4,6 @@ public enum AtsType {
     WORKDAY,
     GREENHOUSE,
     LEVER,
+    SMARTRECRUITERS,
     UNKNOWN
 }

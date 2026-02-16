@@ -56,7 +56,7 @@ class CrawlOrchestratorCloseoutSafetyTest {
         properties.getApi().setDefaultCompanyLimit(1);
 
         when(repository.insertCrawlRun(any(), any(), any())).thenReturn(1L);
-        when(repository.findCompanyTargets(any(), anyInt())).thenReturn(
+        when(repository.findCompanyTargetsWithAts(any(), anyInt())).thenReturn(
             List.of(new CompanyTarget(1L, "ABC", "ABC Inc", null, "abc.com", null))
         );
         when(companyCrawlerService.crawlCompany(eq(1L), any(), any())).thenReturn(
@@ -91,7 +91,9 @@ class CrawlOrchestratorCloseoutSafetyTest {
             null,
             null,
             false,
-            false
+            false,
+            null,
+            null
         );
 
         service.run(request);

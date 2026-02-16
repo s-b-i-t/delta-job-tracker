@@ -11,7 +11,9 @@ public record CrawlRunRequest(
     Integer maxJobPages,
     Integer maxSitemapUrls,
     Boolean resolveDomains,
-    Boolean discoverCareers
+    Boolean discoverCareers,
+    Boolean atsOnly,
+    java.time.Instant atsDetectedSince
 ) {
     public List<String> normalizedTickers() {
         if (tickers == null) {

@@ -134,6 +134,8 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
   - Returns DB connectivity, key table counts, and latest crawl summary (start/end, jobs extracted, top errors).
 - `GET /api/diagnostics/coverage`
   - Returns counts for `company_domains`, `discovered_urls`, `ats_endpoints`, `job_postings`, plus `atsEndpointsByType`.
+- `GET /api/diagnostics/discovery-failures`
+  - Returns counts by `reason_code` and the 20 most recent discovery failures with ticker/name and URL detail.
 - `GET /api/jobs`
   - Returns newest normalized jobs.
   - Filters: `limit`, optional `companyId`, optional `ats`, optional `active`, optional `q` (full-text search).
@@ -167,6 +169,11 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
 - Sitemap recursion and URL/page fetches are capped.
 - WDQS calls are throttled and batched.
 - `job_postings.crawl_run_id` uses last-seen attribution: matching postings are updated to the latest crawl run that observed them.
+
+## Canonical URL refresh
+
+- New crawls update `canonical_url` (and `source_url`) when a posting with the same external identifier is observed.
+- If you have older rows pointing at ATS JSON endpoints, re-run the crawl for those companies to refresh URLs.
 
 ## CLI mode
 

@@ -63,7 +63,8 @@ class CrawlControllerRunRequestDefaultsTest {
             null,
             false,
             true,
-            true
+            true,
+            null
         ));
 
         ArgumentCaptor<CrawlRunRequest> captor = ArgumentCaptor.forClass(CrawlRunRequest.class);

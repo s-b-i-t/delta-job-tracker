@@ -75,7 +75,9 @@ public class CompanyCrawlerService {
     public CompanyCrawlSummary crawlCompany(long crawlRunId, CompanyTarget company, CrawlRunRequest request) {
         log.info("Crawling {} ({})", company.ticker(), company.domain());
         Map<String, Integer> errors = new LinkedHashMap<>();
-        Instant now = Instant.now();
+        Instant startedAt = Instant.now();
+        Instant deadline = startedAt.plusSeconds(properties.getMaxCompanySeconds());
+        Instant now = startedAt;
         List<AtsDetectionRecord> atsDetections = new ArrayList<>();
         boolean adapterSuccess = false;
         boolean fallbackSuccess = false;
@@ -102,6 +104,21 @@ public class CompanyCrawlerService {
                     topErrors(errors, 5)
                 );
             }
+        }
+        if (budgetExceeded(deadline)) {
+            increment(errors, "company_time_budget_exceeded");
+            return new CompanyCrawlSummary(
+                company.companyId(),
+                company.ticker(),
+                company.domain(),
+                0,
+                0,
+                dedupeAtsDetections(atsDetections),
+                adapterResult == null ? 0 : adapterResult.jobpostingPagesFoundCount(),
+                adapterResult == null ? 0 : adapterResult.jobsExtractedCount(),
+                adapterSuccess,
+                topErrors(errors, 5)
+            );
         }
 
         RobotsRules rootRules = robotsTxtService.getRulesForHost(company.domain());
@@ -165,7 +182,23 @@ public class CompanyCrawlerService {
             }
         }
 
-        List<AtsDetectionRecord> discoveredAts = detectAtsEndpoints(crawlRunId, company, candidateUrls, atsLandingUrls, errors);
+        if (budgetExceeded(deadline)) {
+            increment(errors, "company_time_budget_exceeded");
+            return new CompanyCrawlSummary(
+                company.companyId(),
+                company.ticker(),
+                company.domain(),
+                sitemapResult.fetchedSitemaps().size(),
+                candidateUrls.size(),
+                dedupeAtsDetections(atsDetections),
+                0,
+                0,
+                adapterSuccess || fallbackSuccess,
+                topErrors(errors, 5)
+            );
+        }
+
+        List<AtsDetectionRecord> discoveredAts = detectAtsEndpoints(crawlRunId, company, candidateUrls, atsLandingUrls, errors, deadline);
         atsDetections.addAll(discoveredAts);
 
         int maxJobPages = request.maxJobPages() == null
@@ -181,6 +214,10 @@ public class CompanyCrawlerService {
         }
 
         for (String url : pagesToFetch) {
+            if (budgetExceeded(deadline)) {
+                increment(errors, "company_time_budget_exceeded");
+                break;
+            }
             if (repository.seenNoStructuredData(company.companyId(), url)) {
                 repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "skipped_known_no_structured_data", now);
                 continue;
@@ -243,7 +280,8 @@ public class CompanyCrawlerService {
         CompanyTarget company,
         LinkedHashSet<String> candidateUrls,
         LinkedHashSet<String> atsLandingUrls,
-        Map<String, Integer> errors
+        Map<String, Integer> errors,
+        Instant deadline
     ) {
         LinkedHashSet<String> probes = new LinkedHashSet<>();
         if (company.careersHintUrl() != null && !company.careersHintUrl().isBlank()) {
@@ -262,6 +300,10 @@ public class CompanyCrawlerService {
         List<AtsDetectionRecord> detections = new ArrayList<>();
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         for (String probe : probes) {
+            if (budgetExceeded(deadline)) {
+                increment(errors, "company_time_budget_exceeded");
+                break;
+            }
             List<AtsDetectionRecord> directEndpoints = atsEndpointExtractor.extract(probe, null);
             if (!directEndpoints.isEmpty()) {
                 for (AtsDetectionRecord endpoint : directEndpoints) {
@@ -368,6 +410,10 @@ public class CompanyCrawlerService {
 
     private void increment(Map<String, Integer> errors, String key) {
         errors.put(key, errors.getOrDefault(key, 0) + 1);
+    }
+
+    private boolean budgetExceeded(Instant deadline) {
+        return deadline != null && Instant.now().isAfter(deadline);
     }
 
     private Map<String, Integer> topErrors(Map<String, Integer> errors, int limit) {

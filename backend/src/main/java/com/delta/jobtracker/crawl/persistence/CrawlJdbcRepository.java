@@ -1,12 +1,14 @@
 package com.delta.jobtracker.crawl.persistence;
 
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
+import com.delta.jobtracker.crawl.model.AtsAttemptSample;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
+import com.delta.jobtracker.crawl.model.DiscoveryFailureEntry;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingView;
@@ -22,6 +24,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.Timestamp;
@@ -87,6 +91,109 @@ public class CrawlJdbcRepository {
             }
         );
         return counts;
+    }
+
+    public Map<String, Long> countDiscoveryFailuresByReason() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        jdbc.query(
+            """
+                SELECT reason_code, COUNT(*) AS total
+                FROM careers_discovery_failures
+                GROUP BY reason_code
+                ORDER BY total DESC, reason_code
+                """,
+            new MapSqlParameterSource(),
+            rs -> {
+                String reason = rs.getString("reason_code");
+                long total = rs.getLong("total");
+                if (reason != null) {
+                    counts.put(reason, total);
+                }
+            }
+        );
+        return counts;
+    }
+
+    public List<DiscoveryFailureEntry> findRecentDiscoveryFailures(int limit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("limit", limit);
+        return jdbc.query(
+            """
+                SELECT c.ticker,
+                       c.name AS company_name,
+                       f.candidate_url,
+                       f.detail,
+                       f.observed_at,
+                       f.reason_code
+                FROM careers_discovery_failures f
+                JOIN companies c ON c.id = f.company_id
+                ORDER BY f.observed_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new DiscoveryFailureEntry(
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                rs.getString("candidate_url"),
+                rs.getString("detail"),
+                toInstant(rs.getTimestamp("observed_at")),
+                rs.getString("reason_code")
+            )
+        );
+    }
+
+    public Map<String, Long> countAtsApiAttemptsByStatus() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        jdbc.query(
+            """
+                SELECT fetch_status, COUNT(*) AS total
+                FROM discovered_urls
+                WHERE url_type = :urlType
+                GROUP BY fetch_status
+                ORDER BY total DESC, fetch_status
+                """,
+            new MapSqlParameterSource()
+                .addValue("urlType", DiscoveredUrlType.ATS_API.name()),
+            rs -> {
+                String status = rs.getString("fetch_status");
+                long total = rs.getLong("total");
+                if (status != null) {
+                    counts.put(status, total);
+                }
+            }
+        );
+        return counts;
+    }
+
+    public List<AtsAttemptSample> findRecentAtsApiFailures(int limit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("limit", limit)
+            .addValue("urlType", DiscoveredUrlType.ATS_API.name())
+            .addValue("success", "ats_fetch_success");
+        return jdbc.query(
+            """
+                SELECT c.ticker,
+                       du.adapter AS ats_type,
+                       du.url,
+                       du.fetch_status,
+                       du.last_fetched_at
+                FROM discovered_urls du
+                JOIN companies c ON c.id = du.company_id
+                WHERE du.url_type = :urlType
+                  AND du.fetch_status IS NOT NULL
+                  AND du.fetch_status <> :success
+                ORDER BY du.last_fetched_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new AtsAttemptSample(
+                rs.getString("ticker"),
+                rs.getString("ats_type"),
+                rs.getString("url"),
+                rs.getString("fetch_status"),
+                toInstant(rs.getTimestamp("last_fetched_at"))
+            )
+        );
     }
 
     public long countTable(String tableName) {
@@ -450,6 +557,95 @@ public class CrawlJdbcRepository {
         return jdbc.query(sql, params, companyTargetRowMapper());
     }
 
+    public List<CompanyTarget> findCompanyTargetsWithAts(List<String> tickers, int limit) {
+        boolean tickerFilter = tickers != null && !tickers.isEmpty();
+        String sql =
+            """
+                SELECT c.id AS company_id,
+                       c.ticker,
+                       c.name,
+                       c.sector,
+                       cd.domain,
+                       cd.careers_hint_url
+                FROM companies c
+                JOIN company_domains cd ON cd.id = (
+                    SELECT cd2.id
+                    FROM company_domains cd2
+                    WHERE cd2.company_id = c.id
+                    ORDER BY cd2.confidence DESC,
+                             CASE WHEN cd2.resolved_at IS NULL THEN 1 ELSE 0 END,
+                             cd2.resolved_at DESC,
+                             cd2.id DESC
+                    LIMIT 1
+                )
+                JOIN (
+                    SELECT company_id, MAX(detected_at) AS max_detected_at
+                    FROM ats_endpoints
+                    GROUP BY company_id
+                ) latest_ats ON latest_ats.company_id = c.id
+                """ +
+                (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ") +
+                " ORDER BY latest_ats.max_detected_at DESC, c.ticker " +
+                (limit > 0 ? " LIMIT :limit" : "");
+
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        if (tickerFilter) {
+            params.addValue("tickers", tickers);
+        }
+        if (limit > 0) {
+            params.addValue("limit", limit);
+        }
+
+        return jdbc.query(sql, params, companyTargetRowMapper());
+    }
+
+    public List<CompanyTarget> findCompanyTargetsWithAtsDetectedSince(List<String> tickers, int limit, Instant detectedSince) {
+        if (detectedSince == null) {
+            return List.of();
+        }
+        boolean tickerFilter = tickers != null && !tickers.isEmpty();
+        String sql =
+            """
+                SELECT c.id AS company_id,
+                       c.ticker,
+                       c.name,
+                       c.sector,
+                       cd.domain,
+                       cd.careers_hint_url
+                FROM companies c
+                JOIN company_domains cd ON cd.id = (
+                    SELECT cd2.id
+                    FROM company_domains cd2
+                    WHERE cd2.company_id = c.id
+                    ORDER BY cd2.confidence DESC,
+                             CASE WHEN cd2.resolved_at IS NULL THEN 1 ELSE 0 END,
+                             cd2.resolved_at DESC,
+                             cd2.id DESC
+                    LIMIT 1
+                )
+                JOIN (
+                    SELECT company_id, MAX(detected_at) AS max_detected_at
+                    FROM ats_endpoints
+                    WHERE detected_at >= :detectedSince
+                    GROUP BY company_id
+                ) latest_ats ON latest_ats.company_id = c.id
+                """ +
+                (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ") +
+                " ORDER BY latest_ats.max_detected_at DESC, c.ticker " +
+                (limit > 0 ? " LIMIT :limit" : "");
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("detectedSince", toTimestamp(detectedSince));
+        if (tickerFilter) {
+            params.addValue("tickers", tickers);
+        }
+        if (limit > 0) {
+            params.addValue("limit", limit);
+        }
+
+        return jdbc.query(sql, params, companyTargetRowMapper());
+    }
+
     public List<AtsEndpointRecord> findAtsEndpoints(long companyId) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId);
@@ -672,10 +868,14 @@ public class CrawlJdbcRepository {
         String detectionMethod,
         boolean verified
     ) {
+        String normalizedUrl = normalizeAtsEndpointUrl(atsType, atsUrl);
+        if (normalizedUrl == null) {
+            return;
+        }
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("atsType", atsType.name())
-            .addValue("atsUrl", atsUrl)
+            .addValue("atsUrl", normalizedUrl)
             .addValue("discoveredFromUrl", discoveredFromUrl)
             .addValue("confidence", confidence)
             .addValue("detectedAt", toTimestamp(detectedAt))
@@ -738,6 +938,7 @@ public class CrawlJdbcRepository {
         if (canonicalUrl == null || canonicalUrl.isBlank()) {
             canonicalUrl = posting.sourceUrl();
         }
+        String externalIdentifier = posting.externalIdentifier();
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("crawlRunId", crawlRunId)
@@ -750,7 +951,7 @@ public class CrawlJdbcRepository {
             .addValue("datePosted", posting.datePosted())
             .addValue("descriptionText", posting.descriptionText())
             .addValue("descriptionPlain", descriptionPlain)
-            .addValue("externalIdentifier", posting.externalIdentifier())
+            .addValue("externalIdentifier", externalIdentifier)
             .addValue("contentHash", posting.contentHash())
             .addValue("fetchedAt", toTimestamp(fetchedAt))
             .addValue("isActive", true);
@@ -776,6 +977,34 @@ public class CrawlJdbcRepository {
                 """,
             params
         );
+        if (updated == 0 && externalIdentifier != null && !externalIdentifier.isBlank()) {
+            int updatedByIdentifier = jdbc.update(
+                """
+                    UPDATE job_postings
+                    SET source_url = :sourceUrl,
+                        canonical_url = COALESCE(:canonicalUrl, canonical_url),
+                        crawl_run_id = COALESCE(:crawlRunId, crawl_run_id),
+                        title = :title,
+                        org_name = :orgName,
+                        location_text = :locationText,
+                        employment_type = :employmentType,
+                        date_posted = :datePosted,
+                        description_text = :descriptionText,
+                        description_plain = :descriptionPlain,
+                        external_identifier = :externalIdentifier,
+                        content_hash = :contentHash,
+                        last_seen_at = :fetchedAt,
+                        is_active = :isActive
+                    WHERE company_id = :companyId
+                      AND external_identifier = :externalIdentifier
+                    """,
+                params
+            );
+            if (updatedByIdentifier > 0) {
+                return;
+            }
+        }
+
         if (updated == 0) {
             try {
                 jdbc.update(
@@ -840,6 +1069,32 @@ public class CrawlJdbcRepository {
             )
         );
         return runs.isEmpty() ? null : runs.getFirst();
+    }
+
+    public Instant findLastActivityAtForRun(long crawlRunId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId);
+        Timestamp lastActivity = jdbc.queryForObject(
+            """
+                SELECT MAX(activity_at) AS last_activity
+                FROM (
+                    SELECT MAX(last_fetched_at) AS activity_at
+                    FROM discovered_urls
+                    WHERE crawl_run_id = :crawlRunId
+                    UNION ALL
+                    SELECT MAX(fetched_at) AS activity_at
+                    FROM discovered_sitemaps
+                    WHERE crawl_run_id = :crawlRunId
+                    UNION ALL
+                    SELECT MAX(last_seen_at) AS activity_at
+                    FROM job_postings
+                    WHERE crawl_run_id = :crawlRunId
+                ) activity
+                """,
+            params,
+            Timestamp.class
+        );
+        return toInstant(lastActivity);
     }
 
     public CrawlRunMeta findCrawlRunById(long crawlRunId) {
@@ -1478,5 +1733,53 @@ public class CrawlJdbcRepository {
             "LOWER(CAST(" + alias + ".employment_type AS VARCHAR)) LIKE :qLike OR " +
             "LOWER(CAST(" + alias + ".description_plain AS VARCHAR)) LIKE :qLike" +
             ")";
+    }
+
+    private String normalizeAtsEndpointUrl(AtsType atsType, String raw) {
+        if (raw == null || raw.isBlank() || atsType == null) {
+            return null;
+        }
+        String value = raw.trim();
+        if (!value.startsWith("http://") && !value.startsWith("https://")) {
+            value = "https://" + value;
+        }
+        URI uri;
+        try {
+            uri = new URI(value);
+        } catch (URISyntaxException e) {
+            return raw.trim();
+        }
+        if (uri.getHost() == null) {
+            return raw.trim();
+        }
+        String host = uri.getHost().toLowerCase(Locale.ROOT);
+        if (atsType == AtsType.GREENHOUSE && host.equals("job-boards.greenhouse.io")) {
+            host = "boards.greenhouse.io";
+        }
+        String path = uri.getPath() == null ? "" : uri.getPath();
+        if (atsType == AtsType.WORKDAY) {
+            path = stripTrailingPunctuation(path);
+        }
+        String normalized = "https://" + host + path;
+        if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private String stripTrailingPunctuation(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        while (!trimmed.isEmpty()) {
+            char last = trimmed.charAt(trimmed.length() - 1);
+            if (last == '.' || last == ',' || last == ';' || last == ')' || last == ']' || last == '}' || last == '"' || last == '&' || last == '?') {
+                trimmed = trimmed.substring(0, trimmed.length() - 1);
+                continue;
+            }
+            break;
+        }
+        return trimmed;
     }
 }

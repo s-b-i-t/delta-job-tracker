@@ -25,6 +25,16 @@ class AtsDetectorTest {
     }
 
     @Test
+    void detectsLeverApply() {
+        assertEquals(AtsType.LEVER, detector.detect("https://apply.lever.co/example/abc"));
+    }
+
+    @Test
+    void detectsSmartRecruiters() {
+        assertEquals(AtsType.SMARTRECRUITERS, detector.detect("https://careers.smartrecruiters.com/example"));
+    }
+
+    @Test
     void unknownForRegularCompanySite() {
         assertEquals(AtsType.UNKNOWN, detector.detect("https://example.com/careers"));
     }

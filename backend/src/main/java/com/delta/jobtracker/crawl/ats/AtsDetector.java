@@ -31,6 +31,12 @@ public class AtsDetector {
         if (host.contains("jobs.lever.co") || host.contains("api.lever.co")) {
             return AtsType.LEVER;
         }
+        if (host.contains("apply.lever.co")) {
+            return AtsType.LEVER;
+        }
+        if (host.contains("smartrecruiters.com")) {
+            return AtsType.SMARTRECRUITERS;
+        }
         return AtsType.UNKNOWN;
     }
 
@@ -52,8 +58,13 @@ public class AtsDetector {
         }
         if (lower.contains("jobs.lever.co")
             || lower.contains("api.lever.co/v0/postings/")
+            || lower.contains("apply.lever.co")
             || lower.contains("lever.co")) {
             return AtsType.LEVER;
+        }
+        if (lower.contains("smartrecruiters.com")
+            || lower.contains("api.smartrecruiters.com/v1/companies/")) {
+            return AtsType.SMARTRECRUITERS;
         }
         return AtsType.UNKNOWN;
     }

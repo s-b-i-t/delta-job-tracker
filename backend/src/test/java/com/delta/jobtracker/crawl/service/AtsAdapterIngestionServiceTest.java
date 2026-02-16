@@ -9,6 +9,7 @@ import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,6 +74,21 @@ class AtsAdapterIngestionServiceTest {
         verify(repository, atLeastOnce()).upsertJobPosting(eq(1L), eq(10L), captor.capture(), any(Instant.class));
         assertThat(captor.getValue().sourceUrl()).isEqualTo("https://boards.greenhouse.io/uber/jobs/123");
         verify(httpClient, never()).get(eq(fallbackUrl), anyString());
+    }
+
+    @Test
+    void greenhouseAbsoluteUrlMapsToCanonicalUrl() throws Exception {
+        CompanyTarget company = new CompanyTarget(9L, "ACME", "Acme Corp", null, "acme.com", null);
+        JsonNode job = objectMapper.readTree(Files.readString(Path.of("src/test/resources/fixtures/greenhouse-job.json")));
+        NormalizedJobPosting posting = service.normalizeGreenhousePosting(
+            company,
+            job,
+            "https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true"
+        );
+
+        assertThat(posting).isNotNull();
+        assertThat(posting.canonicalUrl()).isEqualTo("https://boards.greenhouse.io/acme/jobs/456");
+        assertThat(posting.sourceUrl()).isEqualTo("https://boards.greenhouse.io/acme/jobs/456");
     }
 
     @Test
