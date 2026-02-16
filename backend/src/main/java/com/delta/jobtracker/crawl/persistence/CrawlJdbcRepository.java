@@ -59,6 +59,36 @@ public class CrawlJdbcRepository {
         return counts;
     }
 
+    public Map<String, Long> coverageCounts() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("company_domains", countTable("company_domains"));
+        counts.put("discovered_urls", countTable("discovered_urls"));
+        counts.put("ats_endpoints", countTable("ats_endpoints"));
+        counts.put("job_postings", countTable("job_postings"));
+        return counts;
+    }
+
+    public Map<String, Long> countAtsEndpointsByType() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        jdbc.query(
+            """
+                SELECT ats_type, COUNT(*) AS total
+                FROM ats_endpoints
+                GROUP BY ats_type
+                ORDER BY total DESC, ats_type
+                """,
+            new MapSqlParameterSource(),
+            rs -> {
+                String type = rs.getString("ats_type");
+                long total = rs.getLong("total");
+                if (type != null) {
+                    counts.put(type, total);
+                }
+            }
+        );
+        return counts;
+    }
+
     public long countTable(String tableName) {
         Long count = jdbc.getJdbcTemplate().queryForObject("SELECT COUNT(*) FROM " + tableName, Long.class);
         return count == null ? 0L : count;
@@ -554,6 +584,31 @@ public class CrawlJdbcRepository {
                 );
             }
         }
+    }
+
+    public void insertCareersDiscoveryFailure(
+        long companyId,
+        String reasonCode,
+        String candidateUrl,
+        String detail,
+        Instant observedAt
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("reasonCode", reasonCode)
+            .addValue("candidateUrl", candidateUrl)
+            .addValue("detail", detail)
+            .addValue("observedAt", toTimestamp(observedAt));
+
+        jdbc.update(
+            """
+                INSERT INTO careers_discovery_failures (
+                    company_id, reason_code, candidate_url, detail, observed_at
+                )
+                VALUES (:companyId, :reasonCode, :candidateUrl, :detail, :observedAt)
+                """,
+            params
+        );
     }
 
     public void updateDiscoveredUrlStatus(long crawlRunId, long companyId, String url, String fetchStatus, Instant lastFetchedAt) {

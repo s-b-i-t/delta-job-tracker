@@ -21,7 +21,11 @@ public class AtsDetector {
         if (host.endsWith("myworkdayjobs.com") || host.contains("workdayjobs")) {
             return AtsType.WORKDAY;
         }
-        if (host.contains("boards.greenhouse.io") || host.contains("greenhouse.io")) {
+        if (host.contains("boards.greenhouse.io")
+            || host.contains("boards-api.greenhouse.io")
+            || host.contains("api.greenhouse.io")
+            || host.contains("greenhouse.io")
+            || host.contains("grnh.se")) {
             return AtsType.GREENHOUSE;
         }
         if (host.contains("jobs.lever.co") || host.contains("api.lever.co")) {
@@ -40,7 +44,10 @@ public class AtsDetector {
         }
         if (lower.contains("boards.greenhouse.io")
             || lower.contains("api.greenhouse.io/v1/boards/")
-            || lower.contains("greenhouse.io")) {
+            || lower.contains("boards-api.greenhouse.io/v1/boards/")
+            || lower.contains("greenhouse.io")
+            || lower.contains("grnh.se/")
+            || lower.contains("greenhouse.io/embed/job_board")) {
             return AtsType.GREENHOUSE;
         }
         if (lower.contains("jobs.lever.co")

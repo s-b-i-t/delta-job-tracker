@@ -88,6 +88,12 @@ curl -X POST http://localhost:8080/api/crawl/run \
   }'
 ```
 
+Optional one-button full cycle (resolve -> discover -> crawl):
+
+```bash
+curl -X POST "http://localhost:8080/api/automation/full-cycle?companies=200&discoverLimit=200&crawlLimit=200"
+```
+
 5. Check status:
 
 ```bash
@@ -121,8 +127,13 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
     2. Optional ATS endpoint discovery
     3. Greenhouse/Lever adapter ingestion if ATS endpoint exists
     4. Fallback robots/sitemap/JSON-LD crawl
+- `POST /api/automation/full-cycle`
+  - Runs resolve -> discover -> crawl in one call.
+  - Query params: `companies`, optional `resolveLimit`, `discoverLimit`, `crawlLimit`, `maxJobPages`, `maxSitemapUrls`.
 - `GET /api/status`
   - Returns DB connectivity, key table counts, and latest crawl summary (start/end, jobs extracted, top errors).
+- `GET /api/diagnostics/coverage`
+  - Returns counts for `company_domains`, `discovered_urls`, `ats_endpoints`, `job_postings`, plus `atsEndpointsByType`.
 - `GET /api/jobs`
   - Returns newest normalized jobs.
   - Filters: `limit`, optional `companyId`, optional `ats`, optional `active`, optional `q` (full-text search).

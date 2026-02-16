@@ -2,6 +2,7 @@ package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.ats.AtsDetector;
+import com.delta.jobtracker.crawl.ats.AtsEndpointExtractor;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.jobs.JobPostingExtractor;
 import com.delta.jobtracker.crawl.model.AtsAdapterResult;
@@ -44,6 +45,7 @@ public class CompanyCrawlerService {
     private final SitemapService sitemapService;
     private final CrawlJdbcRepository repository;
     private final AtsDetector atsDetector;
+    private final AtsEndpointExtractor atsEndpointExtractor;
     private final PoliteHttpClient httpClient;
     private final JobPostingExtractor jobPostingExtractor;
     private final AtsAdapterIngestionService atsAdapterIngestionService;
@@ -54,6 +56,7 @@ public class CompanyCrawlerService {
         SitemapService sitemapService,
         CrawlJdbcRepository repository,
         AtsDetector atsDetector,
+        AtsEndpointExtractor atsEndpointExtractor,
         PoliteHttpClient httpClient,
         JobPostingExtractor jobPostingExtractor,
         AtsAdapterIngestionService atsAdapterIngestionService
@@ -63,6 +66,7 @@ public class CompanyCrawlerService {
         this.sitemapService = sitemapService;
         this.repository = repository;
         this.atsDetector = atsDetector;
+        this.atsEndpointExtractor = atsEndpointExtractor;
         this.httpClient = httpClient;
         this.jobPostingExtractor = jobPostingExtractor;
         this.atsAdapterIngestionService = atsAdapterIngestionService;
@@ -258,19 +262,22 @@ public class CompanyCrawlerService {
         List<AtsDetectionRecord> detections = new ArrayList<>();
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         for (String probe : probes) {
-            AtsType directType = atsDetector.detect(probe);
-            if (directType != AtsType.UNKNOWN) {
-                registerAtsDetection(
-                    crawlRunId,
-                    company.companyId(),
-                    directType,
-                    probe,
-                    "ats_detected_from_hint",
-                    "pattern",
-                    false,
-                    detections,
-                    seen
-                );
+            List<AtsDetectionRecord> directEndpoints = atsEndpointExtractor.extract(probe, null);
+            if (!directEndpoints.isEmpty()) {
+                for (AtsDetectionRecord endpoint : directEndpoints) {
+                    registerAtsDetection(
+                        crawlRunId,
+                        company.companyId(),
+                        endpoint.atsType(),
+                        endpoint.atsUrl(),
+                        probe,
+                        "ats_detected_from_hint",
+                        "pattern",
+                        false,
+                        detections,
+                        seen
+                    );
+                }
             }
 
             if (!robotsTxtService.isAllowed(probe)) {
@@ -279,27 +286,29 @@ public class CompanyCrawlerService {
             HttpFetchResult fetch = httpClient.get(probe, HTML_ACCEPT);
             String resolved = fetch.finalUrlOrRequested();
 
-            AtsType type = atsDetector.detect(resolved);
-            if (type == AtsType.UNKNOWN && fetch.errorCode() != null) {
-                type = atsDetector.detect(probe);
-                resolved = probe;
-            }
-            if (type != AtsType.UNKNOWN) {
-                boolean verified = fetch.isSuccessful();
-                String method = verified ? "html" : "pattern";
-                registerAtsDetection(
-                    crawlRunId,
-                    company.companyId(),
-                    type,
-                    resolved,
-                    fetch.isSuccessful() ? "ats_detected" : "ats_detected_probe_failed",
-                    method,
-                    verified,
-                    detections,
-                    seen
-                );
-            } else if (!fetch.isSuccessful()) {
-                increment(errors, errorKey(fetch));
+            List<AtsDetectionRecord> extracted = atsEndpointExtractor.extract(resolved, fetch.body());
+            if (!extracted.isEmpty()) {
+                for (AtsDetectionRecord endpoint : extracted) {
+                    registerAtsDetection(
+                        crawlRunId,
+                        company.companyId(),
+                        endpoint.atsType(),
+                        endpoint.atsUrl(),
+                        resolved,
+                        fetch.isSuccessful() ? "ats_detected" : "ats_detected_probe_failed",
+                        fetch.isSuccessful() ? "html" : "pattern",
+                        fetch.isSuccessful(),
+                        detections,
+                        seen
+                    );
+                }
+            } else {
+                AtsType type = atsDetector.detect(resolved, fetch.body());
+                if (type != AtsType.UNKNOWN) {
+                    increment(errors, "ats_detected_no_endpoint");
+                } else if (!fetch.isSuccessful()) {
+                    increment(errors, errorKey(fetch));
+                }
             }
         }
         return detections;
@@ -310,6 +319,7 @@ public class CompanyCrawlerService {
         long companyId,
         AtsType atsType,
         String url,
+        String discoveredFromUrl,
         String status,
         String detectionMethod,
         boolean verified,
@@ -322,7 +332,7 @@ public class CompanyCrawlerService {
         }
         seen.add(key);
         detections.add(new AtsDetectionRecord(atsType, url));
-        repository.upsertAtsEndpoint(companyId, atsType, url, url, 0.9, Instant.now(), detectionMethod, verified);
+        repository.upsertAtsEndpoint(companyId, atsType, url, discoveredFromUrl, 0.9, Instant.now(), detectionMethod, verified);
         repository.upsertDiscoveredUrl(
             crawlRunId,
             companyId,

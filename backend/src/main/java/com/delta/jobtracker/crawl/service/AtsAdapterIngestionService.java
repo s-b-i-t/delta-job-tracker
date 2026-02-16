@@ -417,8 +417,16 @@ public class AtsAdapterIngestionService {
                 return segments.getFirst();
             }
         }
-        if (host.contains("api.greenhouse.io") && segments.size() >= 3 && "boards".equals(segments.get(1))) {
+        if ((host.contains("api.greenhouse.io") || host.contains("boards-api.greenhouse.io"))
+            && segments.size() >= 3
+            && "boards".equals(segments.get(1))) {
             return segments.get(2);
+        }
+        if (host.contains("boards.greenhouse.io") && !segments.isEmpty() && "embed".equals(segments.getFirst())) {
+            String token = extractQueryParam(uri, "for");
+            if (token != null && !token.isBlank()) {
+                return token;
+            }
         }
         return null;
     }
@@ -436,6 +444,33 @@ public class AtsAdapterIngestionService {
         }
         if (host.contains("api.lever.co") && segments.size() >= 3 && "postings".equals(segments.get(1))) {
             return segments.get(2);
+        }
+        return null;
+    }
+
+    private String extractQueryParam(URI uri, String name) {
+        if (uri == null || name == null || name.isBlank()) {
+            return null;
+        }
+        String query = uri.getQuery();
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        String[] parts = query.split("&");
+        for (String part : parts) {
+            if (part == null || part.isBlank()) {
+                continue;
+            }
+            String key = part;
+            String value = "";
+            int idx = part.indexOf('=');
+            if (idx >= 0) {
+                key = part.substring(0, idx);
+                value = part.substring(idx + 1);
+            }
+            if (key.equalsIgnoreCase(name)) {
+                return value;
+            }
         }
         return null;
     }

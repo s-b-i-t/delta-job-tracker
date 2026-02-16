@@ -6,12 +6,15 @@ import com.delta.jobtracker.crawl.model.CrawlRunSummary;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
+import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
+import com.delta.jobtracker.crawl.model.FullCycleSummary;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.StatusResponse;
+import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
@@ -96,9 +99,62 @@ public class CrawlController {
         return careersDiscoveryService.discover(limit);
     }
 
+    @PostMapping("/automation/full-cycle")
+    public FullCycleSummary runFullCycle(
+        @RequestParam(name = "companies", required = false) Integer companies,
+        @RequestParam(name = "resolveLimit", required = false) Integer resolveLimit,
+        @RequestParam(name = "discoverLimit", required = false) Integer discoverLimit,
+        @RequestParam(name = "crawlLimit", required = false) Integer crawlLimit,
+        @RequestParam(name = "maxJobPages", required = false) Integer maxJobPages,
+        @RequestParam(name = "maxSitemapUrls", required = false) Integer maxSitemapUrls
+    ) {
+        int base = companies == null
+            ? crawlerProperties.getAutomation().getDiscoverLimit()
+            : Math.max(1, companies);
+        int safeResolve = resolveLimit == null ? base : Math.max(1, resolveLimit);
+        int safeDiscover = discoverLimit == null ? base : Math.max(1, discoverLimit);
+        int safeCrawl = crawlLimit == null ? base : Math.max(1, crawlLimit);
+
+        DomainResolutionResult resolution = domainResolutionService.resolveMissingDomains(safeResolve);
+        CareersDiscoveryResult discovery = careersDiscoveryService.discover(safeDiscover);
+
+        CrawlRunRequest runRequest = new CrawlRunRequest(
+            List.of(),
+            safeCrawl,
+            null,
+            null,
+            maxJobPages,
+            maxSitemapUrls,
+            false,
+            false
+        );
+        CrawlRunSummary crawlSummary = crawlOrchestratorService.run(runRequest);
+
+        int jobsExtracted = 0;
+        for (CompanyCrawlSummary summary : crawlSummary.companies()) {
+            jobsExtracted += summary.jobsExtractedCount();
+        }
+
+        return new FullCycleSummary(
+            safeResolve,
+            safeDiscover,
+            safeCrawl,
+            resolution,
+            discovery,
+            crawlSummary,
+            jobsExtracted,
+            aggregateErrors(crawlSummary.companies(), 5)
+        );
+    }
+
     @GetMapping("/status")
     public StatusResponse getStatus() {
         return crawlStatusService.getStatus();
+    }
+
+    @GetMapping("/diagnostics/coverage")
+    public CoverageDiagnosticsResponse getCoverageDiagnostics() {
+        return crawlStatusService.getCoverageDiagnostics();
     }
 
     @GetMapping("/jobs")
@@ -164,5 +220,26 @@ public class CrawlController {
         @RequestParam(name = "limit", required = false) Integer limit
     ) {
         return crawlStatusService.searchCompanies(search, limit);
+    }
+
+    private java.util.Map<String, Integer> aggregateErrors(List<CompanyCrawlSummary> companies, int limit) {
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        if (companies == null) {
+            return counts;
+        }
+        for (CompanyCrawlSummary summary : companies) {
+            if (summary.topErrors() == null) {
+                continue;
+            }
+            summary.topErrors().forEach((key, value) -> counts.put(key, counts.getOrDefault(key, 0) + value));
+        }
+        return counts.entrySet().stream()
+            .sorted(java.util.Map.Entry.<String, Integer>comparingByValue().reversed())
+            .limit(limit)
+            .collect(
+                java.util.LinkedHashMap::new,
+                (map, entry) -> map.put(entry.getKey(), entry.getValue()),
+                java.util.LinkedHashMap::putAll
+            );
     }
 }

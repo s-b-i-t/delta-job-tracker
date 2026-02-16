@@ -44,7 +44,10 @@ public final class UrlClassifier {
         return h.endsWith("myworkdayjobs.com")
             || h.contains("workdayjobs")
             || h.contains("boards.greenhouse.io")
+            || h.contains("boards-api.greenhouse.io")
+            || h.contains("api.greenhouse.io")
             || h.contains("greenhouse.io")
+            || h.contains("grnh.se")
             || h.contains("jobs.lever.co")
             || h.contains("api.lever.co");
     }

@@ -2,6 +2,7 @@ package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
+import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
@@ -57,6 +58,21 @@ public class CrawlStatusService {
             );
         }
         return new StatusResponse(true, counts, recent);
+    }
+
+    public CoverageDiagnosticsResponse getCoverageDiagnostics() {
+        boolean dbConnected;
+        try {
+            dbConnected = repository.isDbReachable();
+        } catch (Exception ignored) {
+            dbConnected = false;
+        }
+        if (!dbConnected) {
+            return new CoverageDiagnosticsResponse(new LinkedHashMap<>(), new LinkedHashMap<>());
+        }
+        Map<String, Long> counts = repository.coverageCounts();
+        Map<String, Long> atsByType = repository.countAtsEndpointsByType();
+        return new CoverageDiagnosticsResponse(counts, atsByType);
     }
 
     public List<JobPostingListView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {
