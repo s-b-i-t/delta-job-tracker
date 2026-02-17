@@ -228,16 +228,17 @@ public class CrawlController {
 
     @GetMapping("/jobs/page")
     public JobPostingPageResponse getJobsPage(
-        @RequestParam(name = "page", required = false) Integer page,
-        @RequestParam(name = "pageSize", required = false) Integer pageSize,
-        @RequestParam(name = "companyId", required = false) Long companyId,
-        @RequestParam(name = "ats", required = false) String ats,
-        @RequestParam(name = "active", required = false) Boolean active,
-        @RequestParam(name = "q", required = false) String query
+        @RequestParam(name="page", defaultValue="0") int page,
+        @RequestParam(name="pageSize", defaultValue="50") int pageSize,
+        @RequestParam(name="companyId", required=false) Long companyId,
+        @RequestParam(name="ats", required=false) String ats,
+        @RequestParam(name="active", required=false) Boolean active,
+        @RequestParam(name="q", required=false) String query
     ) {
         AtsType atsType = parseAtsType(ats);
         return crawlStatusService.getJobPage(page, pageSize, companyId, atsType, active, query);
     }
+
 
     @GetMapping("/jobs/new")
     public List<JobPostingListView> getNewJobs(
@@ -272,7 +273,7 @@ public class CrawlController {
         return crawlStatusService.getJobDelta(companyId, fromRunId, toRunId, limit);
     }
 
-    @GetMapping("/jobs/{id}")
+    @GetMapping("/jobs/{id:\\d+}")
     public JobPostingView getJobDetail(@PathVariable("id") long jobId) {
         return crawlStatusService.getJobDetail(jobId);
     }

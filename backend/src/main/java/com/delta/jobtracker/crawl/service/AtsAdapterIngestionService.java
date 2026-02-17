@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,6 +40,8 @@ public class AtsAdapterIngestionService {
     private static final int WORKDAY_PAGE_SIZE = 20;
     private static final int WORKDAY_MAX_PAGES = 20;
     private static final int WORKDAY_MAX_ATTEMPTS = 3;
+    private static final int WORKDAY_URL_VALIDATION_LIMIT = 3;
+    private static final String HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
     private final PoliteHttpClient httpClient;
     private final RobotsTxtService robotsTxtService;
@@ -251,6 +254,7 @@ public class AtsAdapterIngestionService {
         int extracted = 0;
         int pagesWithJobs = 0;
         boolean successfulFetch = false;
+        java.util.concurrent.atomic.AtomicInteger validationsRemaining = new java.util.concurrent.atomic.AtomicInteger(WORKDAY_URL_VALIDATION_LIMIT);
         int offset = 0;
         for (int page = 0; page < WORKDAY_MAX_PAGES; page++) {
             HttpFetchResult fetch = fetchWorkdayPage(cxsUrl, offset);
@@ -263,7 +267,7 @@ public class AtsAdapterIngestionService {
 
             try {
                 JsonNode root = objectMapper.readTree(fetch.body());
-                List<NormalizedJobPosting> postings = parseWorkdayJobPostings(endpoint.host(), root, cxsUrl);
+                List<NormalizedJobPosting> postings = parseWorkdayJobPostings(endpoint, root, cxsUrl, errors, validationsRemaining);
                 if (postings.isEmpty()) {
                     successfulFetch = true;
                     recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, "ats_fetch_success", fetch, null);
@@ -545,7 +549,13 @@ public class AtsAdapterIngestionService {
         return lastFetch;
     }
 
-    List<NormalizedJobPosting> parseWorkdayJobPostings(String host, JsonNode root, String sourceUrl) {
+    List<NormalizedJobPosting> parseWorkdayJobPostings(
+        WorkdayEndpoint endpoint,
+        JsonNode root,
+        String sourceUrl,
+        Map<String, Integer> errors,
+        java.util.concurrent.atomic.AtomicInteger validationsRemaining
+    ) {
         List<NormalizedJobPosting> postings = new ArrayList<>();
         JsonNode jobs = root.path("jobPostings");
         if (!jobs.isArray()) {
@@ -553,13 +563,14 @@ public class AtsAdapterIngestionService {
         }
         for (JsonNode job : jobs) {
             String title = firstNonBlank(text(job, "title"), text(job, "jobTitle"));
-            String externalPath = firstNonBlank(text(job, "externalPath"), text(job, "externalUrl"));
-            String canonicalUrl = toCanonicalWorkdayUrl(host, externalPath);
+            List<String> rawCandidates = collectWorkdayUrlCandidates(job);
+            String rawPrimary = rawCandidates.isEmpty() ? null : rawCandidates.getFirst();
+            String canonicalUrl = resolveWorkdayCanonicalUrl(endpoint, rawCandidates, errors, validationsRemaining);
             String identifier = firstNonBlank(
                 text(job, "bulletinId"),
                 text(job, "id"),
                 text(job, "jobReqId"),
-                extractWorkdayIdFromPath(externalPath)
+                extractWorkdayIdFromPath(rawPrimary)
             );
             String location = extractWorkdayLocation(job);
             String employmentType = firstNonBlank(text(job, "timeType"), text(job, "workerSubType"), text(job, "timeTypeLabel"));
@@ -574,10 +585,14 @@ public class AtsAdapterIngestionService {
                 htmlToText(text(job, "jobDescription"))
             );
 
-            String humanUrl = firstNonBlank(canonicalUrl, sourceUrl);
+            if (canonicalUrl == null || canonicalUrl.isBlank()) {
+                log.debug("Skipping Workday posting without canonical URL. title={} id={}", title, identifier);
+                continue;
+            }
+
             NormalizedJobPosting posting = buildPosting(
-                humanUrl,
-                firstNonBlank(canonicalUrl, humanUrl, sourceUrl),
+                canonicalUrl,
+                canonicalUrl,
                 title,
                 null,
                 location,
@@ -632,29 +647,202 @@ public class AtsAdapterIngestionService {
         return segment != null && segment.matches("^[a-z]{2}-[A-Z]{2}$");
     }
 
-    private String toCanonicalWorkdayUrl(String host, String externalPath) {
+    List<String> buildWorkdayUrlCandidates(String host, String site, String externalPath) {
         if (externalPath == null || externalPath.isBlank()) {
-            return null;
+            return List.of();
         }
         String trimmed = externalPath.trim();
         if (trimmed.toLowerCase(Locale.ROOT).contains("invalid-url")) {
-            return null;
+            return List.of();
         }
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        boolean isAbsolute = trimmed.startsWith("http://") || trimmed.startsWith("https://");
+        if (isAbsolute) {
             URI uri = safeUri(trimmed);
             if (uri == null || uri.getHost() == null) {
-                return null;
+                return List.of();
             }
             String extHost = uri.getHost().toLowerCase(Locale.ROOT);
             if (!extHost.endsWith("myworkdayjobs.com")) {
-                return null;
+                return List.of();
             }
-            return trimmed;
+            String rawPath = uri.getRawPath();
+            String rawQuery = uri.getRawQuery();
+            String direct = buildWorkdayUrl(extHost, rawPath, rawQuery);
+            if (direct != null) {
+                candidates.add(direct);
+            }
+            for (String pathCandidate : buildWorkdayPathCandidates(rawPath, site)) {
+                String candidate = buildWorkdayUrl(extHost, pathCandidate, rawQuery);
+                if (candidate != null) {
+                    candidates.add(candidate);
+                }
+            }
+            return new ArrayList<>(candidates);
         }
-        if (!trimmed.startsWith("/")) {
-            trimmed = "/" + trimmed;
+
+        String rawPath = stripQueryAndFragment(trimmed);
+        for (String pathCandidate : buildWorkdayPathCandidates(rawPath, site)) {
+            String candidate = buildWorkdayUrl(host, pathCandidate, null);
+            if (candidate != null) {
+                candidates.add(candidate);
+            }
         }
-        return "https://" + host + trimmed;
+        return new ArrayList<>(candidates);
+    }
+
+    String toCanonicalWorkdayUrl(String host, String site, String externalPath) {
+        List<String> candidates = buildWorkdayUrlCandidates(host, site, externalPath);
+        return candidates.isEmpty() ? null : candidates.getFirst();
+    }
+
+    private String resolveWorkdayCanonicalUrl(
+        WorkdayEndpoint endpoint,
+        List<String> rawCandidates,
+        Map<String, Integer> errors,
+        java.util.concurrent.atomic.AtomicInteger validationsRemaining
+    ) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        for (String rawCandidate : rawCandidates) {
+            candidates.addAll(buildWorkdayUrlCandidates(endpoint.host(), endpoint.site(), rawCandidate));
+        }
+        if (candidates.isEmpty()) {
+            increment(errors, "workday_missing_canonical_url");
+            return null;
+        }
+
+        boolean invalidRedirect = false;
+        boolean apiStyleRejected = false;
+        for (String candidate : candidates) {
+            if (isWorkdayApiStyleUrl(candidate)) {
+                apiStyleRejected = true;
+                continue;
+            }
+            if (shouldValidateWorkdayUrl(validationsRemaining)) {
+                HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
+                if (isInvalidWorkdayRedirect(fetch)) {
+                    invalidRedirect = true;
+                    continue;
+                }
+            }
+            return candidate;
+        }
+
+        if (invalidRedirect) {
+            increment(errors, "workday_job_url_invalid_redirect");
+        }
+        if (apiStyleRejected) {
+            increment(errors, "workday_job_url_api_style_rejected");
+        }
+        if (!invalidRedirect && !apiStyleRejected) {
+            increment(errors, "workday_missing_canonical_url");
+        }
+        return null;
+    }
+
+    private List<String> collectWorkdayUrlCandidates(JsonNode job) {
+        List<String> candidates = new ArrayList<>();
+        addIfPresent(candidates, text(job, "externalPath"));
+        addIfPresent(candidates, text(job, "externalUrl"));
+        addIfPresent(candidates, text(job, "jobPostingUrl"));
+        addIfPresent(candidates, text(job, "jobUrl"));
+        addIfPresent(candidates, text(job, "url"));
+        addIfPresent(candidates, text(job, "applyUrl"));
+        addIfPresent(candidates, text(job, "externalApplyUrl"));
+        return candidates;
+    }
+
+    private List<String> buildWorkdayPathCandidates(String rawPath, String site) {
+        String path = normalizeWorkdayPath(rawPath);
+        if (path == null || path.isBlank()) {
+            return List.of();
+        }
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        boolean hasLocale = path.matches("^/[a-z]{2}-[A-Z]{2}/.*");
+        boolean startsWithSite = site != null
+            && path.toLowerCase(Locale.ROOT).startsWith("/" + site.toLowerCase(Locale.ROOT) + "/");
+        if (hasLocale) {
+            candidates.add(path);
+        } else {
+            if (site != null && !site.isBlank()) {
+                String sitePrefixed = startsWithSite ? path : "/" + site + path;
+                candidates.add("/en-US" + sitePrefixed);
+                candidates.add(sitePrefixed);
+            }
+            candidates.add("/en-US" + path);
+            candidates.add(path);
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private String normalizeWorkdayPath(String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return null;
+        }
+        String cleaned = stripQueryAndFragment(rawPath.trim());
+        if (cleaned.isBlank()) {
+            return null;
+        }
+        if (!cleaned.startsWith("/")) {
+            cleaned = "/" + cleaned;
+        }
+        return cleaned;
+    }
+
+    private String buildWorkdayUrl(String host, String path, String query) {
+        if (host == null || host.isBlank() || path == null || path.isBlank()) {
+            return null;
+        }
+        String normalizedPath = normalizeWorkdayPath(path);
+        if (normalizedPath == null) {
+            return null;
+        }
+        String url = "https://" + host + normalizedPath;
+        if (query != null && !query.isBlank()) {
+            url = url + "?" + query;
+        }
+        return url;
+    }
+
+    private boolean isWorkdayApiStyleUrl(String candidate) {
+        if (candidate == null || candidate.isBlank()) {
+            return true;
+        }
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        if (lower.contains("/wday/cxs/")) {
+            return true;
+        }
+        URI uri = safeUri(candidate);
+        String path = uri == null ? null : uri.getPath();
+        if (path == null) {
+            return false;
+        }
+        String trimmedPath = path.toLowerCase(Locale.ROOT);
+        return trimmedPath.endsWith("/jobs") || trimmedPath.endsWith("/jobs/");
+    }
+
+    private boolean shouldValidateWorkdayUrl(java.util.concurrent.atomic.AtomicInteger remaining) {
+        if (remaining == null) {
+            return false;
+        }
+        int current = remaining.get();
+        if (current <= 0) {
+            return false;
+        }
+        remaining.decrementAndGet();
+        return true;
+    }
+
+    private boolean isInvalidWorkdayRedirect(HttpFetchResult fetch) {
+        if (fetch == null) {
+            return false;
+        }
+        String finalUrl = fetch.finalUrlOrRequested();
+        if (finalUrl == null) {
+            return false;
+        }
+        return finalUrl.toLowerCase(Locale.ROOT).contains("community.workday.com/invalid-url");
     }
 
     private String extractWorkdayIdFromPath(String externalPath) {
@@ -773,6 +961,32 @@ public class AtsAdapterIngestionService {
         return null;
     }
 
+    private void addIfPresent(List<String> target, String value) {
+        if (target == null || value == null) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (!trimmed.isBlank()) {
+            target.add(trimmed);
+        }
+    }
+
+    private String stripQueryAndFragment(String value) {
+        if (value == null) {
+            return null;
+        }
+        String result = value;
+        int idx = result.indexOf('?');
+        if (idx >= 0) {
+            result = result.substring(0, idx);
+        }
+        int hashIdx = result.indexOf('#');
+        if (hashIdx >= 0) {
+            result = result.substring(0, hashIdx);
+        }
+        return result;
+    }
+
     private String safe(String value) {
         return value == null ? "" : value.trim();
     }
@@ -863,7 +1077,7 @@ public class AtsAdapterIngestionService {
         return normalized;
     }
 
-    private record WorkdayEndpoint(String host, String tenant, String site) {
+    record WorkdayEndpoint(String host, String tenant, String site) {
     }
 
     private record AdapterFetchResult(

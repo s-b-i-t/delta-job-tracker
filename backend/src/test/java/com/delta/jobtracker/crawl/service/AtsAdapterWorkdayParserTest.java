@@ -36,10 +36,14 @@ class AtsAdapterWorkdayParserTest {
 
         String fixture = Files.readString(Path.of("src/test/resources/fixtures/workday-cxs-response.json"));
         JsonNode root = objectMapper.readTree(fixture);
+        AtsAdapterIngestionService.WorkdayEndpoint endpoint =
+            new AtsAdapterIngestionService.WorkdayEndpoint("acme.wd5.myworkdayjobs.com", "acme", "External");
         List<NormalizedJobPosting> postings = service.parseWorkdayJobPostings(
-            "acme.wd5.myworkdayjobs.com",
+            endpoint,
             root,
-            "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/External/jobs"
+            "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/External/jobs",
+            new java.util.LinkedHashMap<>(),
+            new java.util.concurrent.atomic.AtomicInteger(0)
         );
 
         assertEquals(2, postings.size());
