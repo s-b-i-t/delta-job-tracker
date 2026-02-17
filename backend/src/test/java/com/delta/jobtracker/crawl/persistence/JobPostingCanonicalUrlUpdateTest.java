@@ -34,7 +34,7 @@ class JobPostingCanonicalUrlUpdateTest {
 
         NormalizedJobPosting initial = new NormalizedJobPosting(
             "https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true",
-            "https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true",
+            "https://boards.greenhouse.io/acme/jobs/old",
             "Senior Engineer",
             "Canonical Update Co",
             "Remote",

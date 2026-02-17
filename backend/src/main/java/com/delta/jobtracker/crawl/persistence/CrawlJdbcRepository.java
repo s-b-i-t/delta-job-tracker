@@ -8,12 +8,16 @@ import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunActivityCounts;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
+import com.delta.jobtracker.crawl.model.CrawlRunStatus;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.DiscoveryFailureEntry;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
+import com.delta.jobtracker.crawl.model.JobPostingUrlRef;
 import com.delta.jobtracker.crawl.model.JobPostingView;
+import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
+import com.delta.jobtracker.crawl.util.JobUrlUtils;
 import org.jsoup.Jsoup;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -42,10 +46,12 @@ public class CrawlJdbcRepository {
     private static final Logger log = LoggerFactory.getLogger(CrawlJdbcRepository.class);
     private final NamedParameterJdbcTemplate jdbc;
     private final boolean postgres;
+    private final CrawlerProperties properties;
 
-    public CrawlJdbcRepository(NamedParameterJdbcTemplate jdbc) {
+    public CrawlJdbcRepository(NamedParameterJdbcTemplate jdbc, CrawlerProperties properties) {
         this.jdbc = jdbc;
         this.postgres = detectPostgres(jdbc);
+        this.properties = properties;
     }
 
     public boolean isDbReachable() {
@@ -348,13 +354,36 @@ public class CrawlJdbcRepository {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("status", status)
-            .addValue("notes", notes);
+            .addValue("notes", notes)
+            .addValue("companiesAttempted", 0)
+            .addValue("companiesSucceeded", 0)
+            .addValue("companiesFailed", 0)
+            .addValue("jobsExtractedCount", 0)
+            .addValue("lastHeartbeatAt", toTimestamp(startedAt));
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbc.update(
             """
-                INSERT INTO crawl_runs (started_at, status, notes)
-                VALUES (:startedAt, :status, :notes)
+                INSERT INTO crawl_runs (
+                    started_at,
+                    status,
+                    notes,
+                    companies_attempted,
+                    companies_succeeded,
+                    companies_failed,
+                    jobs_extracted_count,
+                    last_heartbeat_at
+                )
+                VALUES (
+                    :startedAt,
+                    :status,
+                    :notes,
+                    :companiesAttempted,
+                    :companiesSucceeded,
+                    :companiesFailed,
+                    :jobsExtractedCount,
+                    :lastHeartbeatAt
+                )
                 """,
             params,
             keyHolder,
@@ -387,13 +416,58 @@ public class CrawlJdbcRepository {
             .addValue("crawlRunId", crawlRunId)
             .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("status", status)
-            .addValue("notes", notes);
+            .addValue("notes", notes)
+            .addValue("lastHeartbeatAt", toTimestamp(finishedAt));
         jdbc.update(
             """
                 UPDATE crawl_runs
                 SET finished_at = :finishedAt,
                     status = :status,
-                    notes = :notes
+                    notes = :notes,
+                    last_heartbeat_at = COALESCE(:lastHeartbeatAt, last_heartbeat_at)
+                WHERE id = :crawlRunId
+                """,
+            params
+        );
+    }
+
+    public void updateCrawlRunProgress(
+        long crawlRunId,
+        int companiesAttempted,
+        int companiesSucceeded,
+        int companiesFailed,
+        int jobsExtractedCount,
+        Instant heartbeatAt
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId)
+            .addValue("companiesAttempted", companiesAttempted)
+            .addValue("companiesSucceeded", companiesSucceeded)
+            .addValue("companiesFailed", companiesFailed)
+            .addValue("jobsExtractedCount", jobsExtractedCount)
+            .addValue("lastHeartbeatAt", toTimestamp(heartbeatAt));
+        jdbc.update(
+            """
+                UPDATE crawl_runs
+                SET companies_attempted = :companiesAttempted,
+                    companies_succeeded = :companiesSucceeded,
+                    companies_failed = :companiesFailed,
+                    jobs_extracted_count = :jobsExtractedCount,
+                    last_heartbeat_at = COALESCE(:lastHeartbeatAt, last_heartbeat_at)
+                WHERE id = :crawlRunId
+                """,
+            params
+        );
+    }
+
+    public void updateCrawlRunHeartbeat(long crawlRunId, Instant heartbeatAt) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId)
+            .addValue("lastHeartbeatAt", toTimestamp(heartbeatAt));
+        jdbc.update(
+            """
+                UPDATE crawl_runs
+                SET last_heartbeat_at = COALESCE(:lastHeartbeatAt, last_heartbeat_at)
                 WHERE id = :crawlRunId
                 """,
             params
@@ -645,6 +719,36 @@ public class CrawlJdbcRepository {
         }
 
         return jdbc.query(sql, params, companyTargetRowMapper());
+    }
+
+    public CompanyTarget findCompanyTargetById(long companyId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId);
+        List<CompanyTarget> targets = jdbc.query(
+            """
+                SELECT c.id AS company_id,
+                       c.ticker,
+                       c.name,
+                       c.sector,
+                       cd.domain,
+                       cd.careers_hint_url
+                FROM companies c
+                JOIN company_domains cd ON cd.id = (
+                    SELECT cd2.id
+                    FROM company_domains cd2
+                    WHERE cd2.company_id = c.id
+                    ORDER BY cd2.confidence DESC,
+                             CASE WHEN cd2.resolved_at IS NULL THEN 1 ELSE 0 END,
+                             cd2.resolved_at DESC,
+                             cd2.id DESC
+                    LIMIT 1
+                )
+                WHERE c.id = :companyId
+                """,
+            params,
+            companyTargetRowMapper()
+        );
+        return targets.isEmpty() ? null : targets.getFirst();
     }
 
     public List<AtsEndpointRecord> findAtsEndpoints(long companyId) {
@@ -931,32 +1035,97 @@ public class CrawlJdbcRepository {
     }
 
     public void upsertJobPosting(long companyId, Long crawlRunId, NormalizedJobPosting posting, Instant fetchedAt) {
-        String descriptionPlain = null;
-        if (posting.descriptionText() != null && !posting.descriptionText().isBlank()) {
-            descriptionPlain = Jsoup.parse(posting.descriptionText()).text();
-        }
-        String canonicalUrl = posting.canonicalUrl();
-        if (canonicalUrl == null || canonicalUrl.isBlank()) {
-            canonicalUrl = posting.sourceUrl();
-        }
-        String externalIdentifier = posting.externalIdentifier();
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("companyId", companyId)
-            .addValue("crawlRunId", crawlRunId)
-            .addValue("sourceUrl", posting.sourceUrl())
-            .addValue("canonicalUrl", canonicalUrl)
-            .addValue("title", posting.title())
-            .addValue("orgName", posting.orgName())
-            .addValue("locationText", posting.locationText())
-            .addValue("employmentType", posting.employmentType())
-            .addValue("datePosted", posting.datePosted())
-            .addValue("descriptionText", posting.descriptionText())
-            .addValue("descriptionPlain", descriptionPlain)
-            .addValue("externalIdentifier", externalIdentifier)
-            .addValue("contentHash", posting.contentHash())
-            .addValue("fetchedAt", toTimestamp(fetchedAt))
-            .addValue("isActive", true);
+        upsertJobPostingsBatch(companyId, crawlRunId, List.of(posting), fetchedAt);
+    }
 
+    public void upsertJobPostingsBatch(long companyId, Long crawlRunId, List<NormalizedJobPosting> postings, Instant fetchedAt) {
+        if (postings == null || postings.isEmpty()) {
+            return;
+        }
+
+        int batchSize = properties.getJobPostingBatchSize();
+        List<MapSqlParameterSource> paramsList = buildJobPostingParams(companyId, crawlRunId, postings, fetchedAt);
+        if (!postgres) {
+            for (MapSqlParameterSource params : paramsList) {
+                upsertJobPostingLegacy(params);
+            }
+            return;
+        }
+        for (int i = 0; i < paramsList.size(); i += batchSize) {
+            int end = Math.min(paramsList.size(), i + batchSize);
+            List<MapSqlParameterSource> chunk = paramsList.subList(i, end);
+            batchUpdateJobPostings(chunk);
+        }
+    }
+
+    private void batchUpdateJobPostings(List<MapSqlParameterSource> paramsList) {
+        if (paramsList == null || paramsList.isEmpty()) {
+            return;
+        }
+        List<MapSqlParameterSource> byIdentifier = paramsList.stream()
+            .filter(params -> {
+                Object value = params.getValue("externalIdentifier");
+                return value != null && !value.toString().isBlank();
+            })
+            .toList();
+        if (!byIdentifier.isEmpty()) {
+            jdbc.batchUpdate(
+                """
+                    UPDATE job_postings
+                    SET source_url = :sourceUrl,
+                        canonical_url = COALESCE(:canonicalUrl, canonical_url),
+                        crawl_run_id = COALESCE(:crawlRunId, crawl_run_id),
+                        title = :title,
+                        org_name = :orgName,
+                        location_text = :locationText,
+                        employment_type = :employmentType,
+                        date_posted = :datePosted,
+                        description_text = :descriptionText,
+                        description_plain = :descriptionPlain,
+                        external_identifier = :externalIdentifier,
+                        content_hash = :contentHash,
+                        last_seen_at = :fetchedAt,
+                        is_active = :isActive
+                    WHERE company_id = :companyId
+                      AND external_identifier = :externalIdentifier
+                    """,
+                byIdentifier.toArray(new MapSqlParameterSource[0])
+            );
+        }
+
+        jdbc.batchUpdate(
+            """
+                INSERT INTO job_postings (
+                    company_id, crawl_run_id, source_url, canonical_url, title, org_name, location_text,
+                    employment_type, date_posted, description_text, description_plain, external_identifier,
+                    content_hash, first_seen_at, last_seen_at, is_active
+                )
+                VALUES (
+                    :companyId, :crawlRunId, :sourceUrl, :canonicalUrl, :title, :orgName, :locationText,
+                    :employmentType, :datePosted, :descriptionText, :descriptionPlain, :externalIdentifier,
+                    :contentHash, :fetchedAt, :fetchedAt, :isActive
+                )
+                ON CONFLICT (company_id, content_hash)
+                DO UPDATE SET
+                    source_url = EXCLUDED.source_url,
+                    canonical_url = COALESCE(EXCLUDED.canonical_url, job_postings.canonical_url),
+                    crawl_run_id = COALESCE(EXCLUDED.crawl_run_id, job_postings.crawl_run_id),
+                    title = EXCLUDED.title,
+                    org_name = EXCLUDED.org_name,
+                    location_text = EXCLUDED.location_text,
+                    employment_type = EXCLUDED.employment_type,
+                    date_posted = EXCLUDED.date_posted,
+                    description_text = EXCLUDED.description_text,
+                    description_plain = EXCLUDED.description_plain,
+                    external_identifier = EXCLUDED.external_identifier,
+                    last_seen_at = EXCLUDED.last_seen_at,
+                    is_active = EXCLUDED.is_active
+                """,
+            paramsList.toArray(new MapSqlParameterSource[0])
+        );
+    }
+
+    private void upsertJobPostingLegacy(MapSqlParameterSource params) {
         int updated = jdbc.update(
             """
                 UPDATE job_postings
@@ -978,8 +1147,9 @@ public class CrawlJdbcRepository {
                 """,
             params
         );
-        if (updated == 0 && externalIdentifier != null && !externalIdentifier.isBlank()) {
-            int updatedByIdentifier = jdbc.update(
+        Object identifier = params.getValue("externalIdentifier");
+        if (updated == 0 && identifier != null && !identifier.toString().isBlank()) {
+            updated = jdbc.update(
                 """
                     UPDATE job_postings
                     SET source_url = :sourceUrl,
@@ -1001,9 +1171,6 @@ public class CrawlJdbcRepository {
                     """,
                 params
             );
-            if (updatedByIdentifier > 0) {
-                return;
-            }
         }
 
         if (updated == 0) {
@@ -1047,6 +1214,50 @@ public class CrawlJdbcRepository {
                 );
             }
         }
+    }
+
+    private List<MapSqlParameterSource> buildJobPostingParams(
+        long companyId,
+        Long crawlRunId,
+        List<NormalizedJobPosting> postings,
+        Instant fetchedAt
+    ) {
+        List<MapSqlParameterSource> paramsList = new java.util.ArrayList<>(postings.size());
+        for (NormalizedJobPosting posting : postings) {
+            if (posting == null) {
+                continue;
+            }
+            String descriptionPlain = null;
+            if (posting.descriptionText() != null && !posting.descriptionText().isBlank()) {
+                descriptionPlain = Jsoup.parse(posting.descriptionText()).text();
+            }
+            String canonicalUrl = JobUrlUtils.sanitizeCanonicalUrl(posting.canonicalUrl());
+            if (canonicalUrl == null || canonicalUrl.isBlank()) {
+                continue;
+            }
+            if (JobUrlUtils.isInvalidWorkdayUrl(posting.sourceUrl())) {
+                continue;
+            }
+            String externalIdentifier = posting.externalIdentifier();
+            MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("companyId", companyId)
+                .addValue("crawlRunId", crawlRunId)
+                .addValue("sourceUrl", posting.sourceUrl())
+                .addValue("canonicalUrl", canonicalUrl)
+                .addValue("title", posting.title())
+                .addValue("orgName", posting.orgName())
+                .addValue("locationText", posting.locationText())
+                .addValue("employmentType", posting.employmentType())
+                .addValue("datePosted", posting.datePosted())
+                .addValue("descriptionText", posting.descriptionText())
+                .addValue("descriptionPlain", descriptionPlain)
+                .addValue("externalIdentifier", externalIdentifier)
+                .addValue("contentHash", posting.contentHash())
+                .addValue("fetchedAt", toTimestamp(fetchedAt))
+                .addValue("isActive", true);
+            paramsList.add(params);
+        }
+        return paramsList;
     }
 
     public void upsertJobPosting(long companyId, NormalizedJobPosting posting, Instant fetchedAt) {
@@ -1171,6 +1382,39 @@ public class CrawlJdbcRepository {
                 rs.getTimestamp("started_at").toInstant(),
                 rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
                 rs.getString("status")
+            )
+        );
+        return runs.isEmpty() ? null : runs.getFirst();
+    }
+
+    public CrawlRunStatus findCrawlRunStatus(long crawlRunId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId);
+        List<CrawlRunStatus> runs = jdbc.query(
+            """
+                SELECT id,
+                       started_at,
+                       finished_at,
+                       status,
+                       companies_attempted,
+                       companies_succeeded,
+                       companies_failed,
+                       jobs_extracted_count,
+                       last_heartbeat_at
+                FROM crawl_runs
+                WHERE id = :crawlRunId
+                """,
+            params,
+            (rs, rowNum) -> new CrawlRunStatus(
+                rs.getLong("id"),
+                rs.getTimestamp("started_at").toInstant(),
+                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
+                rs.getString("status"),
+                rs.getInt("companies_attempted"),
+                rs.getInt("companies_succeeded"),
+                rs.getInt("companies_failed"),
+                rs.getInt("jobs_extracted_count"),
+                rs.getTimestamp("last_heartbeat_at") == null ? null : rs.getTimestamp("last_heartbeat_at").toInstant()
             )
         );
         return runs.isEmpty() ? null : runs.getFirst();
@@ -1730,6 +1974,8 @@ public class CrawlJdbcRepository {
                      AND ranked.max_detected_at = ae.detected_at
                 ) latest_ats ON latest_ats.company_id = jp.company_id
                 WHERE jp.id = :jobId
+                  AND jp.canonical_url IS NOT NULL
+                  AND jp.canonical_url NOT LIKE 'https://community.workday.com/invalid-url%'
                 """,
             params,
             (rs, rowNum) -> new JobPostingView(
@@ -1753,6 +1999,47 @@ public class CrawlJdbcRepository {
             )
         );
         return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public List<JobPostingUrlRef> findWorkdayJobPostingUrls(long afterId, int limit) {
+        long safeAfterId = Math.max(0L, afterId);
+        int safeLimit = Math.max(1, limit);
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("afterId", safeAfterId)
+            .addValue("limit", safeLimit);
+
+        return jdbc.query(
+            """
+                SELECT id,
+                       canonical_url
+                FROM job_postings
+                WHERE id > :afterId
+                  AND canonical_url IS NOT NULL
+                  AND LOWER(canonical_url) LIKE '%workdayjobs%'
+                ORDER BY id ASC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new JobPostingUrlRef(
+                rs.getLong("id"),
+                rs.getString("canonical_url")
+            )
+        );
+    }
+
+    public int deleteJobPostingsByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("ids", ids);
+        return jdbc.update(
+            """
+                DELETE FROM job_postings
+                WHERE id IN (:ids)
+                """,
+            params
+        );
     }
 
     public List<CompanySearchResult> searchCompanies(String search, int limit) {
@@ -1905,6 +2192,9 @@ public class CrawlJdbcRepository {
                 )
               )
             """.formatted(safeAlias, safeAlias, safeAlias);
+        clause = clause
+            + "  AND " + safeAlias + ".canonical_url IS NOT NULL\n"
+            + "  AND " + safeAlias + ".canonical_url NOT LIKE '" + JobUrlUtils.WORKDAY_INVALID_URL_PREFIX + "%'\n";
         return clause + searchClause(safeAlias, normalizedQuery);
     }
 

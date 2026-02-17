@@ -2,22 +2,29 @@ package com.delta.jobtracker.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @ConfigurationProperties(prefix = "crawler")
 public class CrawlerProperties {
     private static final String DEFAULT_USER_AGENT = "delta-job-tracker/0.1 (+contact)";
 
     private String userAgent;
     private int perHostDelayMs = 1000;
+    private int perHostConcurrency = 2;
     private int globalConcurrency = 5;
     private int requestTimeoutSeconds = 60;
     private int requestMaxRetries = 2;
     private int requestRetryBaseDelayMs = 250;
     private int requestRetryMaxDelayMs = 2000;
     private int maxCompanySeconds = 300;
+    private int crawlHeartbeatSeconds = 30;
+    private int jobPostingBatchSize = 500;
     private int activeRunMinutes = 10;
     private int staleRunMinutes = 10;
     private Api api = new Api();
     private Automation automation = new Automation();
+    private Daemon daemon = new Daemon();
     private DomainResolution domainResolution = new DomainResolution();
     private CareersDiscovery careersDiscovery = new CareersDiscovery();
     private Robots robots = new Robots();
@@ -40,6 +47,14 @@ public class CrawlerProperties {
 
     public void setPerHostDelayMs(int perHostDelayMs) {
         this.perHostDelayMs = Math.max(1, perHostDelayMs);
+    }
+
+    public int getPerHostConcurrency() {
+        return Math.max(1, perHostConcurrency);
+    }
+
+    public void setPerHostConcurrency(int perHostConcurrency) {
+        this.perHostConcurrency = Math.max(1, perHostConcurrency);
     }
 
     public int getGlobalConcurrency() {
@@ -90,6 +105,22 @@ public class CrawlerProperties {
         this.maxCompanySeconds = maxCompanySeconds;
     }
 
+    public int getCrawlHeartbeatSeconds() {
+        return Math.max(5, crawlHeartbeatSeconds);
+    }
+
+    public void setCrawlHeartbeatSeconds(int crawlHeartbeatSeconds) {
+        this.crawlHeartbeatSeconds = Math.max(5, crawlHeartbeatSeconds);
+    }
+
+    public int getJobPostingBatchSize() {
+        return Math.max(50, jobPostingBatchSize);
+    }
+
+    public void setJobPostingBatchSize(int jobPostingBatchSize) {
+        this.jobPostingBatchSize = Math.max(50, jobPostingBatchSize);
+    }
+
     public int getActiveRunMinutes() {
         return Math.max(1, activeRunMinutes);
     }
@@ -112,6 +143,14 @@ public class CrawlerProperties {
 
     public void setAutomation(Automation automation) {
         this.automation = automation;
+    }
+
+    public Daemon getDaemon() {
+        return daemon;
+    }
+
+    public void setDaemon(Daemon daemon) {
+        this.daemon = daemon;
     }
 
     public Api getApi() {
@@ -233,6 +272,76 @@ public class CrawlerProperties {
 
         public void setDefaultCompanyLimit(int defaultCompanyLimit) {
             this.defaultCompanyLimit = Math.max(1, defaultCompanyLimit);
+        }
+    }
+
+    public static class Daemon {
+        private static final List<Integer> DEFAULT_FAILURE_BACKOFF = List.of(5, 15, 60, 360, 1440);
+
+        private boolean enabled;
+        private int workerCount = 8;
+        private int pollIntervalMs = 1000;
+        private int lockTtlSeconds = 600;
+        private int successIntervalMinutes = 60;
+        private List<Integer> failureBackoffMinutes = new ArrayList<>(DEFAULT_FAILURE_BACKOFF);
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getWorkerCount() {
+            return Math.max(1, workerCount);
+        }
+
+        public void setWorkerCount(int workerCount) {
+            this.workerCount = Math.max(1, workerCount);
+        }
+
+        public int getPollIntervalMs() {
+            return Math.max(100, pollIntervalMs);
+        }
+
+        public void setPollIntervalMs(int pollIntervalMs) {
+            this.pollIntervalMs = Math.max(100, pollIntervalMs);
+        }
+
+        public int getLockTtlSeconds() {
+            return Math.max(30, lockTtlSeconds);
+        }
+
+        public void setLockTtlSeconds(int lockTtlSeconds) {
+            this.lockTtlSeconds = Math.max(30, lockTtlSeconds);
+        }
+
+        public int getSuccessIntervalMinutes() {
+            return Math.max(1, successIntervalMinutes);
+        }
+
+        public void setSuccessIntervalMinutes(int successIntervalMinutes) {
+            this.successIntervalMinutes = Math.max(1, successIntervalMinutes);
+        }
+
+        public List<Integer> getFailureBackoffMinutes() {
+            if (failureBackoffMinutes == null || failureBackoffMinutes.isEmpty()) {
+                return DEFAULT_FAILURE_BACKOFF;
+            }
+            List<Integer> sanitized = new ArrayList<>();
+            for (Integer value : failureBackoffMinutes) {
+                if (value != null && value > 0) {
+                    sanitized.add(value);
+                }
+            }
+            return sanitized.isEmpty() ? DEFAULT_FAILURE_BACKOFF : sanitized;
+        }
+
+        public void setFailureBackoffMinutes(List<Integer> failureBackoffMinutes) {
+            this.failureBackoffMinutes = failureBackoffMinutes == null
+                ? new ArrayList<>(DEFAULT_FAILURE_BACKOFF)
+                : new ArrayList<>(failureBackoffMinutes);
         }
     }
 

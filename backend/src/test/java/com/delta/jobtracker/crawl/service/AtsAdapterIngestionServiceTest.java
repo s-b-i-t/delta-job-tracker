@@ -70,9 +70,12 @@ class AtsAdapterIngestionServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(1);
-        var captor = org.mockito.ArgumentCaptor.forClass(NormalizedJobPosting.class);
-        verify(repository, atLeastOnce()).upsertJobPosting(eq(1L), eq(10L), captor.capture(), any(Instant.class));
-        assertThat(captor.getValue().sourceUrl()).isEqualTo("https://boards.greenhouse.io/uber/jobs/123");
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(repository, atLeastOnce()).upsertJobPostingsBatch(eq(1L), eq(10L), captor.capture(), any(Instant.class));
+        @SuppressWarnings("unchecked")
+        List<NormalizedJobPosting> postings = (List<NormalizedJobPosting>) captor.getValue();
+        assertThat(postings).hasSize(1);
+        assertThat(postings.get(0).sourceUrl()).isEqualTo("https://boards-api.greenhouse.io/v1/boards/uber/jobs?content=true");
         verify(httpClient, never()).get(eq(fallbackUrl), anyString());
     }
 
@@ -111,7 +114,7 @@ class AtsAdapterIngestionServiceTest {
 
         assertThat(posting).isNotNull();
         assertThat(posting.canonicalUrl()).isEqualTo("https://boards.greenhouse.io/acme/jobs/456");
-        assertThat(posting.sourceUrl()).isEqualTo("https://boards.greenhouse.io/acme/jobs/456");
+        assertThat(posting.sourceUrl()).isEqualTo("https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true");
     }
 
     @Test
@@ -133,7 +136,7 @@ class AtsAdapterIngestionServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(1);
-        verify(repository, atLeastOnce()).upsertJobPosting(eq(2L), eq(11L), any(NormalizedJobPosting.class), any(Instant.class));
+        verify(repository, atLeastOnce()).upsertJobPostingsBatch(eq(2L), eq(11L), any(List.class), any(Instant.class));
     }
 
     @Test
@@ -156,7 +159,7 @@ class AtsAdapterIngestionServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(2);
-        verify(repository, atLeastOnce()).upsertJobPosting(eq(3L), eq(12L), any(NormalizedJobPosting.class), any(Instant.class));
+        verify(repository, atLeastOnce()).upsertJobPostingsBatch(eq(3L), eq(12L), any(List.class), any(Instant.class));
     }
 
     private HttpFetchResult successFetch(String url, String body) {

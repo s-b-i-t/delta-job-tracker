@@ -2,6 +2,7 @@ package com.delta.jobtracker.crawl.jobs;
 
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.util.HashUtils;
+import com.delta.jobtracker.crawl.util.JobUrlUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,7 +52,10 @@ public class JobPostingExtractor {
 
         List<NormalizedJobPosting> postings = new ArrayList<>();
         for (JsonNode node : jobPostingNodes) {
-            postings.add(normalize(node, sourceUrl));
+            NormalizedJobPosting posting = normalize(node, sourceUrl);
+            if (posting != null) {
+                postings.add(posting);
+            }
         }
         return postings;
     }
@@ -104,7 +108,18 @@ public class JobPostingExtractor {
         LocalDate datePosted = parseDate(text(node, "datePosted"));
         String description = text(node, "description");
         String identifier = extractIdentifier(node.get("identifier"));
-        String canonicalUrl = firstNonBlank(text(node, "url"), sourceUrl);
+        String rawUrl = text(node, "url");
+        String canonicalUrl = JobUrlUtils.sanitizeCanonicalUrl(rawUrl);
+        if (canonicalUrl == null && rawUrl != null) {
+            String resolved = resolveRelativeUrl(rawUrl, sourceUrl);
+            canonicalUrl = JobUrlUtils.sanitizeCanonicalUrl(resolved);
+        }
+        if (canonicalUrl == null) {
+            canonicalUrl = JobUrlUtils.sanitizeCanonicalUrl(sourceUrl);
+        }
+        if (canonicalUrl == null || canonicalUrl.isBlank()) {
+            return null;
+        }
 
         Map<String, String> stableFields = new TreeMap<>();
         stableFields.put("title", blankToEmpty(title));
@@ -274,5 +289,19 @@ public class JobPostingExtractor {
 
     private String blankToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String resolveRelativeUrl(String rawUrl, String sourceUrl) {
+        if (rawUrl == null || rawUrl.isBlank() || sourceUrl == null || sourceUrl.isBlank()) {
+            return null;
+        }
+        try {
+            java.net.URI base = new java.net.URI(sourceUrl);
+            java.net.URI candidate = new java.net.URI(rawUrl.trim());
+            java.net.URI resolved = base.resolve(candidate);
+            return resolved.toString();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

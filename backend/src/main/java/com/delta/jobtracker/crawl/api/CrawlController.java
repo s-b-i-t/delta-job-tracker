@@ -3,6 +3,8 @@ package com.delta.jobtracker.crawl.api;
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.CrawlRunRequest;
 import com.delta.jobtracker.crawl.model.CrawlRunSummary;
+import com.delta.jobtracker.crawl.model.CrawlRunAsyncResponse;
+import com.delta.jobtracker.crawl.model.CrawlRunStatusResponse;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.AtsAttemptsDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
@@ -18,6 +20,7 @@ import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
+import com.delta.jobtracker.crawl.model.WorkdayInvalidUrlCleanupResponse;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
@@ -25,6 +28,7 @@ import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
+import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +51,7 @@ public class CrawlController {
     private final DomainResolutionService domainResolutionService;
     private final CareersDiscoveryService careersDiscoveryService;
     private final CrawlStatusService crawlStatusService;
+    private final WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
     private final CrawlerProperties crawlerProperties;
 
     public CrawlController(
@@ -55,6 +60,7 @@ public class CrawlController {
         DomainResolutionService domainResolutionService,
         CareersDiscoveryService careersDiscoveryService,
         CrawlStatusService crawlStatusService,
+        WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService,
         CrawlerProperties crawlerProperties
     ) {
         this.ingestionService = ingestionService;
@@ -62,6 +68,7 @@ public class CrawlController {
         this.domainResolutionService = domainResolutionService;
         this.careersDiscoveryService = careersDiscoveryService;
         this.crawlStatusService = crawlStatusService;
+        this.workdayInvalidUrlCleanupService = workdayInvalidUrlCleanupService;
         this.crawlerProperties = crawlerProperties;
     }
 
@@ -95,6 +102,35 @@ public class CrawlController {
             null
         );
         return crawlOrchestratorService.run(runRequest);
+    }
+
+    @PostMapping("/crawl/run/async")
+    public CrawlRunAsyncResponse runCrawlAsync(@RequestBody(required = false) CrawlApiRunRequest request) {
+        boolean ingestBeforeCrawl = request == null || request.ingestBeforeCrawl() == null || request.ingestBeforeCrawl();
+        int companyLimit = request == null || request.companyLimit() == null
+            ? crawlerProperties.getApi().getDefaultCompanyLimit()
+            : Math.max(1, request.companyLimit());
+        CrawlRunRequest runRequest = new CrawlRunRequest(
+            request == null ? null : request.tickers(),
+            companyLimit,
+            request == null ? null : request.resolveLimit(),
+            request == null ? null : request.discoverLimit(),
+            request == null ? null : request.maxJobPages(),
+            request == null ? null : request.maxSitemapUrls(),
+            request == null ? null : request.resolveDomains(),
+            request == null ? null : request.discoverCareers(),
+            request == null ? null : request.atsOnly(),
+            null
+        );
+        long crawlRunId = ingestBeforeCrawl
+            ? crawlOrchestratorService.startAsync(runRequest, () -> ingestionService.ingest("wiki"))
+            : crawlOrchestratorService.startAsync(runRequest);
+        return new CrawlRunAsyncResponse(crawlRunId, "RUNNING");
+    }
+
+    @GetMapping("/crawl/run/{id:\\d+}")
+    public CrawlRunStatusResponse getCrawlRunStatus(@PathVariable("id") long crawlRunId) {
+        return crawlStatusService.getCrawlRunStatus(crawlRunId);
     }
 
     @PostMapping("/domains/resolve")
@@ -224,6 +260,15 @@ public class CrawlController {
     ) {
         AtsType atsType = parseAtsType(ats);
         return crawlStatusService.getNewestJobs(limit, companyId, atsType, active, query);
+    }
+
+    @PostMapping("/jobs/cleanup/workday-invalid")
+    public WorkdayInvalidUrlCleanupResponse cleanupInvalidWorkdayUrls(
+        @RequestParam(name = "limit", required = false) Integer limit,
+        @RequestParam(name = "batchSize", required = false) Integer batchSize,
+        @RequestParam(name = "dryRun", required = false, defaultValue = "false") boolean dryRun
+    ) {
+        return workdayInvalidUrlCleanupService.cleanupInvalidWorkdayUrls(limit, batchSize, dryRun);
     }
 
     @GetMapping("/jobs/page")

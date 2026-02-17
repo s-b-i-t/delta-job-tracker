@@ -11,6 +11,7 @@ import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -21,6 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class CrawlOrchestratorService {
@@ -29,6 +33,7 @@ public class CrawlOrchestratorService {
     private final CrawlJdbcRepository repository;
     private final CompanyCrawlerService companyCrawlerService;
     private final ExecutorService crawlExecutor;
+    private final ExecutorService crawlRunExecutor;
     private final CrawlerProperties properties;
     private final DomainResolutionService domainResolutionService;
     private final CareersDiscoveryService careersDiscoveryService;
@@ -36,7 +41,8 @@ public class CrawlOrchestratorService {
     public CrawlOrchestratorService(
         CrawlJdbcRepository repository,
         CompanyCrawlerService companyCrawlerService,
-        ExecutorService crawlExecutor,
+        @Qualifier("crawlExecutor") ExecutorService crawlExecutor,
+        @Qualifier("crawlRunExecutor") ExecutorService crawlRunExecutor,
         CrawlerProperties properties,
         DomainResolutionService domainResolutionService,
         CareersDiscoveryService careersDiscoveryService
@@ -44,6 +50,7 @@ public class CrawlOrchestratorService {
         this.repository = repository;
         this.companyCrawlerService = companyCrawlerService;
         this.crawlExecutor = crawlExecutor;
+        this.crawlRunExecutor = crawlRunExecutor;
         this.properties = properties;
         this.domainResolutionService = domainResolutionService;
         this.careersDiscoveryService = careersDiscoveryService;
@@ -53,10 +60,49 @@ public class CrawlOrchestratorService {
         ensureNoActiveRun();
         Instant startedAt = Instant.now();
         long crawlRunId = repository.insertCrawlRun(startedAt, "RUNNING", "crawl started");
+        return runWithId(crawlRunId, startedAt, request);
+    }
+
+    public long startAsync(CrawlRunRequest request) {
+        return startAsync(request, null);
+    }
+
+    public long startAsync(CrawlRunRequest request, Runnable preRun) {
+        ensureNoActiveRun();
+        Instant startedAt = Instant.now();
+        long crawlRunId = repository.insertCrawlRun(startedAt, "RUNNING", "crawl started");
+        crawlRunExecutor.submit(() -> {
+            if (preRun != null) {
+                try {
+                    preRun.run();
+                } catch (Exception e) {
+                    log.warn("Pre-run hook failed for crawl {}", crawlRunId, e);
+                }
+            }
+            runWithId(crawlRunId, startedAt, request);
+        });
+        return crawlRunId;
+    }
+
+    private CrawlRunSummary runWithId(long crawlRunId, Instant startedAt, CrawlRunRequest request) {
         Instant finishedAt = null;
         String status = "FAILED";
         String notes = "crawl_failed";
         List<CompanyCrawlSummary> summaries = List.of();
+
+        ScheduledExecutorService heartbeat = Executors.newSingleThreadScheduledExecutor();
+        heartbeat.scheduleAtFixedRate(
+            () -> {
+                try {
+                    repository.updateCrawlRunHeartbeat(crawlRunId, Instant.now());
+                } catch (Exception ignored) {
+                    // Ignore heartbeat failures to keep crawl running.
+                }
+            },
+            0,
+            properties.getCrawlHeartbeatSeconds(),
+            TimeUnit.SECONDS
+        );
 
         try {
             List<String> tickers = request.normalizedTickers();
@@ -90,6 +136,11 @@ public class CrawlOrchestratorService {
             }
 
             List<CompanyTarget> targets = selectTargets(request, tickers, companyLimit);
+            int attempted = targets.size();
+            int succeeded = 0;
+            int failed = 0;
+            int jobsExtracted = 0;
+            repository.updateCrawlRunProgress(crawlRunId, attempted, succeeded, failed, jobsExtracted, Instant.now());
 
             if (targets.isEmpty()) {
                 status = "NO_TARGETS";
@@ -111,11 +162,16 @@ public class CrawlOrchestratorService {
                     try {
                         CompanyCrawlSummary summary = futures.get(i).join();
                         runSummaries.add(summary);
+                        jobsExtracted += summary.jobsExtractedCount();
                         if (summary.closeoutSafe()) {
+                            succeeded++;
                             repository.markPostingsInactiveNotSeenInRun(target.companyId(), crawlRunId);
+                        } else {
+                            failed++;
                         }
                     } catch (Exception e) {
                         hadErrors = true;
+                        failed++;
                         log.warn("Company crawl failed for {} ({})", target.ticker(), target.domain(), e);
                         Map<String, Integer> errorMap = new LinkedHashMap<>();
                         errorMap.put("company_crawl_exception", 1);
@@ -132,6 +188,7 @@ public class CrawlOrchestratorService {
                             errorMap
                         ));
                     }
+                    repository.updateCrawlRunProgress(crawlRunId, attempted, succeeded, failed, jobsExtracted, Instant.now());
                 }
 
                 summaries = runSummaries;
@@ -145,6 +202,7 @@ public class CrawlOrchestratorService {
         } finally {
             finishedAt = Instant.now();
             repository.completeCrawlRun(crawlRunId, finishedAt, status, notes);
+            heartbeat.shutdownNow();
         }
         return new CrawlRunSummary(crawlRunId, startedAt, finishedAt, status, summaries);
     }
@@ -177,8 +235,11 @@ public class CrawlOrchestratorService {
         List<CrawlRunMeta> running = repository.findRunningCrawlRuns();
         for (CrawlRunMeta run : running) {
             Instant lastActivity = repository.findLastActivityAtForRun(run.crawlRunId());
+            com.delta.jobtracker.crawl.model.CrawlRunStatus status = repository.findCrawlRunStatus(run.crawlRunId());
+            Instant lastHeartbeat = status == null ? null : status.lastHeartbeatAt();
             boolean active = run.startedAt().isAfter(cutoff)
-                || (lastActivity != null && lastActivity.isAfter(cutoff));
+                || (lastActivity != null && lastActivity.isAfter(cutoff))
+                || (lastHeartbeat != null && lastHeartbeat.isAfter(cutoff));
             if (active) {
                 String message = "Active crawl run in progress (id=" + run.crawlRunId()
                     + ", startedAt=" + run.startedAt()

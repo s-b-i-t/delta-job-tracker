@@ -253,10 +253,8 @@ public class CompanyCrawlerService {
 
             pagesWithJobPosting++;
             repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "jobposting_found", fetchedAt);
-            for (NormalizedJobPosting posting : postings) {
-                repository.upsertJobPosting(company.companyId(), crawlRunId, posting, fetchedAt);
-                jobsExtracted++;
-            }
+            repository.upsertJobPostingsBatch(company.companyId(), crawlRunId, postings, fetchedAt);
+            jobsExtracted += postings.size();
         }
 
         boolean closeoutSafe = adapterSuccess || fallbackSuccess;

@@ -10,6 +10,10 @@
   const prevPageBtn = document.getElementById("prevPage");
   const nextPageBtn = document.getElementById("nextPage");
   const pageIndicator = document.getElementById("pageIndicator");
+  if (!companySearchInput || !companySuggestions || !selectedCompany || !queryInput || !searchBtn
+    || !clearBtn || !resultsList || !resultsMeta || !prevPageBtn || !nextPageBtn || !pageIndicator) {
+    return;
+  }
 
   const STORAGE_KEYS = {
     companyId: "dj_companyId",
@@ -280,6 +284,9 @@
     if (!trimmed || trimmed.includes("invalid-url")) {
       return null;
     }
+    if (looksLikeApiUrl(trimmed)) {
+      return null;
+    }
     try {
       const parsed = new URL(trimmed);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -289,6 +296,23 @@
     } catch (err) {
       return null;
     }
+  }
+
+  function looksLikeApiUrl(value) {
+    const lower = value.toLowerCase();
+    if (lower.includes("boards-api.greenhouse.io") || lower.includes("api.greenhouse.io")) {
+      return true;
+    }
+    if (lower.includes("/wday/cxs/")) {
+      return true;
+    }
+    if (lower.includes("api.lever.co") && lower.includes("/postings/")) {
+      return true;
+    }
+    if (lower.endsWith("/jobs") || lower.endsWith("/jobs/")) {
+      return true;
+    }
+    return false;
   }
 
   function updatePagination() {

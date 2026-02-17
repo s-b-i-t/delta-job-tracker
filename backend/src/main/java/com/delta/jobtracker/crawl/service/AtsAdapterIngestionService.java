@@ -11,6 +11,7 @@ import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
 import com.delta.jobtracker.crawl.util.HashUtils;
+import com.delta.jobtracker.crawl.util.JobUrlUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -40,7 +41,7 @@ public class AtsAdapterIngestionService {
     private static final int WORKDAY_PAGE_SIZE = 20;
     private static final int WORKDAY_MAX_PAGES = 20;
     private static final int WORKDAY_MAX_ATTEMPTS = 3;
-    private static final int WORKDAY_URL_VALIDATION_LIMIT = 3;
+    private static final int WORKDAY_URL_VALIDATION_LIMIT = Integer.MAX_VALUE;
     private static final String HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
     private final PoliteHttpClient httpClient;
@@ -164,13 +165,17 @@ public class AtsAdapterIngestionService {
                 return new GreenhouseAttempt(0, 0, false, false, true);
             }
             int extracted = 0;
+            List<NormalizedJobPosting> postings = new ArrayList<>();
             for (JsonNode job : jobs) {
                 NormalizedJobPosting posting = normalizeGreenhousePosting(company, job, normalizedFeedUrl);
                 if (posting == null) {
                     continue;
                 }
-                repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
-                extracted++;
+                postings.add(posting);
+            }
+            if (!postings.isEmpty()) {
+                repository.upsertJobPostingsBatch(company.companyId(), crawlRunId, postings, Instant.now());
+                extracted = postings.size();
             }
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, "ats_fetch_success", fetch, null);
             return new GreenhouseAttempt(extracted, extracted > 0 ? 1 : 0, true, false, false);
@@ -216,13 +221,17 @@ public class AtsAdapterIngestionService {
                 return new AdapterFetchResult(0, 0, errors, false);
             }
             int extracted = 0;
+            List<NormalizedJobPosting> postings = new ArrayList<>();
             for (JsonNode job : root) {
                 NormalizedJobPosting posting = normalizeLeverPosting(company, job, feedUrl);
                 if (posting == null) {
                     continue;
                 }
-                repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
-                extracted++;
+                postings.add(posting);
+            }
+            if (!postings.isEmpty()) {
+                repository.upsertJobPostingsBatch(company.companyId(), crawlRunId, postings, Instant.now());
+                extracted = postings.size();
             }
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, "ats_fetch_success", fetch, null);
             return new AdapterFetchResult(extracted, extracted > 0 ? 1 : 0, errors, true);
@@ -275,10 +284,8 @@ public class AtsAdapterIngestionService {
                 }
                 successfulFetch = true;
                 pagesWithJobs++;
-                for (NormalizedJobPosting posting : postings) {
-                    repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
-                    extracted++;
-                }
+                repository.upsertJobPostingsBatch(company.companyId(), crawlRunId, postings, Instant.now());
+                extracted += postings.size();
                 recordAtsAttempt(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, "ats_fetch_success", fetch, null);
                 if (postings.size() < WORKDAY_PAGE_SIZE) {
                     break;
@@ -305,10 +312,8 @@ public class AtsAdapterIngestionService {
         LocalDate datePosted = parseIsoDate(text(job, "updated_at"));
         String employmentType = extractGreenhouseEmploymentType(job.path("metadata"));
         String derivedUrl = buildGreenhouseJobUrl(sourceUrl, identifier);
-        String humanUrl = firstNonBlank(absoluteUrl, derivedUrl);
-        String canonical = firstNonBlank(absoluteUrl, derivedUrl, humanUrl);
-        String source = firstNonBlank(humanUrl, sourceUrl);
-        return buildPosting(source, canonical, title, company.name(), location, employmentType, datePosted, description, identifier);
+        String canonical = firstNonBlank(absoluteUrl, derivedUrl);
+        return buildPosting(sourceUrl, canonical, title, company.name(), location, employmentType, datePosted, description, identifier);
     }
 
     private String extractGreenhouseEmploymentType(JsonNode metadata) {
@@ -343,7 +348,6 @@ public class AtsAdapterIngestionService {
         String title = text(job, "text");
         String hostedUrl = text(job, "hostedUrl");
         String applyUrl = text(job, "applyUrl");
-        String humanUrl = firstNonBlank(hostedUrl, applyUrl, sourceUrl);
         String canonicalUrl = firstNonBlank(hostedUrl, applyUrl);
         String description = htmlToText(firstNonBlank(text(job, "descriptionPlain"), text(job, "description")));
         String identifier = text(job, "id");
@@ -356,7 +360,7 @@ public class AtsAdapterIngestionService {
             datePosted = Instant.ofEpochMilli(createdAtNode.asLong()).atZone(ZoneOffset.UTC).toLocalDate();
         }
 
-        return buildPosting(humanUrl, firstNonBlank(canonicalUrl, humanUrl, sourceUrl), title, company.name(), location, employmentType, datePosted, description, identifier);
+        return buildPosting(sourceUrl, canonicalUrl, title, company.name(), location, employmentType, datePosted, description, identifier);
     }
 
     private NormalizedJobPosting buildPosting(
@@ -370,11 +374,14 @@ public class AtsAdapterIngestionService {
         String descriptionText,
         String identifier
     ) {
-        if ((title == null || title.isBlank()) && (canonicalUrl == null || canonicalUrl.isBlank())) {
+        String canonical = JobUrlUtils.sanitizeCanonicalUrl(canonicalUrl);
+        if (canonical == null || canonical.isBlank()) {
+            return null;
+        }
+        if (title == null || title.isBlank()) {
             return null;
         }
 
-        String canonical = firstNonBlank(canonicalUrl, sourceUrl);
         Map<String, String> stableFields = new TreeMap<>();
         stableFields.put("title", safe(title));
         stableFields.put("org_name", safe(orgName));
@@ -589,9 +596,14 @@ public class AtsAdapterIngestionService {
                 log.debug("Skipping Workday posting without canonical URL. title={} id={}", title, identifier);
                 continue;
             }
+            if (JobUrlUtils.isInvalidWorkdayUrl(canonicalUrl)) {
+                increment(errors, "workday_invalid_canonical_url");
+                log.debug("Skipping Workday posting with invalid canonical URL. title={} id={}", title, identifier);
+                continue;
+            }
 
             NormalizedJobPosting posting = buildPosting(
-                canonicalUrl,
+                sourceUrl,
                 canonicalUrl,
                 title,
                 null,
@@ -669,14 +681,34 @@ public class AtsAdapterIngestionService {
             }
             String rawPath = uri.getRawPath();
             String rawQuery = uri.getRawQuery();
+            List<String> pathCandidates = buildWorkdayPathCandidates(rawPath, site);
+            boolean hasSiteSegment = false;
+            List<String> segments = pathSegments(rawPath);
+            if (site != null && !site.isBlank() && !segments.isEmpty()) {
+                if (segments.getFirst().equalsIgnoreCase(site)) {
+                    hasSiteSegment = true;
+                } else if (segments.size() > 1 && isLocaleSegment(segments.getFirst()) && segments.get(1).equalsIgnoreCase(site)) {
+                    hasSiteSegment = true;
+                }
+            }
+            if (!hasSiteSegment) {
+                for (String pathCandidate : pathCandidates) {
+                    String candidate = buildWorkdayUrl(extHost, pathCandidate, rawQuery);
+                    if (candidate != null) {
+                        candidates.add(candidate);
+                    }
+                }
+            }
             String direct = buildWorkdayUrl(extHost, rawPath, rawQuery);
             if (direct != null) {
                 candidates.add(direct);
             }
-            for (String pathCandidate : buildWorkdayPathCandidates(rawPath, site)) {
-                String candidate = buildWorkdayUrl(extHost, pathCandidate, rawQuery);
-                if (candidate != null) {
-                    candidates.add(candidate);
+            if (hasSiteSegment) {
+                for (String pathCandidate : pathCandidates) {
+                    String candidate = buildWorkdayUrl(extHost, pathCandidate, rawQuery);
+                    if (candidate != null) {
+                        candidates.add(candidate);
+                    }
                 }
             }
             return new ArrayList<>(candidates);
@@ -714,6 +746,7 @@ public class AtsAdapterIngestionService {
 
         boolean invalidRedirect = false;
         boolean apiStyleRejected = false;
+        boolean fetchFailed = false;
         for (String candidate : candidates) {
             if (isWorkdayApiStyleUrl(candidate)) {
                 apiStyleRejected = true;
@@ -721,6 +754,13 @@ public class AtsAdapterIngestionService {
             }
             if (shouldValidateWorkdayUrl(validationsRemaining)) {
                 HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
+                if (fetch == null || !fetch.isSuccessful()) {
+                    fetchFailed = true;
+                    if (isInvalidWorkdayRedirect(fetch)) {
+                        invalidRedirect = true;
+                    }
+                    continue;
+                }
                 if (isInvalidWorkdayRedirect(fetch)) {
                     invalidRedirect = true;
                     continue;
@@ -732,10 +772,13 @@ public class AtsAdapterIngestionService {
         if (invalidRedirect) {
             increment(errors, "workday_job_url_invalid_redirect");
         }
+        if (fetchFailed) {
+            increment(errors, "workday_job_url_fetch_failed");
+        }
         if (apiStyleRejected) {
             increment(errors, "workday_job_url_api_style_rejected");
         }
-        if (!invalidRedirect && !apiStyleRejected) {
+        if (!invalidRedirect && !apiStyleRejected && !fetchFailed) {
             increment(errors, "workday_missing_canonical_url");
         }
         return null;
@@ -842,7 +885,7 @@ public class AtsAdapterIngestionService {
         if (finalUrl == null) {
             return false;
         }
-        return finalUrl.toLowerCase(Locale.ROOT).contains("community.workday.com/invalid-url");
+        return JobUrlUtils.isInvalidWorkdayRedirectUrl(finalUrl);
     }
 
     private String extractWorkdayIdFromPath(String externalPath) {

@@ -17,6 +17,8 @@ import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.RecentCrawlStatus;
 import com.delta.jobtracker.crawl.model.StatusResponse;
+import com.delta.jobtracker.crawl.model.CrawlRunStatus;
+import com.delta.jobtracker.crawl.model.CrawlRunStatusResponse;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -150,6 +152,29 @@ public class CrawlStatusService {
             ));
         }
         return new CrawlRunDiagnosticsResponse(safeLimit, entries.size(), entries);
+    }
+
+    public CrawlRunStatusResponse getCrawlRunStatus(long crawlRunId) {
+        CrawlRunStatus status = repository.findCrawlRunStatus(crawlRunId);
+        if (status == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Crawl run not found: " + crawlRunId);
+        }
+        Instant lastActivityAt = repository.findLastActivityAtForRun(crawlRunId);
+        if (lastActivityAt == null) {
+            lastActivityAt = status.lastHeartbeatAt() == null ? status.startedAt() : status.lastHeartbeatAt();
+        }
+        return new CrawlRunStatusResponse(
+            status.crawlRunId(),
+            status.startedAt(),
+            status.finishedAt(),
+            status.status(),
+            status.companiesAttempted(),
+            status.companiesSucceeded(),
+            status.companiesFailed(),
+            status.jobsExtractedCount(),
+            status.lastHeartbeatAt(),
+            lastActivityAt
+        );
     }
 
     public List<JobPostingListView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {

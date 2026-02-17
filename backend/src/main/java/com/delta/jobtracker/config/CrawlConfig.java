@@ -12,9 +12,14 @@ import java.util.concurrent.Executors;
 @Configuration
 public class CrawlConfig {
 
-    @Bean(destroyMethod = "shutdown")
+    @Bean(name = "crawlExecutor", destroyMethod = "shutdown")
     public ExecutorService crawlExecutor(CrawlerProperties properties) {
         return Executors.newFixedThreadPool(properties.getGlobalConcurrency());
+    }
+
+    @Bean(name = "crawlRunExecutor", destroyMethod = "shutdown")
+    public ExecutorService crawlRunExecutor() {
+        return Executors.newSingleThreadExecutor();
     }
 
     @Bean

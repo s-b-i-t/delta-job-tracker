@@ -43,7 +43,9 @@ public class CrawlRunLifecycleRunner implements ApplicationRunner {
         Instant cutoff = Instant.now().minus(Duration.ofMinutes(staleMinutes));
         List<CrawlRunMeta> running = repository.findRunningCrawlRuns();
         for (CrawlRunMeta run : running) {
-            if (run.startedAt().isAfter(cutoff)) {
+            com.delta.jobtracker.crawl.model.CrawlRunStatus status = repository.findCrawlRunStatus(run.crawlRunId());
+            Instant lastHeartbeat = status == null ? null : status.lastHeartbeatAt();
+            if (run.startedAt().isAfter(cutoff) || (lastHeartbeat != null && lastHeartbeat.isAfter(cutoff))) {
                 continue;
             }
             CrawlRunActivityCounts counts = repository.findRunActivityCounts(run.crawlRunId());

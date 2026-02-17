@@ -39,10 +39,12 @@ class CrawlOrchestratorServiceLimitTest {
     private CareersDiscoveryService careersDiscoveryService;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(1);
+    private final ExecutorService runExecutor = Executors.newSingleThreadExecutor();
 
     @AfterEach
     void tearDown() {
         executor.shutdownNow();
+        runExecutor.shutdownNow();
     }
 
     @Test
@@ -102,6 +104,7 @@ class CrawlOrchestratorServiceLimitTest {
             repository,
             companyCrawlerService,
             executor,
+            runExecutor,
             properties,
             domainResolutionService,
             careersDiscoveryService

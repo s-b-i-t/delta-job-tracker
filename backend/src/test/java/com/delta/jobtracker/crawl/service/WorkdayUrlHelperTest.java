@@ -79,4 +79,33 @@ class WorkdayUrlHelperTest {
             "https://acme.wd5.myworkdayjobs.com/en-US/External/job/Remote/Engineer_R123"
         );
     }
+
+    @Test
+    void buildWorkdayUrlCandidatesPrefersSiteForAbsoluteMissingSite() {
+        List<String> candidates = service.buildWorkdayUrlCandidates(
+            "acme.wd5.myworkdayjobs.com",
+            "External",
+            "https://acme.wd5.myworkdayjobs.com/job/Remote/Engineer_R123"
+        );
+        assertThat(candidates).isNotEmpty();
+        assertThat(candidates.getFirst()).isEqualTo(
+            "https://acme.wd5.myworkdayjobs.com/en-US/External/job/Remote/Engineer_R123"
+        );
+        assertThat(candidates).contains(
+            "https://acme.wd5.myworkdayjobs.com/job/Remote/Engineer_R123"
+        );
+    }
+
+    @Test
+    void buildWorkdayUrlCandidatesKeepsAbsoluteWhenSitePresent() {
+        List<String> candidates = service.buildWorkdayUrlCandidates(
+            "acme.wd5.myworkdayjobs.com",
+            "External",
+            "https://acme.wd5.myworkdayjobs.com/External/job/Remote/Engineer_R123"
+        );
+        assertThat(candidates).isNotEmpty();
+        assertThat(candidates.getFirst()).isEqualTo(
+            "https://acme.wd5.myworkdayjobs.com/External/job/Remote/Engineer_R123"
+        );
+    }
 }

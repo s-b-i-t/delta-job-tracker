@@ -2,6 +2,7 @@ package com.delta.jobtracker.crawl.http;
 
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -28,10 +29,11 @@ public class PoliteHttpClient {
     private final CrawlerProperties properties;
     private final HttpClient client;
     private final Semaphore globalLimiter;
+    private final Map<String, Semaphore> hostLimiters = new ConcurrentHashMap<>();
     private final Map<String, Object> hostLocks = new ConcurrentHashMap<>();
     private final Map<String, Instant> hostNextAllowed = new ConcurrentHashMap<>();
 
-    public PoliteHttpClient(CrawlerProperties properties, ExecutorService crawlExecutor) {
+    public PoliteHttpClient(CrawlerProperties properties, @Qualifier("crawlExecutor") ExecutorService crawlExecutor) {
         this.properties = properties;
         this.client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -94,9 +96,16 @@ public class PoliteHttpClient {
 
         String host = uri.getHost().toLowerCase(Locale.ROOT);
         boolean acquired = false;
+        boolean hostAcquired = false;
         try {
             globalLimiter.acquire();
             acquired = true;
+            Semaphore hostLimiter = hostLimiters.computeIfAbsent(
+                host,
+                ignored -> new Semaphore(Math.max(1, properties.getPerHostConcurrency()))
+            );
+            hostLimiter.acquire();
+            hostAcquired = true;
             enforcePerHostDelay(host);
 
             String safeUserAgent = CrawlerProperties.normalizeUserAgent(properties.getUserAgent());
@@ -145,6 +154,12 @@ public class PoliteHttpClient {
         } catch (Exception e) {
             return errorResult(url, startedAt, "http_error", e.getMessage());
         } finally {
+            if (hostAcquired) {
+                Semaphore hostLimiter = hostLimiters.get(host);
+                if (hostLimiter != null) {
+                    hostLimiter.release();
+                }
+            }
             if (acquired) {
                 globalLimiter.release();
             }
