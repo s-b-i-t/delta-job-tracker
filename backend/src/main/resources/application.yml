@@ -25,6 +25,8 @@ crawler:
   request-retry-base-delay-ms: 250
   request-retry-max-delay-ms: 2000
   max-company-seconds: 300
+  active-run-minutes: 10
+  stale-run-minutes: 10
 
   # these paths match your repo layout
   data:

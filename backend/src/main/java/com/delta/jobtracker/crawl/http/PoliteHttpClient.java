@@ -36,6 +36,7 @@ public class PoliteHttpClient {
         this.client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(properties.getRequestTimeoutSeconds()))
+            .version(HttpClient.Version.HTTP_1_1)
             .executor(crawlExecutor)
             .build();
         this.globalLimiter = new Semaphore(Math.max(1, properties.getGlobalConcurrency()));

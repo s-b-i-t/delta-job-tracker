@@ -62,6 +62,7 @@ public class AtsAdapterIngestionService {
             return null;
         }
 
+        java.util.Set<String> greenhouseTokens = new java.util.LinkedHashSet<>();
         int jobsExtractedCount = 0;
         int jobpostingPagesFoundCount = 0;
         boolean successfulFetch = false;
@@ -70,6 +71,13 @@ public class AtsAdapterIngestionService {
 
         for (AtsEndpointRecord endpoint : endpoints) {
             if (endpoint.atsType() == AtsType.GREENHOUSE) {
+                String token = extractGreenhouseToken(endpoint.endpointUrl());
+                if (token != null) {
+                    String key = token.toLowerCase(Locale.ROOT);
+                    if (!greenhouseTokens.add(key)) {
+                        continue;
+                    }
+                }
                 attemptedSupportedAdapter = true;
                 AdapterFetchResult result = ingestFromGreenhouse(crawlRunId, company, endpoint.endpointUrl());
                 jobsExtractedCount += result.jobsExtractedCount();
@@ -116,22 +124,9 @@ public class AtsAdapterIngestionService {
             return new AdapterFetchResult(0, 0, errors, false);
         }
 
-        String primaryUrl = "https://boards-api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
-        String fallbackUrl = "https://api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
-
-        GreenhouseAttempt primary = fetchGreenhouseFeed(crawlRunId, company, primaryUrl, errors);
-        if (primary.success()) {
-            return new AdapterFetchResult(primary.jobsExtractedCount(), primary.jobpostingPagesFoundCount(), errors, true);
-        }
-        if (primary.payloadInvalid()) {
-            return new AdapterFetchResult(0, 0, errors, false);
-        }
-        if (!primary.shouldFallback()) {
-            return new AdapterFetchResult(0, 0, errors, false);
-        }
-
-        GreenhouseAttempt fallback = fetchGreenhouseFeed(crawlRunId, company, fallbackUrl, errors);
-        return new AdapterFetchResult(fallback.jobsExtractedCount(), fallback.jobpostingPagesFoundCount(), errors, fallback.success());
+        String feedUrl = "https://boards-api.greenhouse.io/v1/boards/" + token + "/jobs?content=true";
+        GreenhouseAttempt attempt = fetchGreenhouseFeed(crawlRunId, company, feedUrl, errors);
+        return new AdapterFetchResult(attempt.jobsExtractedCount(), attempt.jobpostingPagesFoundCount(), errors, attempt.success());
     }
 
     private GreenhouseAttempt fetchGreenhouseFeed(
@@ -140,17 +135,18 @@ public class AtsAdapterIngestionService {
         String feedUrl,
         Map<String, Integer> errors
     ) {
-        if (!robotsTxtService.isAllowedForAtsAdapter(feedUrl)) {
+        String normalizedFeedUrl = normalizeGreenhouseApiUrl(feedUrl);
+        if (!robotsTxtService.isAllowedForAtsAdapter(normalizedFeedUrl)) {
             String status = "greenhouse_blocked_by_robots";
-            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, null, "blocked_by_robots");
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, status, null, "blocked_by_robots");
             increment(errors, status);
             return new GreenhouseAttempt(0, 0, false, false, false);
         }
 
-        HttpFetchResult fetch = httpClient.get(feedUrl, "application/json,*/*;q=0.8");
+        HttpFetchResult fetch = httpClient.get(normalizedFeedUrl, "application/json,*/*;q=0.8");
         if (!fetch.isSuccessful() || fetch.body() == null || fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
             String status = adapterFetchStatus("greenhouse", fetch);
-            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, null);
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, status, fetch, null);
             increment(errors, status);
             return new GreenhouseAttempt(0, 0, false, true, false);
         }
@@ -166,19 +162,19 @@ public class AtsAdapterIngestionService {
             }
             int extracted = 0;
             for (JsonNode job : jobs) {
-                NormalizedJobPosting posting = normalizeGreenhousePosting(company, job, feedUrl);
+                NormalizedJobPosting posting = normalizeGreenhousePosting(company, job, normalizedFeedUrl);
                 if (posting == null) {
                     continue;
                 }
                 repository.upsertJobPosting(company.companyId(), crawlRunId, posting, Instant.now());
                 extracted++;
             }
-            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, "ats_fetch_success", fetch, null);
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, "ats_fetch_success", fetch, null);
             return new GreenhouseAttempt(extracted, extracted > 0 ? 1 : 0, true, false, false);
         } catch (Exception e) {
             log.warn("Failed to parse Greenhouse payload for {}", company.ticker(), e);
             String status = "greenhouse_parse_error";
-            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, feedUrl, status, fetch, "parse_error");
+            recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, status, fetch, "parse_error");
             increment(errors, status);
             return new GreenhouseAttempt(0, 0, false, false, false);
         }
@@ -413,15 +409,15 @@ public class AtsAdapterIngestionService {
         }
         String host = uri.getHost().toLowerCase(Locale.ROOT);
         List<String> segments = pathSegments(uri.getPath());
-        if (host.contains("boards.greenhouse.io") || host.contains("job-boards.greenhouse.io") || host.endsWith("greenhouse.io")) {
-            if (!segments.isEmpty()) {
-                return segments.getFirst();
-            }
-        }
         if ((host.contains("api.greenhouse.io") || host.contains("boards-api.greenhouse.io"))
             && segments.size() >= 3
             && "boards".equals(segments.get(1))) {
             return segments.get(2);
+        }
+        if (host.contains("boards.greenhouse.io") || host.contains("job-boards.greenhouse.io") || host.endsWith("greenhouse.io")) {
+            if (!segments.isEmpty()) {
+                return segments.getFirst();
+            }
         }
         if (host.contains("boards.greenhouse.io") && !segments.isEmpty() && "embed".equals(segments.getFirst())) {
             String token = extractQueryParam(uri, "for");
@@ -816,6 +812,7 @@ public class AtsAdapterIngestionService {
         HttpFetchResult fetch,
         String errorOverride
     ) {
+        String storedUrl = atsType == AtsType.GREENHOUSE ? normalizeGreenhouseApiUrl(url) : url;
         Integer httpStatus = null;
         if (fetch != null && fetch.statusCode() > 0) {
             httpStatus = fetch.statusCode();
@@ -827,7 +824,7 @@ public class AtsAdapterIngestionService {
         repository.upsertDiscoveredUrl(
             crawlRunId,
             companyId,
-            url,
+            storedUrl,
             DiscoveredUrlType.ATS_API,
             fetchStatus,
             Instant.now(),
@@ -835,6 +832,24 @@ public class AtsAdapterIngestionService {
             errorCode,
             atsType.name()
         );
+    }
+
+    private String normalizeGreenhouseApiUrl(String raw) {
+        URI uri = safeUri(raw);
+        if (uri == null || uri.getHost() == null) {
+            return raw == null ? null : raw.trim();
+        }
+        String host = uri.getHost().toLowerCase(Locale.ROOT);
+        if (host.equals("api.greenhouse.io")) {
+            host = "boards-api.greenhouse.io";
+        }
+        String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+        String normalized = "https://" + host + path;
+        String query = uri.getRawQuery();
+        if (query != null && !query.isBlank()) {
+            normalized = normalized + "?" + query;
+        }
+        return normalized;
     }
 
     private record WorkdayEndpoint(String host, String tenant, String site) {

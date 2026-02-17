@@ -9,6 +9,7 @@ import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CrawlTargetsDiagnosticsResponse;
+import com.delta.jobtracker.crawl.model.CrawlRunDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.FullCycleSummary;
@@ -176,6 +177,13 @@ public class CrawlController {
     @GetMapping("/diagnostics/ats-attempts")
     public AtsAttemptsDiagnosticsResponse getAtsAttemptsDiagnostics() {
         return crawlStatusService.getAtsAttemptsDiagnostics();
+    }
+
+    @GetMapping("/diagnostics/crawl-runs")
+    public CrawlRunDiagnosticsResponse getCrawlRunsDiagnostics(
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return crawlStatusService.getCrawlRunDiagnostics(limit);
     }
 
     @GetMapping("/diagnostics/crawl-targets")

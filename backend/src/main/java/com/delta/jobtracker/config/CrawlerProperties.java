@@ -14,6 +14,8 @@ public class CrawlerProperties {
     private int requestRetryBaseDelayMs = 250;
     private int requestRetryMaxDelayMs = 2000;
     private int maxCompanySeconds = 300;
+    private int activeRunMinutes = 10;
+    private int staleRunMinutes = 10;
     private Api api = new Api();
     private Automation automation = new Automation();
     private DomainResolution domainResolution = new DomainResolution();
@@ -86,6 +88,22 @@ public class CrawlerProperties {
 
     public void setMaxCompanySeconds(int maxCompanySeconds) {
         this.maxCompanySeconds = maxCompanySeconds;
+    }
+
+    public int getActiveRunMinutes() {
+        return Math.max(1, activeRunMinutes);
+    }
+
+    public void setActiveRunMinutes(int activeRunMinutes) {
+        this.activeRunMinutes = Math.max(1, activeRunMinutes);
+    }
+
+    public int getStaleRunMinutes() {
+        return Math.max(1, staleRunMinutes);
+    }
+
+    public void setStaleRunMinutes(int staleRunMinutes) {
+        this.staleRunMinutes = Math.max(1, staleRunMinutes);
     }
 
     public Automation getAutomation() {

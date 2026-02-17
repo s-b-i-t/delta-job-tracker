@@ -6,6 +6,7 @@ import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
+import com.delta.jobtracker.crawl.model.CrawlRunActivityCounts;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.DiscoveryFailureEntry;
@@ -1057,7 +1058,7 @@ public class CrawlJdbcRepository {
             """
                 SELECT id, started_at, finished_at, status
                 FROM crawl_runs
-                ORDER BY started_at DESC
+                ORDER BY started_at DESC, id DESC
                 LIMIT 1
                 """,
             new MapSqlParameterSource(),
@@ -1069,6 +1070,64 @@ public class CrawlJdbcRepository {
             )
         );
         return runs.isEmpty() ? null : runs.getFirst();
+    }
+
+    public List<CrawlRunMeta> findRecentCrawlRuns(int limit) {
+        int safeLimit = limit <= 0 ? 10 : limit;
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("limit", safeLimit);
+        return jdbc.query(
+            """
+                SELECT id, started_at, finished_at, status
+                FROM crawl_runs
+                ORDER BY started_at DESC, id DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new CrawlRunMeta(
+                rs.getLong("id"),
+                rs.getTimestamp("started_at").toInstant(),
+                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
+                rs.getString("status")
+            )
+        );
+    }
+
+    public List<CrawlRunMeta> findRunningCrawlRuns() {
+        return jdbc.query(
+            """
+                SELECT id, started_at, finished_at, status
+                FROM crawl_runs
+                WHERE status = 'RUNNING'
+                ORDER BY started_at ASC, id ASC
+                """,
+            new MapSqlParameterSource(),
+            (rs, rowNum) -> new CrawlRunMeta(
+                rs.getLong("id"),
+                rs.getTimestamp("started_at").toInstant(),
+                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
+                rs.getString("status")
+            )
+        );
+    }
+
+    public CrawlRunActivityCounts findRunActivityCounts(long crawlRunId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId);
+        return jdbc.queryForObject(
+            """
+                SELECT
+                    (SELECT COUNT(*) FROM discovered_urls WHERE crawl_run_id = :crawlRunId) AS discovered_urls,
+                    (SELECT COUNT(*) FROM discovered_sitemaps WHERE crawl_run_id = :crawlRunId) AS discovered_sitemaps,
+                    (SELECT COUNT(*) FROM job_postings WHERE crawl_run_id = :crawlRunId) AS job_postings
+                """,
+            params,
+            (rs, rowNum) -> new CrawlRunActivityCounts(
+                rs.getLong("discovered_urls"),
+                rs.getLong("discovered_sitemaps"),
+                rs.getLong("job_postings")
+            )
+        );
     }
 
     public Instant findLastActivityAtForRun(long crawlRunId) {
@@ -1753,14 +1812,26 @@ public class CrawlJdbcRepository {
             return raw.trim();
         }
         String host = uri.getHost().toLowerCase(Locale.ROOT);
-        if (atsType == AtsType.GREENHOUSE && host.equals("job-boards.greenhouse.io")) {
-            host = "boards.greenhouse.io";
+        boolean greenhouseApi = false;
+        if (atsType == AtsType.GREENHOUSE) {
+            if (host.equals("api.greenhouse.io") || host.equals("boards-api.greenhouse.io")) {
+                host = "boards-api.greenhouse.io";
+                greenhouseApi = true;
+            } else if (host.equals("job-boards.greenhouse.io")) {
+                host = "boards.greenhouse.io";
+            }
         }
         String path = uri.getPath() == null ? "" : uri.getPath();
         if (atsType == AtsType.WORKDAY) {
             path = stripTrailingPunctuation(path);
         }
         String normalized = "https://" + host + path;
+        if (greenhouseApi) {
+            String query = uri.getRawQuery();
+            if (query != null && !query.isBlank()) {
+                normalized = normalized + "?" + query;
+            }
+        }
         if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
             normalized = normalized.substring(0, normalized.length() - 1);
         }

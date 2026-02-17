@@ -77,6 +77,29 @@ class AtsAdapterIngestionServiceTest {
     }
 
     @Test
+    void greenhouseApiEndpointUsesBoardsApiFeed() {
+        CompanyTarget company = new CompanyTarget(4L, "AIRB", "Airbnb", null, "airbnb.com", null);
+        AtsEndpointRecord endpoint = new AtsEndpointRecord(
+            4L,
+            AtsType.GREENHOUSE,
+            "https://api.greenhouse.io/v1/boards/airbnb/jobs?content=true",
+            null,
+            0.9,
+            Instant.now()
+        );
+        String canonicalFeed = "https://boards-api.greenhouse.io/v1/boards/airbnb/jobs?content=true";
+        when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
+        when(httpClient.get(anyString(), anyString())).thenReturn(successFetch(canonicalFeed, greenhousePayload()));
+
+        AtsAdapterResult result = service.ingestIfSupported(13L, company, List.of(endpoint));
+
+        assertThat(result).isNotNull();
+        assertThat(result.jobsExtractedCount()).isEqualTo(1);
+        verify(httpClient).get(eq(canonicalFeed), anyString());
+        verify(httpClient, never()).get(eq("https://api.greenhouse.io/v1/boards/airbnb/jobs?content=true"), anyString());
+    }
+
+    @Test
     void greenhouseAbsoluteUrlMapsToCanonicalUrl() throws Exception {
         CompanyTarget company = new CompanyTarget(9L, "ACME", "Acme Corp", null, "acme.com", null);
         JsonNode job = objectMapper.readTree(Files.readString(Path.of("src/test/resources/fixtures/greenhouse-job.json")));

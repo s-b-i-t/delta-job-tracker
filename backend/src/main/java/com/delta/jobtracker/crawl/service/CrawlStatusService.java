@@ -6,6 +6,9 @@ import com.delta.jobtracker.crawl.model.AtsAttemptSample;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
+import com.delta.jobtracker.crawl.model.CrawlRunActivityCounts;
+import com.delta.jobtracker.crawl.model.CrawlRunDiagnosticsEntry;
+import com.delta.jobtracker.crawl.model.CrawlRunDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
@@ -21,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +121,34 @@ public class CrawlStatusService {
         Map<String, Long> counts = repository.countAtsApiAttemptsByStatus();
         List<AtsAttemptSample> samples = repository.findRecentAtsApiFailures(20);
         return new AtsAttemptsDiagnosticsResponse(counts, samples);
+    }
+
+    public CrawlRunDiagnosticsResponse getCrawlRunDiagnostics(Integer limit) {
+        int safeLimit = limit == null ? 10 : Math.max(1, Math.min(limit, 100));
+        boolean dbConnected;
+        try {
+            dbConnected = repository.isDbReachable();
+        } catch (Exception ignored) {
+            dbConnected = false;
+        }
+        if (!dbConnected) {
+            return new CrawlRunDiagnosticsResponse(safeLimit, 0, List.of());
+        }
+        List<CrawlRunMeta> runs = repository.findRecentCrawlRuns(safeLimit);
+        List<CrawlRunDiagnosticsEntry> entries = new ArrayList<>();
+        for (CrawlRunMeta run : runs) {
+            CrawlRunActivityCounts counts = repository.findRunActivityCounts(run.crawlRunId());
+            entries.add(new CrawlRunDiagnosticsEntry(
+                run.crawlRunId(),
+                run.startedAt(),
+                run.finishedAt(),
+                run.status(),
+                counts.discoveredUrls(),
+                counts.discoveredSitemaps(),
+                counts.jobPostings()
+            ));
+        }
+        return new CrawlRunDiagnosticsResponse(safeLimit, entries.size(), entries);
     }
 
     public List<JobPostingListView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {

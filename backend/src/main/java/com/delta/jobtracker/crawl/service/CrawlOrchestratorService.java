@@ -4,6 +4,7 @@ import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
+import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.CrawlRunRequest;
 import com.delta.jobtracker.crawl.model.CrawlRunSummary;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
@@ -12,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -48,93 +50,102 @@ public class CrawlOrchestratorService {
     }
 
     public CrawlRunSummary run(CrawlRunRequest request) {
+        ensureNoActiveRun();
         Instant startedAt = Instant.now();
         long crawlRunId = repository.insertCrawlRun(startedAt, "RUNNING", "crawl started");
+        Instant finishedAt = null;
+        String status = "FAILED";
+        String notes = "crawl_failed";
+        List<CompanyCrawlSummary> summaries = List.of();
 
-        List<String> tickers = request.normalizedTickers();
-        int companyLimit = request.companyLimit() == null
-            ? properties.getApi().getDefaultCompanyLimit()
-            : Math.max(1, request.companyLimit());
-        int resolveLimit = request.resolveLimit() == null
-            ? properties.getAutomation().getResolveLimit()
-            : Math.max(1, request.resolveLimit());
-        int discoverLimit = request.discoverLimit() == null
-            ? properties.getAutomation().getDiscoverLimit()
-            : Math.max(1, request.discoverLimit());
-        if (shouldResolveDomains(request)) {
-            DomainResolutionResult resolution = tickers.isEmpty()
-                ? domainResolutionService.resolveMissingDomains(resolveLimit)
-                : domainResolutionService.resolveMissingDomainsForTickers(tickers, resolveLimit);
-            log.info(
-                "Domain resolver before crawl: resolved={} no_wikipedia_title={} no_item={} no_p856={} wdqs_error={}",
-                resolution.resolvedCount(),
-                resolution.noWikipediaTitleCount(),
-                resolution.noItemCount(),
-                resolution.noP856Count(),
-                resolution.wdqsErrorCount()
-            );
-        }
-        if (shouldDiscoverCareers(request)) {
-            CareersDiscoveryResult discovery = tickers.isEmpty()
-                ? careersDiscoveryService.discover(discoverLimit)
-                : careersDiscoveryService.discoverForTickers(tickers, discoverLimit);
-            log.info("Careers discovery before crawl: discovered={}, failed={}", discovery.discoveredCountByAtsType(), discovery.failedCount());
-        }
-
-        List<CompanyTarget> targets = selectTargets(request, tickers, companyLimit);
-
-        if (targets.isEmpty()) {
-            Instant finishedAt = Instant.now();
-            repository.completeCrawlRun(crawlRunId, finishedAt, "NO_TARGETS", "No company domains matched");
-            return new CrawlRunSummary(crawlRunId, startedAt, finishedAt, "NO_TARGETS", List.of());
-        }
-
-        List<CompletableFuture<CompanyCrawlSummary>> futures = new ArrayList<>();
-        for (CompanyTarget target : targets) {
-            futures.add(CompletableFuture.supplyAsync(
-                () -> companyCrawlerService.crawlCompany(crawlRunId, target, request),
-                crawlExecutor
-            ));
-        }
-
-        List<CompanyCrawlSummary> summaries = new ArrayList<>();
-        boolean hadErrors = false;
-        for (int i = 0; i < futures.size(); i++) {
-            CompanyTarget target = targets.get(i);
-            try {
-                CompanyCrawlSummary summary = futures.get(i).join();
-                summaries.add(summary);
-                if (summary.closeoutSafe()) {
-                    repository.markPostingsInactiveNotSeenInRun(target.companyId(), crawlRunId);
-                }
-            } catch (Exception e) {
-                hadErrors = true;
-                log.warn("Company crawl failed for {} ({})", target.ticker(), target.domain(), e);
-                Map<String, Integer> errorMap = new LinkedHashMap<>();
-                errorMap.put("company_crawl_exception", 1);
-                summaries.add(new CompanyCrawlSummary(
-                    target.companyId(),
-                    target.ticker(),
-                    target.domain(),
-                    0,
-                    0,
-                    List.of(),
-                    0,
-                    0,
-                    false,
-                    errorMap
-                ));
+        try {
+            List<String> tickers = request.normalizedTickers();
+            int companyLimit = request.companyLimit() == null
+                ? properties.getApi().getDefaultCompanyLimit()
+                : Math.max(1, request.companyLimit());
+            int resolveLimit = request.resolveLimit() == null
+                ? properties.getAutomation().getResolveLimit()
+                : Math.max(1, request.resolveLimit());
+            int discoverLimit = request.discoverLimit() == null
+                ? properties.getAutomation().getDiscoverLimit()
+                : Math.max(1, request.discoverLimit());
+            if (shouldResolveDomains(request)) {
+                DomainResolutionResult resolution = tickers.isEmpty()
+                    ? domainResolutionService.resolveMissingDomains(resolveLimit)
+                    : domainResolutionService.resolveMissingDomainsForTickers(tickers, resolveLimit);
+                log.info(
+                    "Domain resolver before crawl: resolved={} no_wikipedia_title={} no_item={} no_p856={} wdqs_error={}",
+                    resolution.resolvedCount(),
+                    resolution.noWikipediaTitleCount(),
+                    resolution.noItemCount(),
+                    resolution.noP856Count(),
+                    resolution.wdqsErrorCount()
+                );
             }
-        }
+            if (shouldDiscoverCareers(request)) {
+                CareersDiscoveryResult discovery = tickers.isEmpty()
+                    ? careersDiscoveryService.discover(discoverLimit)
+                    : careersDiscoveryService.discoverForTickers(tickers, discoverLimit);
+                log.info("Careers discovery before crawl: discovered={}, failed={}", discovery.discoveredCountByAtsType(), discovery.failedCount());
+            }
 
-        Instant finishedAt = Instant.now();
-        String status = hadErrors ? "COMPLETED_WITH_ERRORS" : "COMPLETED";
-        repository.completeCrawlRun(
-            crawlRunId,
-            finishedAt,
-            status,
-            "companies=" + summaries.size()
-        );
+            List<CompanyTarget> targets = selectTargets(request, tickers, companyLimit);
+
+            if (targets.isEmpty()) {
+                status = "NO_TARGETS";
+                notes = "No company domains matched";
+                summaries = List.of();
+            } else {
+                List<CompletableFuture<CompanyCrawlSummary>> futures = new ArrayList<>();
+                for (CompanyTarget target : targets) {
+                    futures.add(CompletableFuture.supplyAsync(
+                        () -> companyCrawlerService.crawlCompany(crawlRunId, target, request),
+                        crawlExecutor
+                    ));
+                }
+
+                List<CompanyCrawlSummary> runSummaries = new ArrayList<>();
+                boolean hadErrors = false;
+                for (int i = 0; i < futures.size(); i++) {
+                    CompanyTarget target = targets.get(i);
+                    try {
+                        CompanyCrawlSummary summary = futures.get(i).join();
+                        runSummaries.add(summary);
+                        if (summary.closeoutSafe()) {
+                            repository.markPostingsInactiveNotSeenInRun(target.companyId(), crawlRunId);
+                        }
+                    } catch (Exception e) {
+                        hadErrors = true;
+                        log.warn("Company crawl failed for {} ({})", target.ticker(), target.domain(), e);
+                        Map<String, Integer> errorMap = new LinkedHashMap<>();
+                        errorMap.put("company_crawl_exception", 1);
+                        runSummaries.add(new CompanyCrawlSummary(
+                            target.companyId(),
+                            target.ticker(),
+                            target.domain(),
+                            0,
+                            0,
+                            List.of(),
+                            0,
+                            0,
+                            false,
+                            errorMap
+                        ));
+                    }
+                }
+
+                summaries = runSummaries;
+                status = hadErrors ? "COMPLETED_WITH_ERRORS" : "COMPLETED";
+                notes = "companies=" + summaries.size();
+            }
+        } catch (Exception e) {
+            log.warn("Crawl run {} failed", crawlRunId, e);
+            status = "FAILED";
+            notes = "exception=" + e.getClass().getSimpleName();
+        } finally {
+            finishedAt = Instant.now();
+            repository.completeCrawlRun(crawlRunId, finishedAt, status, notes);
+        }
         return new CrawlRunSummary(crawlRunId, startedAt, finishedAt, status, summaries);
     }
 
@@ -158,6 +169,23 @@ public class CrawlOrchestratorService {
             return request.discoverCareers();
         }
         return properties.getAutomation().isDiscoverCareersEndpoints();
+    }
+
+    private void ensureNoActiveRun() {
+        int activeMinutes = properties.getActiveRunMinutes();
+        Instant cutoff = Instant.now().minus(Duration.ofMinutes(activeMinutes));
+        List<CrawlRunMeta> running = repository.findRunningCrawlRuns();
+        for (CrawlRunMeta run : running) {
+            Instant lastActivity = repository.findLastActivityAtForRun(run.crawlRunId());
+            boolean active = run.startedAt().isAfter(cutoff)
+                || (lastActivity != null && lastActivity.isAfter(cutoff));
+            if (active) {
+                String message = "Active crawl run in progress (id=" + run.crawlRunId()
+                    + ", startedAt=" + run.startedAt()
+                    + ", lastActivityAt=" + (lastActivity == null ? "none" : lastActivity) + ")";
+                throw new ActiveCrawlRunException(message);
+            }
+        }
     }
 
     private List<CompanyTarget> selectTargets(CrawlRunRequest request, List<String> tickers, int companyLimit) {
