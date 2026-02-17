@@ -5,85 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Delta Job Tracker</title>
     <link rel="stylesheet" href="/styles.css" />
-    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.4/dist/purify.min.js"></script>
     <script defer src="/app.js"></script>
   </head>
   <body>
     <header class="hero">
       <div class="hero-inner">
         <h1>Delta Job Tracker</h1>
-        <p>Browse active, new, and recently closed jobs in the S&amp;P 500 universe.</p>
+        <p>Browse CS job postings across ATS-backed companies.</p>
       </div>
     </header>
 
     <main class="container">
       <section class="controls card">
-        <div class="control">
-          <label for="companyId">Company ID</label>
-          <input id="companyId" type="text" placeholder="Optional (e.g., 12)" />
-        </div>
-        <div class="control wide">
-          <label for="apiBase">API Base URL</label>
-          <input id="apiBase" type="text" placeholder="http://localhost:8080" />
-        </div>
         <div class="control wide">
           <label for="companySearch">Search Company</label>
-          <input id="companySearch" type="text" placeholder="Type a ticker or name (e.g., air)" />
+          <input id="companySearch" type="text" placeholder="Type a ticker or name (e.g., Airbnb)" />
           <div id="companySuggestions" class="suggestions"></div>
         </div>
+        <div id="selectedCompany" class="selected-company hidden"></div>
         <div class="control wide">
           <label for="query">Query</label>
-          <input id="query" type="text" placeholder="software engineer OR data scientist" />
-        </div>
-        <div class="control">
-          <label for="activeFilter">List Filter</label>
-          <select id="activeFilter">
-            <option value="all">All</option>
-            <option value="true">Active</option>
-            <option value="false">Closed</option>
-          </select>
-        </div>
-        <div class="control">
-          <label for="since">Since (ISO-8601)</label>
-          <input id="since" type="text" placeholder="2026-02-14T00:00:00Z" />
-        </div>
-        <div class="control">
-          <label for="limit">Limit</label>
-          <input id="limit" type="number" min="1" max="500" value="50" />
-        </div>
-        <div class="control inline">
-          <label class="checkbox" for="autoUpdateLastCheck">
-            <input id="autoUpdateLastCheck" type="checkbox" />
-            Auto-update Last Check
-          </label>
+          <input id="query" type="text" placeholder="e.g., software engineer OR backend OR ML" />
         </div>
         <div class="actions">
-          <button id="loadActive" class="btn primary">Load Active</button>
-          <button id="loadAll" class="btn">Load All</button>
-          <button id="loadNew" class="btn">Load New Since</button>
-          <button id="loadNewSinceCheck" class="btn">Load New Since Last Check</button>
-          <button id="loadClosed" class="btn">Load Closed Since</button>
-          <button id="setLastCheck" class="btn">Set Last Check = Now</button>
+          <button id="searchBtn" class="btn primary">Search</button>
+          <button id="clearBtn" class="btn">Clear</button>
         </div>
-        <div id="lastCheckHint" class="meta"></div>
       </section>
 
       <section class="results">
         <div class="results-header">
           <h2>Results</h2>
-          <span id="resultsMeta" class="meta"></span>
+          <span id="resultsMeta" class="meta">No results yet.</span>
+        </div>
+        <div class="pagination">
+          <button id="prevPage" class="btn small" disabled>Prev</button>
+          <span id="pageIndicator" class="meta">Page 0 of 0</span>
+          <button id="nextPage" class="btn small" disabled>Next</button>
         </div>
         <div id="resultsList" class="results-list"></div>
       </section>
     </main>
-
-    <aside id="detailPanel" class="detail-panel hidden">
-      <div class="detail-header">
-        <h3 id="detailTitle">Job Detail</h3>
-        <button id="closeDetail" class="btn small">Close</button>
-      </div>
-      <div id="detailMeta" class="detail-meta"></div>
-      <div id="detailDescription" class="detail-description"></div>
-    </aside>
   </body>
 </html>

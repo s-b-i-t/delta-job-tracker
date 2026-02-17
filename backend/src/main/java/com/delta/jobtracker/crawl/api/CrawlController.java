@@ -16,6 +16,7 @@ import com.delta.jobtracker.crawl.model.FullCycleSummary;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
+import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
@@ -221,15 +222,21 @@ public class CrawlController {
         @RequestParam(name = "active", required = false) Boolean active,
         @RequestParam(name = "q", required = false) String query
     ) {
-        AtsType atsType = null;
-        if (ats != null && !ats.isBlank()) {
-            try {
-                atsType = AtsType.valueOf(ats.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new ResponseStatusException(BAD_REQUEST, "Unsupported ats value: " + ats);
-            }
-        }
+        AtsType atsType = parseAtsType(ats);
         return crawlStatusService.getNewestJobs(limit, companyId, atsType, active, query);
+    }
+
+    @GetMapping("/jobs/page")
+    public JobPostingPageResponse getJobsPage(
+        @RequestParam(name = "page", required = false) Integer page,
+        @RequestParam(name = "pageSize", required = false) Integer pageSize,
+        @RequestParam(name = "companyId", required = false) Long companyId,
+        @RequestParam(name = "ats", required = false) String ats,
+        @RequestParam(name = "active", required = false) Boolean active,
+        @RequestParam(name = "q", required = false) String query
+    ) {
+        AtsType atsType = parseAtsType(ats);
+        return crawlStatusService.getJobPage(page, pageSize, companyId, atsType, active, query);
     }
 
     @GetMapping("/jobs/new")
@@ -276,6 +283,17 @@ public class CrawlController {
         @RequestParam(name = "limit", required = false) Integer limit
     ) {
         return crawlStatusService.searchCompanies(search, limit);
+    }
+
+    private AtsType parseAtsType(String ats) {
+        if (ats == null || ats.isBlank()) {
+            return null;
+        }
+        try {
+            return AtsType.valueOf(ats.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unsupported ats value: " + ats);
+        }
     }
 
     private java.util.Map<String, Integer> aggregateErrors(List<CompanyCrawlSummary> companies, int limit) {

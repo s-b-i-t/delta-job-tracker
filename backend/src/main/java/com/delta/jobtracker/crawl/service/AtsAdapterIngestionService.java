@@ -637,7 +637,18 @@ public class AtsAdapterIngestionService {
             return null;
         }
         String trimmed = externalPath.trim();
+        if (trimmed.toLowerCase(Locale.ROOT).contains("invalid-url")) {
+            return null;
+        }
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            URI uri = safeUri(trimmed);
+            if (uri == null || uri.getHost() == null) {
+                return null;
+            }
+            String extHost = uri.getHost().toLowerCase(Locale.ROOT);
+            if (!extHost.endsWith("myworkdayjobs.com")) {
+                return null;
+            }
             return trimmed;
         }
         if (!trimmed.startsWith("/")) {

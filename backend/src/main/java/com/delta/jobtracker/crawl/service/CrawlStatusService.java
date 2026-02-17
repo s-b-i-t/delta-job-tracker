@@ -13,6 +13,7 @@ import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
+import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.RecentCrawlStatus;
 import com.delta.jobtracker.crawl.model.StatusResponse;
@@ -152,12 +153,35 @@ public class CrawlStatusService {
     }
 
     public List<JobPostingListView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {
-        int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
+        JobPostingPageResponse page = getJobPage(0, limit, companyId, atsType, active, query);
+        return page.items();
+    }
+
+    public JobPostingPageResponse getJobPage(
+        Integer page,
+        Integer pageSize,
+        Long companyId,
+        AtsType atsType,
+        Boolean active,
+        String query
+    ) {
+        int safePage = page == null ? 0 : Math.max(0, page);
+        int safePageSize = pageSize == null ? 50 : Math.max(1, Math.min(pageSize, 500));
+        int offset = safePage * safePageSize;
         try {
-            return repository.findNewestJobs(safeLimit, companyId, atsType, active, query);
+            long total = repository.countJobPostingsFiltered(companyId, atsType, active, query);
+            List<JobPostingListView> items = repository.findJobPostingsPage(
+                safePageSize,
+                offset,
+                companyId,
+                atsType,
+                active,
+                query
+            );
+            return new JobPostingPageResponse(total, safePage, safePageSize, items);
         } catch (Exception e) {
-            log.warn("Failed to load newest jobs", e);
-            return List.of();
+            log.warn("Failed to load paged jobs", e);
+            return new JobPostingPageResponse(0, safePage, safePageSize, List.of());
         }
     }
 

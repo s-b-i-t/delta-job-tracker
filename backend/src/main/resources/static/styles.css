@@ -74,6 +74,34 @@ body {
   gap: 12px;
 }
 
+.selected-company {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fffaf5;
+  font-weight: 600;
+}
+
+.selected-company.hidden {
+  display: none;
+}
+
+.chip-btn {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chip-btn:hover {
+  color: var(--accent-dark);
+}
+
 .suggestions {
   margin-top: 8px;
   display: grid;
@@ -160,6 +188,13 @@ body {
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .meta {

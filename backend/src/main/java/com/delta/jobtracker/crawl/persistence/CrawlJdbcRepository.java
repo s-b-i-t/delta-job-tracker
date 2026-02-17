@@ -1463,6 +1463,102 @@ public class CrawlJdbcRepository {
         );
     }
 
+    public long countJobPostingsFiltered(Long companyId, AtsType atsType, Boolean active, String query) {
+        String normalizedQuery = normalizeQuery(query);
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId, Types.BIGINT)
+            .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR)
+            .addValue("active", active, Types.BOOLEAN);
+        addSearchParams(params, normalizedQuery);
+
+        String filterClause = jobPostingsFilterClause("jp", normalizedQuery);
+        Long count = jdbc.queryForObject(
+            """
+                SELECT COUNT(*)
+                FROM job_postings jp
+                """ + filterClause + """
+                """,
+            params,
+            Long.class
+        );
+        return count == null ? 0L : count;
+    }
+
+    public List<JobPostingListView> findJobPostingsPage(
+        int pageSize,
+        int offset,
+        Long companyId,
+        AtsType atsType,
+        Boolean active,
+        String query
+    ) {
+        String normalizedQuery = normalizeQuery(query);
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("limit", pageSize)
+            .addValue("offset", offset)
+            .addValue("companyId", companyId, Types.BIGINT)
+            .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR)
+            .addValue("active", active, Types.BOOLEAN);
+        addSearchParams(params, normalizedQuery);
+
+        String filterClause = jobPostingsFilterClause("jp", normalizedQuery);
+        return jdbc.query(
+            """
+                SELECT jp.id,
+                       jp.company_id,
+                       c.ticker,
+                       c.name AS company_name,
+                       latest_ats.ats_type AS latest_ats_type,
+                       jp.source_url,
+                       jp.canonical_url,
+                       jp.title,
+                       jp.org_name,
+                       jp.location_text,
+                       jp.employment_type,
+                       jp.date_posted,
+                       jp.first_seen_at,
+                       jp.last_seen_at,
+                       jp.is_active
+                FROM job_postings jp
+                JOIN companies c ON c.id = jp.company_id
+                LEFT JOIN (
+                    SELECT ae.company_id,
+                           ae.ats_type
+                    FROM ats_endpoints ae
+                    JOIN (
+                        SELECT company_id, MAX(detected_at) AS max_detected_at
+                        FROM ats_endpoints
+                        GROUP BY company_id
+                    ) ranked
+                      ON ranked.company_id = ae.company_id
+                     AND ranked.max_detected_at = ae.detected_at
+                ) latest_ats ON latest_ats.company_id = jp.company_id
+                """ + filterClause + """
+                ORDER BY jp.first_seen_at DESC, jp.id DESC
+                LIMIT :limit
+                OFFSET :offset
+                """,
+            params,
+            (rs, rowNum) -> new JobPostingListView(
+                rs.getLong("id"),
+                rs.getLong("company_id"),
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                parseAtsType(rs.getString("latest_ats_type")),
+                rs.getString("source_url"),
+                rs.getString("canonical_url"),
+                rs.getString("title"),
+                rs.getString("org_name"),
+                rs.getString("location_text"),
+                rs.getString("employment_type"),
+                rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
+                toInstant(rs.getTimestamp("first_seen_at")),
+                toInstant(rs.getTimestamp("last_seen_at")),
+                rs.getBoolean("is_active")
+            )
+        );
+    }
+
     public List<JobPostingListView> findNewJobsSince(Instant since, Long companyId, int limit, String query) {
         String normalizedQuery = normalizeQuery(query);
         MapSqlParameterSource params = new MapSqlParameterSource()
@@ -1792,6 +1888,24 @@ public class CrawlJdbcRepository {
             "LOWER(CAST(" + alias + ".employment_type AS VARCHAR)) LIKE :qLike OR " +
             "LOWER(CAST(" + alias + ".description_plain AS VARCHAR)) LIKE :qLike" +
             ")";
+    }
+
+    private String jobPostingsFilterClause(String alias, String normalizedQuery) {
+        String safeAlias = alias == null || alias.isBlank() ? "jp" : alias;
+        String clause = """
+            WHERE (:companyId IS NULL OR %s.company_id = :companyId)
+              AND (:active IS NULL OR %s.is_active = :active)
+              AND (
+                :atsType IS NULL
+                OR EXISTS (
+                    SELECT 1
+                    FROM ats_endpoints ae2
+                    WHERE ae2.company_id = %s.company_id
+                      AND ae2.ats_type = :atsType
+                )
+              )
+            """.formatted(safeAlias, safeAlias, safeAlias);
+        return clause + searchClause(safeAlias, normalizedQuery);
     }
 
     private String normalizeAtsEndpointUrl(AtsType atsType, String raw) {
