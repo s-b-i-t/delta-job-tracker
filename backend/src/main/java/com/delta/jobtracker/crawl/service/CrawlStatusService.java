@@ -9,6 +9,9 @@ import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.CrawlRunActivityCounts;
 import com.delta.jobtracker.crawl.model.CrawlRunDiagnosticsEntry;
 import com.delta.jobtracker.crawl.model.CrawlRunDiagnosticsResponse;
+import com.delta.jobtracker.crawl.model.CrawlRunCompanyFailureView;
+import com.delta.jobtracker.crawl.model.CrawlRunCompanyResultView;
+import com.delta.jobtracker.crawl.model.CrawlRunFailuresResponse;
 import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
@@ -177,6 +180,19 @@ public class CrawlStatusService {
         );
     }
 
+    public List<CrawlRunCompanyResultView> getCrawlRunCompanyResults(long crawlRunId, String status, Integer limit) {
+        ensureRunExists(crawlRunId);
+        int safeLimit = limit == null ? 200 : Math.max(1, Math.min(limit, 500));
+        return repository.findCrawlRunCompanyResults(crawlRunId, normalizeStatus(status), safeLimit);
+    }
+
+    public CrawlRunFailuresResponse getCrawlRunFailures(long crawlRunId) {
+        ensureRunExists(crawlRunId);
+        Map<String, Long> counts = repository.countCrawlRunCompanyFailures(crawlRunId);
+        List<CrawlRunCompanyFailureView> failures = repository.findRecentCrawlRunCompanyFailures(crawlRunId, 20);
+        return new CrawlRunFailuresResponse(counts, failures);
+    }
+
     public List<JobPostingListView> getNewestJobs(Integer limit, Long companyId, AtsType atsType, Boolean active, String query) {
         JobPostingPageResponse page = getJobPage(0, limit, companyId, atsType, active, query);
         return page.items();
@@ -264,6 +280,20 @@ public class CrawlStatusService {
         }
         int safeLimit = limit == null ? 20 : Math.max(1, Math.min(limit, 100));
         return repository.searchCompanies(search, safeLimit);
+    }
+
+    private void ensureRunExists(long crawlRunId) {
+        CrawlRunMeta run = repository.findCrawlRunById(crawlRunId);
+        if (run == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Crawl run not found: " + crawlRunId);
+        }
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        return status.trim().toUpperCase();
     }
 
     private Instant parseSince(String since) {

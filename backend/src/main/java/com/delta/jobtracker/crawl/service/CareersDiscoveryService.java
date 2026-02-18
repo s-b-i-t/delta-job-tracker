@@ -120,7 +120,7 @@ public class CareersDiscoveryService {
         return new CareersDiscoveryResult(discoveredCountByType, failedCount, topErrors);
     }
 
-    private DiscoveryOutcome discoverForCompany(CompanyTarget company) {
+    DiscoveryOutcome discoverForCompany(CompanyTarget company) {
         LinkedHashSet<String> candidates = buildCandidates(company);
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
@@ -434,7 +434,7 @@ public class CareersDiscoveryService {
         return failures.getFirst();
     }
 
-    private record DiscoveryOutcome(Map<AtsType, Integer> countsByType, DiscoveryFailure failure) {
+    record DiscoveryOutcome(Map<AtsType, Integer> countsByType, DiscoveryFailure failure) {
         boolean hasEndpoints() {
             return countsByType != null && !countsByType.isEmpty();
         }
@@ -444,6 +444,6 @@ public class CareersDiscoveryService {
         }
     }
 
-    private record DiscoveryFailure(String reasonCode, String candidateUrl, String detail) {
+    record DiscoveryFailure(String reasonCode, String candidateUrl, String detail) {
     }
 }

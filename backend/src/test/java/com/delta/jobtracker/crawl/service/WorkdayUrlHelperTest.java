@@ -1,5 +1,6 @@
 package com.delta.jobtracker.crawl.service;
 
+import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
@@ -28,7 +29,13 @@ class WorkdayUrlHelperTest {
 
     @BeforeEach
     void setUp() {
-        service = new AtsAdapterIngestionService(httpClient, robotsTxtService, repository, new ObjectMapper());
+        service = new AtsAdapterIngestionService(
+            httpClient,
+            robotsTxtService,
+            repository,
+            new ObjectMapper(),
+            new CrawlerProperties()
+        );
     }
 
     @Test

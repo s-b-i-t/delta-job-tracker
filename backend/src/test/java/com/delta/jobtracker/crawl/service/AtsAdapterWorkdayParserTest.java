@@ -1,5 +1,6 @@
 package com.delta.jobtracker.crawl.service;
 
+import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -32,7 +33,13 @@ class AtsAdapterWorkdayParserTest {
 
     @Test
     void parsesWorkdayCxsPayloadIntoNormalizedJobs() throws Exception {
-        AtsAdapterIngestionService service = new AtsAdapterIngestionService(httpClient, robotsTxtService, repository, objectMapper);
+        AtsAdapterIngestionService service = new AtsAdapterIngestionService(
+            httpClient,
+            robotsTxtService,
+            repository,
+            objectMapper,
+            new CrawlerProperties()
+        );
 
         String fixture = Files.readString(Path.of("src/test/resources/fixtures/workday-cxs-response.json"));
         JsonNode root = objectMapper.readTree(fixture);

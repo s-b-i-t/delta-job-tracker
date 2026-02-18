@@ -32,6 +32,7 @@ public class CrawlerProperties {
     private Extraction extraction = new Extraction();
     private Data data = new Data();
     private Cli cli = new Cli();
+    private Ats ats = new Ats();
 
     public String getUserAgent() {
         return normalizeUserAgent(userAgent);
@@ -215,6 +216,14 @@ public class CrawlerProperties {
 
     public void setCli(Cli cli) {
         this.cli = cli;
+    }
+
+    public Ats getAts() {
+        return ats;
+    }
+
+    public void setAts(Ats ats) {
+        this.ats = ats;
     }
 
     public static String normalizeUserAgent(String candidate) {
@@ -534,6 +543,72 @@ public class CrawlerProperties {
 
         public void setExitAfterRun(boolean exitAfterRun) {
             this.exitAfterRun = exitAfterRun;
+        }
+    }
+
+    public static class Ats {
+        private Workday workday = new Workday();
+        private Greenhouse greenhouse = new Greenhouse();
+        private Lever lever = new Lever();
+
+        public Workday getWorkday() {
+            return workday;
+        }
+
+        public void setWorkday(Workday workday) {
+            this.workday = workday;
+        }
+
+        public Greenhouse getGreenhouse() {
+            return greenhouse;
+        }
+
+        public void setGreenhouse(Greenhouse greenhouse) {
+            this.greenhouse = greenhouse;
+        }
+
+        public Lever getLever() {
+            return lever;
+        }
+
+        public void setLever(Lever lever) {
+            this.lever = lever;
+        }
+    }
+
+    public static class Workday {
+        private int maxJobsPerCompany = 400;
+
+        public int getMaxJobsPerCompany() {
+            return Math.max(1, maxJobsPerCompany);
+        }
+
+        public void setMaxJobsPerCompany(int maxJobsPerCompany) {
+            this.maxJobsPerCompany = maxJobsPerCompany;
+        }
+    }
+
+    public static class Greenhouse {
+        private int maxJobsPerCompany = Integer.MAX_VALUE;
+
+        public int getMaxJobsPerCompany() {
+            return Math.max(1, maxJobsPerCompany);
+        }
+
+        public void setMaxJobsPerCompany(int maxJobsPerCompany) {
+            this.maxJobsPerCompany = maxJobsPerCompany;
+        }
+    }
+
+    public static class Lever {
+        private int maxJobsPerCompany = Integer.MAX_VALUE;
+
+        public int getMaxJobsPerCompany() {
+            return Math.max(1, maxJobsPerCompany);
+        }
+
+        public void setMaxJobsPerCompany(int maxJobsPerCompany) {
+            this.maxJobsPerCompany = maxJobsPerCompany;
         }
     }
 }

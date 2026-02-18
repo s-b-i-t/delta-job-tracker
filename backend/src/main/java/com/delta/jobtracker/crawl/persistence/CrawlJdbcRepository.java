@@ -3,12 +3,17 @@ package com.delta.jobtracker.crawl.persistence;
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
 import com.delta.jobtracker.crawl.model.AtsAttemptSample;
 import com.delta.jobtracker.crawl.model.AtsType;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyFailureView;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryRunStatus;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunActivityCounts;
 import com.delta.jobtracker.crawl.model.CrawlRunMeta;
 import com.delta.jobtracker.crawl.model.CrawlRunStatus;
+import com.delta.jobtracker.crawl.model.CrawlRunCompanyFailureView;
+import com.delta.jobtracker.crawl.model.CrawlRunCompanyResultView;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.DiscoveryFailureEntry;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
@@ -100,6 +105,21 @@ public class CrawlJdbcRepository {
         return counts;
     }
 
+    public int countAtsEndpointsForCompany(long companyId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId);
+        Integer count = jdbc.queryForObject(
+            """
+                SELECT COUNT(*)
+                FROM ats_endpoints
+                WHERE company_id = :companyId
+                """,
+            params,
+            Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
     public Map<String, Long> countDiscoveryFailuresByReason() {
         Map<String, Long> counts = new LinkedHashMap<>();
         jdbc.query(
@@ -145,6 +165,277 @@ public class CrawlJdbcRepository {
                 rs.getString("detail"),
                 toInstant(rs.getTimestamp("observed_at")),
                 rs.getString("reason_code")
+            )
+        );
+    }
+
+    public long insertCareersDiscoveryRun(int companyLimit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyLimit", companyLimit);
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbc.update(
+            """
+                INSERT INTO careers_discovery_runs (
+                    status, company_limit
+                )
+                VALUES (
+                    'RUNNING', :companyLimit
+                )
+                """,
+            params,
+            keyHolder,
+            new String[] {"id"}
+        );
+        Number key = keyHolder.getKey();
+        return key == null ? 0L : key.longValue();
+    }
+
+    public void updateCareersDiscoveryRunProgress(
+        long runId,
+        int processedCount,
+        int succeededCount,
+        int failedCount,
+        int endpointsAdded,
+        String lastError
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId)
+            .addValue("processedCount", processedCount)
+            .addValue("succeededCount", succeededCount)
+            .addValue("failedCount", failedCount)
+            .addValue("endpointsAdded", endpointsAdded)
+            .addValue("lastError", truncateErrorDetail(lastError));
+        jdbc.update(
+            """
+                UPDATE careers_discovery_runs
+                SET processed_count = :processedCount,
+                    succeeded_count = :succeededCount,
+                    failed_count = :failedCount,
+                    endpoints_added = :endpointsAdded,
+                    last_error = COALESCE(:lastError, last_error)
+                WHERE id = :runId
+                """,
+            params
+        );
+    }
+
+    public void completeCareersDiscoveryRun(long runId, Instant finishedAt, String status, String lastError) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId)
+            .addValue("finishedAt", toTimestamp(finishedAt))
+            .addValue("status", status)
+            .addValue("lastError", truncateErrorDetail(lastError));
+        jdbc.update(
+            """
+                UPDATE careers_discovery_runs
+                SET finished_at = :finishedAt,
+                    status = :status,
+                    last_error = COALESCE(:lastError, last_error)
+                WHERE id = :runId
+                """,
+            params
+        );
+    }
+
+    public CareersDiscoveryRunStatus findCareersDiscoveryRun(long runId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId);
+        List<CareersDiscoveryRunStatus> rows = jdbc.query(
+            """
+                SELECT id,
+                       started_at,
+                       finished_at,
+                       status,
+                       company_limit,
+                       processed_count,
+                       succeeded_count,
+                       failed_count,
+                       endpoints_added,
+                       last_error
+                FROM careers_discovery_runs
+                WHERE id = :runId
+                """,
+            params,
+            (rs, rowNum) -> new CareersDiscoveryRunStatus(
+                rs.getLong("id"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getString("status"),
+                rs.getInt("company_limit"),
+                rs.getInt("processed_count"),
+                rs.getInt("succeeded_count"),
+                rs.getInt("failed_count"),
+                rs.getInt("endpoints_added"),
+                rs.getString("last_error")
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public void upsertCareersDiscoveryCompanyResult(
+        long runId,
+        long companyId,
+        String status,
+        String reasonCode,
+        String stage,
+        int foundEndpointsCount,
+        Long durationMs,
+        Integer httpStatus,
+        String errorDetail
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId)
+            .addValue("companyId", companyId)
+            .addValue("status", status)
+            .addValue("reasonCode", reasonCode)
+            .addValue("stage", stage)
+            .addValue("foundEndpointsCount", foundEndpointsCount)
+            .addValue("durationMs", durationMs)
+            .addValue("httpStatus", httpStatus)
+            .addValue("errorDetail", truncateErrorDetail(errorDetail));
+        jdbc.update(
+            """
+                INSERT INTO careers_discovery_company_results (
+                    discovery_run_id,
+                    company_id,
+                    status,
+                    reason_code,
+                    stage,
+                    found_endpoints_count,
+                    duration_ms,
+                    http_status,
+                    error_detail,
+                    created_at
+                )
+                VALUES (
+                    :runId,
+                    :companyId,
+                    :status,
+                    :reasonCode,
+                    :stage,
+                    :foundEndpointsCount,
+                    :durationMs,
+                    :httpStatus,
+                    :errorDetail,
+                    NOW()
+                )
+                ON CONFLICT (discovery_run_id, company_id)
+                DO UPDATE SET
+                    status = EXCLUDED.status,
+                    reason_code = EXCLUDED.reason_code,
+                    stage = EXCLUDED.stage,
+                    found_endpoints_count = EXCLUDED.found_endpoints_count,
+                    duration_ms = EXCLUDED.duration_ms,
+                    http_status = EXCLUDED.http_status,
+                    error_detail = EXCLUDED.error_detail,
+                    created_at = NOW()
+                """,
+            params
+        );
+    }
+
+    public List<CareersDiscoveryCompanyResultView> findCareersDiscoveryCompanyResults(
+        long runId,
+        String status,
+        int limit
+    ) {
+        int safeLimit = Math.max(1, Math.min(limit, 500));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId)
+            .addValue("status", status)
+            .addValue("limit", safeLimit);
+        return jdbc.query(
+            """
+                SELECT r.company_id,
+                       c.ticker,
+                       c.name AS company_name,
+                       r.status,
+                       r.reason_code,
+                       r.stage,
+                       r.found_endpoints_count,
+                       r.duration_ms,
+                       r.http_status,
+                       r.error_detail,
+                       r.created_at
+                FROM careers_discovery_company_results r
+                JOIN companies c ON c.id = r.company_id
+                WHERE r.discovery_run_id = :runId
+                  AND (:status IS NULL OR r.status = :status)
+                ORDER BY r.created_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new CareersDiscoveryCompanyResultView(
+                rs.getLong("company_id"),
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                rs.getString("status"),
+                rs.getString("reason_code"),
+                rs.getString("stage"),
+                rs.getInt("found_endpoints_count"),
+                rs.getObject("duration_ms", Long.class),
+                rs.getObject("http_status", Integer.class),
+                rs.getString("error_detail"),
+                toInstant(rs.getTimestamp("created_at"))
+            )
+        );
+    }
+
+    public Map<String, Long> countCareersDiscoveryCompanyFailures(long runId) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId);
+        jdbc.query(
+            """
+                SELECT reason_code, COUNT(*) AS total
+                FROM careers_discovery_company_results
+                WHERE discovery_run_id = :runId
+                  AND status = 'FAILED'
+                GROUP BY reason_code
+                ORDER BY total DESC, reason_code
+                """,
+            params,
+            rs -> {
+                String reason = rs.getString("reason_code");
+                long total = rs.getLong("total");
+                if (reason != null) {
+                    counts.put(reason, total);
+                }
+            }
+        );
+        return counts;
+    }
+
+    public List<CareersDiscoveryCompanyFailureView> findRecentCareersDiscoveryCompanyFailures(long runId, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId)
+            .addValue("limit", safeLimit);
+        return jdbc.query(
+            """
+                SELECT c.ticker,
+                       c.name AS company_name,
+                       r.stage,
+                       r.reason_code,
+                       r.http_status,
+                       r.error_detail,
+                       r.created_at
+                FROM careers_discovery_company_results r
+                JOIN companies c ON c.id = r.company_id
+                WHERE r.discovery_run_id = :runId
+                  AND r.status = 'FAILED'
+                ORDER BY r.created_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new CareersDiscoveryCompanyFailureView(
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                rs.getString("stage"),
+                rs.getString("reason_code"),
+                rs.getObject("http_status", Integer.class),
+                rs.getString("error_detail"),
+                toInstant(rs.getTimestamp("created_at"))
             )
         );
     }
@@ -1420,6 +1711,256 @@ public class CrawlJdbcRepository {
         return runs.isEmpty() ? null : runs.getFirst();
     }
 
+    public void upsertCrawlRunCompanyResultStart(
+        long crawlRunId,
+        long companyId,
+        String status,
+        String stage,
+        String atsType,
+        String endpointUrl,
+        Instant startedAt,
+        boolean retryable
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId)
+            .addValue("companyId", companyId)
+            .addValue("status", status)
+            .addValue("stage", stage)
+            .addValue("atsType", atsType)
+            .addValue("endpointUrl", endpointUrl)
+            .addValue("startedAt", toTimestamp(startedAt))
+            .addValue("retryable", retryable);
+        jdbc.update(
+            """
+                INSERT INTO crawl_run_company_results (
+                    crawl_run_id,
+                    company_id,
+                    status,
+                    stage,
+                    ats_type,
+                    endpoint_url,
+                    started_at,
+                    retryable
+                )
+                VALUES (
+                    :crawlRunId,
+                    :companyId,
+                    :status,
+                    :stage,
+                    :atsType,
+                    :endpointUrl,
+                    :startedAt,
+                    :retryable
+                )
+                ON CONFLICT (crawl_run_id, company_id, stage, endpoint_url)
+                DO UPDATE SET
+                    status = EXCLUDED.status,
+                    ats_type = COALESCE(EXCLUDED.ats_type, crawl_run_company_results.ats_type),
+                    started_at = COALESCE(crawl_run_company_results.started_at, EXCLUDED.started_at),
+                    retryable = EXCLUDED.retryable
+                """,
+            params
+        );
+    }
+
+    public void upsertCrawlRunCompanyResultFinish(
+        long crawlRunId,
+        long companyId,
+        String status,
+        String stage,
+        String atsType,
+        String endpointUrl,
+        Instant startedAt,
+        Instant finishedAt,
+        Long durationMs,
+        int jobsExtracted,
+        boolean truncated,
+        String reasonCode,
+        Integer httpStatus,
+        String errorDetail,
+        boolean retryable
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId)
+            .addValue("companyId", companyId)
+            .addValue("status", status)
+            .addValue("stage", stage)
+            .addValue("atsType", atsType)
+            .addValue("endpointUrl", endpointUrl)
+            .addValue("startedAt", toTimestamp(startedAt))
+            .addValue("finishedAt", toTimestamp(finishedAt))
+            .addValue("durationMs", durationMs)
+            .addValue("jobsExtracted", jobsExtracted)
+            .addValue("truncated", truncated)
+            .addValue("reasonCode", reasonCode)
+            .addValue("httpStatus", httpStatus)
+            .addValue("errorDetail", truncateErrorDetail(errorDetail))
+            .addValue("retryable", retryable);
+        jdbc.update(
+            """
+                INSERT INTO crawl_run_company_results (
+                    crawl_run_id,
+                    company_id,
+                    status,
+                    stage,
+                    ats_type,
+                    endpoint_url,
+                    started_at,
+                    finished_at,
+                    duration_ms,
+                    jobs_extracted,
+                    truncated,
+                    reason_code,
+                    http_status,
+                    error_detail,
+                    retryable
+                )
+                VALUES (
+                    :crawlRunId,
+                    :companyId,
+                    :status,
+                    :stage,
+                    :atsType,
+                    :endpointUrl,
+                    :startedAt,
+                    :finishedAt,
+                    :durationMs,
+                    :jobsExtracted,
+                    :truncated,
+                    :reasonCode,
+                    :httpStatus,
+                    :errorDetail,
+                    :retryable
+                )
+                ON CONFLICT (crawl_run_id, company_id, stage, endpoint_url)
+                DO UPDATE SET
+                    status = EXCLUDED.status,
+                    ats_type = COALESCE(EXCLUDED.ats_type, crawl_run_company_results.ats_type),
+                    finished_at = EXCLUDED.finished_at,
+                    duration_ms = EXCLUDED.duration_ms,
+                    jobs_extracted = EXCLUDED.jobs_extracted,
+                    truncated = EXCLUDED.truncated,
+                    reason_code = EXCLUDED.reason_code,
+                    http_status = EXCLUDED.http_status,
+                    error_detail = EXCLUDED.error_detail,
+                    retryable = EXCLUDED.retryable
+                """,
+            params
+        );
+    }
+
+    public List<CrawlRunCompanyResultView> findCrawlRunCompanyResults(long crawlRunId, String status, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 500));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId)
+            .addValue("status", status)
+            .addValue("limit", safeLimit);
+        return jdbc.query(
+            """
+                SELECT r.company_id,
+                       c.ticker,
+                       c.name AS company_name,
+                       r.status,
+                       r.stage,
+                       r.ats_type,
+                       r.endpoint_url,
+                       r.started_at,
+                       r.finished_at,
+                       r.duration_ms,
+                       r.jobs_extracted,
+                       r.truncated,
+                       r.reason_code,
+                       r.http_status,
+                       r.error_detail,
+                       r.retryable
+                FROM crawl_run_company_results r
+                JOIN companies c ON c.id = r.company_id
+                WHERE r.crawl_run_id = :crawlRunId
+                  AND (:status IS NULL OR r.status = :status)
+                ORDER BY r.started_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new CrawlRunCompanyResultView(
+                rs.getLong("company_id"),
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                rs.getString("status"),
+                rs.getString("stage"),
+                rs.getString("ats_type"),
+                rs.getString("endpoint_url"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getObject("duration_ms", Long.class),
+                rs.getInt("jobs_extracted"),
+                rs.getBoolean("truncated"),
+                rs.getString("reason_code"),
+                rs.getObject("http_status", Integer.class),
+                rs.getString("error_detail"),
+                rs.getBoolean("retryable")
+            )
+        );
+    }
+
+    public Map<String, Long> countCrawlRunCompanyFailures(long crawlRunId) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId);
+        jdbc.query(
+            """
+                SELECT reason_code, COUNT(*) AS total
+                FROM crawl_run_company_results
+                WHERE crawl_run_id = :crawlRunId
+                  AND status = 'FAILED'
+                GROUP BY reason_code
+                ORDER BY total DESC, reason_code
+                """,
+            params,
+            rs -> {
+                String reason = rs.getString("reason_code");
+                long total = rs.getLong("total");
+                if (reason != null) {
+                    counts.put(reason, total);
+                }
+            }
+        );
+        return counts;
+    }
+
+    public List<CrawlRunCompanyFailureView> findRecentCrawlRunCompanyFailures(long crawlRunId, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId)
+            .addValue("limit", safeLimit);
+        return jdbc.query(
+            """
+                SELECT c.ticker,
+                       c.name AS company_name,
+                       r.stage,
+                       r.reason_code,
+                       r.http_status,
+                       r.error_detail,
+                       r.finished_at
+                FROM crawl_run_company_results r
+                JOIN companies c ON c.id = r.company_id
+                WHERE r.crawl_run_id = :crawlRunId
+                  AND r.status = 'FAILED'
+                ORDER BY r.finished_at DESC NULLS LAST
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new CrawlRunCompanyFailureView(
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                rs.getString("stage"),
+                rs.getString("reason_code"),
+                rs.getObject("http_status", Integer.class),
+                rs.getString("error_detail"),
+                toInstant(rs.getTimestamp("finished_at"))
+            )
+        );
+    }
+
     public void markPostingsInactiveNotSeenInRun(long companyId, long crawlRunId) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId)
@@ -2150,6 +2691,17 @@ public class CrawlJdbcRepository {
             return null;
         }
         return query.trim();
+    }
+
+    private String truncateErrorDetail(String detail) {
+        if (detail == null) {
+            return null;
+        }
+        String trimmed = detail.trim();
+        if (trimmed.length() <= 1000) {
+            return trimmed;
+        }
+        return trimmed.substring(0, 1000);
     }
 
     private void addSearchParams(MapSqlParameterSource params, String query) {

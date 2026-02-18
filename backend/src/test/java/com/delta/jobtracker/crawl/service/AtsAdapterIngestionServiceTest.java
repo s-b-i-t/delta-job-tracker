@@ -1,5 +1,6 @@
 package com.delta.jobtracker.crawl.service;
 
+import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.AtsAdapterResult;
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
@@ -47,7 +48,7 @@ class AtsAdapterIngestionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AtsAdapterIngestionService(httpClient, robotsTxtService, repository, objectMapper);
+        service = new AtsAdapterIngestionService(httpClient, robotsTxtService, repository, objectMapper, new CrawlerProperties());
     }
 
     @Test

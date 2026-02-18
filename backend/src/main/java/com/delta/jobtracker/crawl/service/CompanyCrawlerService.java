@@ -21,6 +21,7 @@ import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.delta.jobtracker.crawl.robots.RobotsRules;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
 import com.delta.jobtracker.crawl.sitemap.SitemapService;
+import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
 import com.delta.jobtracker.crawl.util.UrlClassifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,8 @@ import java.util.Map;
 public class CompanyCrawlerService {
     private static final Logger log = LoggerFactory.getLogger(CompanyCrawlerService.class);
     private static final String HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+    private static final String STAGE_ROBOTS_SITEMAP = "ROBOTS_SITEMAP";
+    private static final String STAGE_JSONLD = "JSONLD";
 
     private final CrawlerProperties properties;
     private final RobotsTxtService robotsTxtService;
@@ -121,6 +124,19 @@ public class CompanyCrawlerService {
             );
         }
 
+        String stageEndpoint = stageEndpointUrl(company);
+        Instant robotsStartedAt = Instant.now();
+        repository.upsertCrawlRunCompanyResultStart(
+            crawlRunId,
+            company.companyId(),
+            "RUNNING",
+            STAGE_ROBOTS_SITEMAP,
+            null,
+            stageEndpoint,
+            robotsStartedAt,
+            false
+        );
+
         RobotsRules rootRules = robotsTxtService.getRulesForHost(company.domain());
         List<String> seedSitemaps = new ArrayList<>(rootRules.getSitemapUrls());
         if (seedSitemaps.isEmpty()) {
@@ -165,21 +181,61 @@ public class CompanyCrawlerService {
             }
         }
 
+        String robotsErrorKey = null;
         if (candidateUrls.isEmpty()) {
             boolean robotsUnavailable = robotsTxtService.isRobotsUnavailableForUrl("https://" + company.domain() + "/");
             if (sitemapResult.fetchedSitemaps().isEmpty()) {
                 if (sitemapResult.errors().containsKey("blocked_by_robots")) {
                     increment(errors, robotsUnavailable ? "robots_fetch_failed" : "sitemap_blocked_by_robots");
+                    robotsErrorKey = "blocked_by_robots";
                 } else if (!sitemapResult.errors().isEmpty()) {
                     increment(errors, "sitemap_fetch_failed");
+                    robotsErrorKey = topErrorKey(sitemapResult.errors());
+                    if (robotsErrorKey == null) {
+                        robotsErrorKey = "sitemap_fetch_failed";
+                    }
                 } else {
                     increment(errors, "no_sitemaps_found");
+                    robotsErrorKey = "no_sitemaps_found";
                 }
             } else if (sitemapResult.discoveredUrls().isEmpty()) {
                 increment(errors, "sitemap_no_urls");
+                robotsErrorKey = "sitemap_no_urls";
             } else {
                 increment(errors, "no_candidate_urls");
+                robotsErrorKey = "no_candidate_urls";
             }
+        }
+
+        if (candidateUrls.isEmpty()) {
+            StageFailure failure = stageFailure(robotsErrorKey);
+            recordStageFinish(
+                crawlRunId,
+                company.companyId(),
+                STAGE_ROBOTS_SITEMAP,
+                stageEndpoint,
+                robotsStartedAt,
+                "FAILED",
+                0,
+                failure.reasonCode(),
+                failure.httpStatus(),
+                failure.errorDetail(),
+                failure.retryable()
+            );
+        } else {
+            recordStageFinish(
+                crawlRunId,
+                company.companyId(),
+                STAGE_ROBOTS_SITEMAP,
+                stageEndpoint,
+                robotsStartedAt,
+                "SUCCEEDED",
+                0,
+                null,
+                null,
+                null,
+                false
+            );
         }
 
         if (budgetExceeded(deadline)) {
@@ -207,54 +263,118 @@ public class CompanyCrawlerService {
 
         int pagesWithJobPosting = 0;
         int jobsExtracted = 0;
+        Map<String, Integer> jsonldErrors = new LinkedHashMap<>();
 
         List<String> pagesToFetch = new ArrayList<>(candidateUrls);
         if (pagesToFetch.size() > maxJobPages) {
             pagesToFetch = pagesToFetch.subList(0, maxJobPages);
         }
 
-        for (String url : pagesToFetch) {
-            if (budgetExceeded(deadline)) {
-                increment(errors, "company_time_budget_exceeded");
-                break;
-            }
-            if (repository.seenNoStructuredData(company.companyId(), url)) {
-                repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "skipped_known_no_structured_data", now);
-                continue;
-            }
-            if (!robotsTxtService.isAllowed(url)) {
-                repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "blocked_by_robots", now);
-                increment(errors, "blocked_by_robots");
-                continue;
+        Instant jsonldStartedAt = Instant.now();
+        repository.upsertCrawlRunCompanyResultStart(
+            crawlRunId,
+            company.companyId(),
+            "RUNNING",
+            STAGE_JSONLD,
+            null,
+            stageEndpoint,
+            jsonldStartedAt,
+            false
+        );
+
+        if (pagesToFetch.isEmpty()) {
+            recordStageFinish(
+                crawlRunId,
+                company.companyId(),
+                STAGE_JSONLD,
+                stageEndpoint,
+                jsonldStartedAt,
+                "SKIPPED",
+                0,
+                ReasonCodeClassifier.SITEMAP_NOT_FOUND,
+                null,
+                "no_candidate_urls",
+                false
+            );
+        } else {
+            for (String url : pagesToFetch) {
+                if (budgetExceeded(deadline)) {
+                    increment(errors, "company_time_budget_exceeded");
+                    increment(jsonldErrors, "company_time_budget_exceeded");
+                    break;
+                }
+                if (repository.seenNoStructuredData(company.companyId(), url)) {
+                    repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "skipped_known_no_structured_data", now);
+                    continue;
+                }
+                if (!robotsTxtService.isAllowed(url)) {
+                    repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "blocked_by_robots", now);
+                    increment(errors, "blocked_by_robots");
+                    increment(jsonldErrors, "blocked_by_robots");
+                    continue;
+                }
+
+                HttpFetchResult fetch = httpClient.get(url, HTML_ACCEPT);
+                Instant fetchedAt = Instant.now();
+                if (!fetch.isSuccessful()) {
+                    String status = errorKey(fetch);
+                    repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, status, fetchedAt);
+                    increment(errors, status);
+                    increment(jsonldErrors, status);
+                    continue;
+                }
+
+                if (fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
+                    String status = "http_" + fetch.statusCode();
+                    repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, status, fetchedAt);
+                    increment(errors, status);
+                    increment(jsonldErrors, status);
+                    continue;
+                }
+
+                fallbackSuccess = true;
+                List<NormalizedJobPosting> postings = jobPostingExtractor.extract(fetch.body(), fetch.finalUrlOrRequested());
+                if (postings.isEmpty()) {
+                    repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "no_jobposting_structured_data", fetchedAt);
+                    continue;
+                }
+
+                pagesWithJobPosting++;
+                repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "jobposting_found", fetchedAt);
+                repository.upsertJobPostingsBatch(company.companyId(), crawlRunId, postings, fetchedAt);
+                jobsExtracted += postings.size();
             }
 
-            HttpFetchResult fetch = httpClient.get(url, HTML_ACCEPT);
-            Instant fetchedAt = Instant.now();
-            if (!fetch.isSuccessful()) {
-                String status = errorKey(fetch);
-                repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, status, fetchedAt);
-                increment(errors, status);
-                continue;
+            if (fallbackSuccess) {
+                recordStageFinish(
+                    crawlRunId,
+                    company.companyId(),
+                    STAGE_JSONLD,
+                    stageEndpoint,
+                    jsonldStartedAt,
+                    "SUCCEEDED",
+                    jobsExtracted,
+                    null,
+                    null,
+                    null,
+                    false
+                );
+            } else {
+                StageFailure failure = stageFailure(topErrorKey(jsonldErrors));
+                recordStageFinish(
+                    crawlRunId,
+                    company.companyId(),
+                    STAGE_JSONLD,
+                    stageEndpoint,
+                    jsonldStartedAt,
+                    "FAILED",
+                    jobsExtracted,
+                    failure.reasonCode(),
+                    failure.httpStatus(),
+                    failure.errorDetail(),
+                    failure.retryable()
+                );
             }
-
-            if (fetch.statusCode() < 200 || fetch.statusCode() >= 300) {
-                String status = "http_" + fetch.statusCode();
-                repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, status, fetchedAt);
-                increment(errors, status);
-                continue;
-            }
-
-            fallbackSuccess = true;
-            List<NormalizedJobPosting> postings = jobPostingExtractor.extract(fetch.body(), fetch.finalUrlOrRequested());
-            if (postings.isEmpty()) {
-                repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "no_jobposting_structured_data", fetchedAt);
-                continue;
-            }
-
-            pagesWithJobPosting++;
-            repository.updateDiscoveredUrlStatus(crawlRunId, company.companyId(), url, "jobposting_found", fetchedAt);
-            repository.upsertJobPostingsBatch(company.companyId(), crawlRunId, postings, fetchedAt);
-            jobsExtracted += postings.size();
         }
 
         boolean closeoutSafe = adapterSuccess || fallbackSuccess;
@@ -410,8 +530,68 @@ public class CompanyCrawlerService {
         errors.put(key, errors.getOrDefault(key, 0) + 1);
     }
 
+    private void recordStageFinish(
+        long crawlRunId,
+        long companyId,
+        String stage,
+        String endpointUrl,
+        Instant startedAt,
+        String status,
+        int jobsExtracted,
+        String reasonCode,
+        Integer httpStatus,
+        String errorDetail,
+        boolean retryable
+    ) {
+        Instant finishedAt = Instant.now();
+        repository.upsertCrawlRunCompanyResultFinish(
+            crawlRunId,
+            companyId,
+            status,
+            stage,
+            null,
+            endpointUrl,
+            startedAt,
+            finishedAt,
+            java.time.Duration.between(startedAt, finishedAt).toMillis(),
+            jobsExtracted,
+            false,
+            reasonCode,
+            httpStatus,
+            errorDetail,
+            retryable
+        );
+    }
+
+    private StageFailure stageFailure(String errorKey) {
+        if (errorKey == null || errorKey.isBlank()) {
+            return new StageFailure(ReasonCodeClassifier.UNKNOWN, null, null, false);
+        }
+        String reasonCode = ReasonCodeClassifier.fromErrorKey(errorKey);
+        Integer httpStatus = ReasonCodeClassifier.parseHttpStatus(errorKey);
+        boolean retryable = ReasonCodeClassifier.isRetryable(reasonCode);
+        return new StageFailure(reasonCode, httpStatus, errorKey, retryable);
+    }
+
+    private String topErrorKey(Map<String, Integer> errors) {
+        if (errors == null || errors.isEmpty()) {
+            return null;
+        }
+        return errors.entrySet().stream()
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .orElse(null);
+    }
+
     private boolean budgetExceeded(Instant deadline) {
         return deadline != null && Instant.now().isAfter(deadline);
+    }
+
+    private String stageEndpointUrl(CompanyTarget company) {
+        if (company == null || company.domain() == null || company.domain().isBlank()) {
+            return null;
+        }
+        return "https://" + company.domain();
     }
 
     private Map<String, Integer> topErrors(Map<String, Integer> errors, int limit) {
@@ -423,5 +603,8 @@ public class CompanyCrawlerService {
                 (map, entry) -> map.put(entry.getKey(), entry.getValue()),
                 LinkedHashMap::putAll
             );
+    }
+
+    private record StageFailure(String reasonCode, Integer httpStatus, String errorDetail, boolean retryable) {
     }
 }

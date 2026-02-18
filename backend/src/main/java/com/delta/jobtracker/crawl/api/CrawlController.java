@@ -5,9 +5,15 @@ import com.delta.jobtracker.crawl.model.CrawlRunRequest;
 import com.delta.jobtracker.crawl.model.CrawlRunSummary;
 import com.delta.jobtracker.crawl.model.CrawlRunAsyncResponse;
 import com.delta.jobtracker.crawl.model.CrawlRunStatusResponse;
+import com.delta.jobtracker.crawl.model.CrawlRunCompanyResultView;
+import com.delta.jobtracker.crawl.model.CrawlRunFailuresResponse;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.AtsAttemptsDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryFailuresResponse;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryRunResponse;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryRunStatus;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CrawlTargetsDiagnosticsResponse;
@@ -26,6 +32,7 @@ import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
+import com.delta.jobtracker.crawl.service.CareersDiscoveryRunService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
 import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
@@ -42,6 +49,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RestController
 @RequestMapping("/api")
@@ -50,6 +58,7 @@ public class CrawlController {
     private final CrawlOrchestratorService crawlOrchestratorService;
     private final DomainResolutionService domainResolutionService;
     private final CareersDiscoveryService careersDiscoveryService;
+    private final CareersDiscoveryRunService careersDiscoveryRunService;
     private final CrawlStatusService crawlStatusService;
     private final WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
     private final CrawlerProperties crawlerProperties;
@@ -59,6 +68,7 @@ public class CrawlController {
         CrawlOrchestratorService crawlOrchestratorService,
         DomainResolutionService domainResolutionService,
         CareersDiscoveryService careersDiscoveryService,
+        CareersDiscoveryRunService careersDiscoveryRunService,
         CrawlStatusService crawlStatusService,
         WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService,
         CrawlerProperties crawlerProperties
@@ -67,6 +77,7 @@ public class CrawlController {
         this.crawlOrchestratorService = crawlOrchestratorService;
         this.domainResolutionService = domainResolutionService;
         this.careersDiscoveryService = careersDiscoveryService;
+        this.careersDiscoveryRunService = careersDiscoveryRunService;
         this.crawlStatusService = crawlStatusService;
         this.workdayInvalidUrlCleanupService = workdayInvalidUrlCleanupService;
         this.crawlerProperties = crawlerProperties;
@@ -133,6 +144,20 @@ public class CrawlController {
         return crawlStatusService.getCrawlRunStatus(crawlRunId);
     }
 
+    @GetMapping("/crawl/run/{id:\\d+}/companies")
+    public List<CrawlRunCompanyResultView> getCrawlRunCompanies(
+        @PathVariable("id") long crawlRunId,
+        @RequestParam(name = "status", required = false) String status,
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return crawlStatusService.getCrawlRunCompanyResults(crawlRunId, status, limit);
+    }
+
+    @GetMapping("/crawl/run/{id:\\d+}/failures")
+    public CrawlRunFailuresResponse getCrawlRunFailures(@PathVariable("id") long crawlRunId) {
+        return crawlStatusService.getCrawlRunFailures(crawlRunId);
+    }
+
     @PostMapping("/domains/resolve")
     public DomainResolutionResult resolveDomains(@RequestParam(name = "limit", required = false) Integer limit) {
         return domainResolutionService.resolveMissingDomains(limit);
@@ -141,6 +166,37 @@ public class CrawlController {
     @PostMapping("/careers/discover")
     public CareersDiscoveryResult discoverCareers(@RequestParam(name = "limit", required = false) Integer limit) {
         return careersDiscoveryService.discover(limit);
+    }
+
+    @PostMapping("/careers/discover/async")
+    public CareersDiscoveryRunResponse discoverCareersAsync(
+        @RequestParam(name = "limit", required = false) Integer limit,
+        @RequestParam(name = "batchSize", required = false) Integer batchSize
+    ) {
+        return careersDiscoveryRunService.startAsync(limit, batchSize);
+    }
+
+    @GetMapping("/careers/discover/run/{id:\\d+}")
+    public CareersDiscoveryRunStatus getCareersDiscoveryRun(@PathVariable("id") long runId) {
+        CareersDiscoveryRunStatus status = careersDiscoveryRunService.getRunStatus(runId);
+        if (status == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Discovery run not found: " + runId);
+        }
+        return status;
+    }
+
+    @GetMapping("/careers/discover/run/{id:\\d+}/companies")
+    public List<CareersDiscoveryCompanyResultView> getCareersDiscoveryRunCompanies(
+        @PathVariable("id") long runId,
+        @RequestParam(name = "status", required = false) String status,
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return careersDiscoveryRunService.getCompanyResults(runId, status, limit);
+    }
+
+    @GetMapping("/careers/discover/run/{id:\\d+}/failures")
+    public CareersDiscoveryFailuresResponse getCareersDiscoveryRunFailures(@PathVariable("id") long runId) {
+        return careersDiscoveryRunService.getFailures(runId);
     }
 
     @PostMapping("/automation/full-cycle")

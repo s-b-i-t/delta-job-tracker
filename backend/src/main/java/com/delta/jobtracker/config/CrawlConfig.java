@@ -28,6 +28,12 @@ public class CrawlConfig {
         return Executors.newSingleThreadExecutor();
     }
 
+    @Bean(name = "discoveryExecutor", destroyMethod = "shutdown")
+    public ExecutorService discoveryExecutor(CrawlerProperties properties) {
+        int size = Math.max(2, properties.getGlobalConcurrency());
+        return Executors.newFixedThreadPool(size);
+    }
+
     @Bean
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
