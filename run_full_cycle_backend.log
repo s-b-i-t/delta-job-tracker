@@ -1,0 +1,76 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.3.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :compileJava
+Note: /home/bhatt/programming/delta-job-tracker/backend/src/main/java/com/delta/jobtracker/crawl/jobs/JobPostingExtractor.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :processResources UP-TO-DATE
+> Task :classes
+> Task :resolveMainClassName
+
+> Task :bootRun
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.2)
+
+2026-02-17T19:21:18.294-05:00  INFO 12274 --- [           main] c.d.j.DeltaJobTrackerApplication         : Starting DeltaJobTrackerApplication using Java 21.0.10 with PID 12274 (/home/bhatt/programming/delta-job-tracker/backend/build/classes/java/main started by bhatt in /home/bhatt/programming/delta-job-tracker/backend)
+2026-02-17T19:21:18.299-05:00  INFO 12274 --- [           main] c.d.j.DeltaJobTrackerApplication         : No active profile set, falling back to 1 default profile: "default"
+2026-02-17T19:21:19.722-05:00  INFO 12274 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-02-17T19:21:19.734-05:00  INFO 12274 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-02-17T19:21:19.734-05:00  INFO 12274 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.15]
+2026-02-17T19:21:19.774-05:00  INFO 12274 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1413 ms
+2026-02-17T19:21:20.218-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-02-17T19:21:20.390-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2d4fb0d8
+2026-02-17T19:21:20.391-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-02-17T19:21:20.417-05:00  INFO 12274 --- [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5432/delta_job_tracker (PostgreSQL 16.12)
+2026-02-17T19:21:20.485-05:00  INFO 12274 --- [           main] o.f.core.internal.command.DbValidate     : Successfully validated 13 migrations (execution time 00:00.039s)
+2026-02-17T19:21:20.523-05:00  INFO 12274 --- [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 13
+2026-02-17T19:21:20.528-05:00  INFO 12274 --- [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-02-17T19:21:20.859-05:00  INFO 12274 --- [           main] o.s.b.w.a.WelcomePageHandlerMapping      : Adding welcome page: class path resource [static/index.html]
+2026-02-17T19:21:21.192-05:00  INFO 12274 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-02-17T19:21:21.248-05:00  WARN 12274 --- [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Failed to start bean 'webServerStartStop'
+2026-02-17T19:21:21.250-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-02-17T19:21:21.254-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-02-17T19:21:21.266-05:00  INFO 12274 --- [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-02-17T19:21:21.277-05:00 ERROR 12274 --- [           main] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Web server failed to start. Port 8080 was already in use.
+
+Action:
+
+Identify and stop the process that's listening on port 8080 or configure this application to listen on another port.
+
+
+> Task :bootRun FAILED
+
+[Incubating] Problems report is available at: file:///home/bhatt/programming/delta-job-tracker/backend/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':bootRun'.
+> Process 'command '/usr/lib/jvm/java-21-openjdk-amd64/bin/java'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 16s
+4 actionable tasks: 3 executed, 1 up-to-date
