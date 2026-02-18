@@ -17,6 +17,12 @@ public class CrawlConfig {
         return Executors.newFixedThreadPool(properties.getGlobalConcurrency());
     }
 
+    @Bean(name = "httpExecutor", destroyMethod = "shutdown")
+    public ExecutorService httpExecutor(CrawlerProperties properties) {
+        int size = Math.max(4, properties.getGlobalConcurrency() * 2);
+        return Executors.newFixedThreadPool(size);
+    }
+
     @Bean(name = "crawlRunExecutor", destroyMethod = "shutdown")
     public ExecutorService crawlRunExecutor() {
         return Executors.newSingleThreadExecutor();

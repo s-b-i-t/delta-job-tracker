@@ -41,7 +41,7 @@ public class AtsAdapterIngestionService {
     private static final int WORKDAY_PAGE_SIZE = 20;
     private static final int WORKDAY_MAX_PAGES = 20;
     private static final int WORKDAY_MAX_ATTEMPTS = 3;
-    private static final int WORKDAY_URL_VALIDATION_LIMIT = Integer.MAX_VALUE;
+    private static final int WORKDAY_URL_VALIDATION_LIMIT = 5;
     private static final String HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
     private final PoliteHttpClient httpClient;

@@ -33,13 +33,13 @@ public class PoliteHttpClient {
     private final Map<String, Object> hostLocks = new ConcurrentHashMap<>();
     private final Map<String, Instant> hostNextAllowed = new ConcurrentHashMap<>();
 
-    public PoliteHttpClient(CrawlerProperties properties, @Qualifier("crawlExecutor") ExecutorService crawlExecutor) {
+    public PoliteHttpClient(CrawlerProperties properties, @Qualifier("httpExecutor") ExecutorService httpExecutor) {
         this.properties = properties;
         this.client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(properties.getRequestTimeoutSeconds()))
             .version(HttpClient.Version.HTTP_1_1)
-            .executor(crawlExecutor)
+            .executor(httpExecutor)
             .build();
         this.globalLimiter = new Semaphore(Math.max(1, properties.getGlobalConcurrency()));
     }
