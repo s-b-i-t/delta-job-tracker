@@ -67,7 +67,7 @@ class AtsAdapterIngestionServiceTest {
         when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
         when(httpClient.get(eq(feedUrl), anyString())).thenReturn(successFetch(feedUrl, greenhousePayload()));
 
-        AtsAdapterResult result = service.ingestIfSupported(10L, company, List.of(endpoint));
+        AtsAdapterResult result = service.ingestIfSupported(10L, company, List.of(endpoint), null);
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(1);
@@ -95,7 +95,7 @@ class AtsAdapterIngestionServiceTest {
         when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
         when(httpClient.get(anyString(), anyString())).thenReturn(successFetch(canonicalFeed, greenhousePayload()));
 
-        AtsAdapterResult result = service.ingestIfSupported(13L, company, List.of(endpoint));
+        AtsAdapterResult result = service.ingestIfSupported(13L, company, List.of(endpoint), null);
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(1);
@@ -133,7 +133,7 @@ class AtsAdapterIngestionServiceTest {
         when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
         when(httpClient.get(eq(feedUrl), anyString())).thenReturn(successFetch(feedUrl, leverPayload()));
 
-        AtsAdapterResult result = service.ingestIfSupported(11L, company, List.of(endpoint));
+        AtsAdapterResult result = service.ingestIfSupported(11L, company, List.of(endpoint), null);
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(1);
@@ -156,7 +156,7 @@ class AtsAdapterIngestionServiceTest {
         when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
         when(httpClient.postJson(eq(cxsUrl), anyString(), anyString())).thenReturn(successFetch(cxsUrl, payload));
 
-        AtsAdapterResult result = service.ingestIfSupported(12L, company, List.of(endpoint));
+        AtsAdapterResult result = service.ingestIfSupported(12L, company, List.of(endpoint), null);
 
         assertThat(result).isNotNull();
         assertThat(result.jobsExtractedCount()).isEqualTo(2);

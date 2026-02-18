@@ -10,6 +10,7 @@ public record CrawlRunRequest(
     Integer discoverLimit,
     Integer maxJobPages,
     Integer maxSitemapUrls,
+    Integer maxJobsPerCompanyWorkday,
     Boolean resolveDomains,
     Boolean discoverCareers,
     Boolean atsOnly,

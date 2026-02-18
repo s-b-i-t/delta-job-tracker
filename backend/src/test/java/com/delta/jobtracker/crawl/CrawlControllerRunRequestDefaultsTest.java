@@ -6,10 +6,12 @@ import com.delta.jobtracker.crawl.api.CrawlController;
 import com.delta.jobtracker.crawl.model.CrawlRunRequest;
 import com.delta.jobtracker.crawl.model.CrawlRunSummary;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
+import com.delta.jobtracker.crawl.service.CareersDiscoveryRunService;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
+import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,7 +38,11 @@ class CrawlControllerRunRequestDefaultsTest {
     @Mock
     private CareersDiscoveryService careersDiscoveryService;
     @Mock
+    private CareersDiscoveryRunService careersDiscoveryRunService;
+    @Mock
     private CrawlStatusService crawlStatusService;
+    @Mock
+    private WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
 
     @Test
     void appliesApiDefaultCompanyLimitWhenMissingFromRequest() {
@@ -51,7 +57,9 @@ class CrawlControllerRunRequestDefaultsTest {
             crawlOrchestratorService,
             domainResolutionService,
             careersDiscoveryService,
+            careersDiscoveryRunService,
             crawlStatusService,
+            workdayInvalidUrlCleanupService,
             properties
         );
         controller.runCrawl(new CrawlApiRunRequest(
@@ -59,6 +67,7 @@ class CrawlControllerRunRequestDefaultsTest {
             null,
             200,
             150,
+            null,
             null,
             null,
             false,

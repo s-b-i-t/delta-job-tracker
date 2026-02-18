@@ -15,6 +15,8 @@ public record CrawlRunCompanyResultView(
     Long durationMs,
     int jobsExtracted,
     boolean truncated,
+    Integer totalJobsAvailable,
+    String stopReason,
     String reasonCode,
     Integer httpStatus,
     String errorDetail,

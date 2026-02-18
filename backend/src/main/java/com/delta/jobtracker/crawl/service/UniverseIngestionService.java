@@ -1,8 +1,12 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.PoliteHttpClient;
+import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -36,15 +40,21 @@ public class UniverseIngestionService {
     private final CrawlerProperties properties;
     private final CrawlJdbcRepository repository;
     private final Sp500WikipediaClient sp500WikipediaClient;
+    private final PoliteHttpClient httpClient;
+    private final ObjectMapper objectMapper;
 
     public UniverseIngestionService(
         CrawlerProperties properties,
         CrawlJdbcRepository repository,
-        Sp500WikipediaClient sp500WikipediaClient
+        Sp500WikipediaClient sp500WikipediaClient,
+        PoliteHttpClient httpClient,
+        ObjectMapper objectMapper
     ) {
         this.properties = properties;
         this.repository = repository;
         this.sp500WikipediaClient = sp500WikipediaClient;
+        this.httpClient = httpClient;
+        this.objectMapper = objectMapper;
     }
 
     public IngestionSummary ingest() {
@@ -62,7 +72,10 @@ public class UniverseIngestionService {
 
         IngestSource ingestSource = IngestSource.fromRaw(source, errors);
         boolean companiesIngested;
-        if (ingestSource == IngestSource.FILE) {
+        if (ingestSource == IngestSource.SEC) {
+            String secUrl = properties.getData().getSecCompanyTickersUrl();
+            companiesIngested = ingestCompaniesFromSec(secUrl, companyIdsByTicker, counts, errors);
+        } else if (ingestSource == IngestSource.FILE) {
             companiesIngested = ingestCompaniesFromCsv(sp500Path, companyIdsByTicker, counts, errors);
         } else {
             companiesIngested = ingestCompaniesFromWikipedia(wikiUrl, companyIdsByTicker, counts, errors);
@@ -76,7 +89,9 @@ public class UniverseIngestionService {
             errors.add("no companies ingested from selected source");
         }
 
-        ingestDomainSeeds(domainsPath, companyIdsByTicker, counts, errors);
+        if (ingestSource != IngestSource.SEC) {
+            ingestDomainSeeds(domainsPath, companyIdsByTicker, counts, errors);
+        }
 
         log.info(
             "Universe ingestion complete. source={}, companiesUpserted={}, domainsSeeded={}, errorsCount={}",
@@ -184,6 +199,52 @@ public class UniverseIngestionService {
             }
         } catch (IOException e) {
             errors.add("failed to ingest S&P CSV at " + sp500Path + ": " + rootMessage(e));
+            return false;
+        }
+        return counts.companiesUpserted > before;
+    }
+
+    private boolean ingestCompaniesFromSec(
+        String secUrl,
+        Map<String, Long> companyIdsByTicker,
+        MutableCounts counts,
+        ErrorCollector errors
+    ) {
+        if (secUrl == null || secUrl.isBlank()) {
+            errors.add("sec company tickers URL is blank");
+            return false;
+        }
+        int before = counts.companiesUpserted;
+        HttpFetchResult fetch = httpClient.get(secUrl, "application/json,*/*;q=0.8");
+        if (!fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
+            String status = fetch.errorCode() == null ? "http_" + fetch.statusCode() : fetch.errorCode();
+            errors.add("failed to fetch SEC tickers JSON: " + status);
+            return false;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(fetch.body());
+            if (root == null || !root.isObject()) {
+                errors.add("SEC tickers payload was not a JSON object");
+                return false;
+            }
+            for (var entry : iterable(root.fields())) {
+                JsonNode value = entry.getValue();
+                String ticker = normalizeTicker(value.path("ticker").asText(null));
+                String name = normalizeText(value.path("title").asText(null));
+                if (ticker == null) {
+                    ticker = syntheticTickerFromName(name);
+                }
+                if (ticker == null || name == null) {
+                    errors.add("SEC record " + entry.getKey() + " missing ticker/name");
+                    continue;
+                }
+                long companyId = repository.upsertCompany(ticker, name, null);
+                companyIdsByTicker.put(ticker, companyId);
+                counts.companiesUpserted++;
+            }
+        } catch (Exception e) {
+            errors.add("failed to parse SEC tickers JSON: " + rootMessage(e));
             return false;
         }
         return counts.companiesUpserted > before;
@@ -303,6 +364,24 @@ public class UniverseIngestionService {
         return cleaned.isEmpty() ? null : cleaned;
     }
 
+    private String syntheticTickerFromName(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        String normalized = name.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        if (normalized.isBlank()) {
+            return null;
+        }
+        String prefix = normalized.length() >= 7 ? normalized.substring(0, 7) : normalized;
+        String hash = Integer.toHexString(normalized.hashCode()).toUpperCase(Locale.ROOT);
+        hash = String.format("%8s", hash).replace(' ', '0');
+        String candidate = "N" + prefix + hash;
+        if (candidate.length() > 16) {
+            candidate = candidate.substring(0, 16);
+        }
+        return candidate;
+    }
+
     private String extractWikipediaTitle(Element cell) {
         if (cell == null) {
             return null;
@@ -389,9 +468,14 @@ public class UniverseIngestionService {
         return current.getMessage() == null ? current.toString() : current.getMessage();
     }
 
+    private <T> Iterable<T> iterable(java.util.Iterator<T> iterator) {
+        return () -> iterator;
+    }
+
     private enum IngestSource {
         WIKI,
-        FILE;
+        FILE,
+        SEC;
 
         private static IngestSource fromRaw(String raw, ErrorCollector errors) {
             if (raw == null || raw.isBlank()) {

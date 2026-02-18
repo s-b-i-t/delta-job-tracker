@@ -46,6 +46,10 @@ public class AtsAdapterIngestionService {
     private static final int WORKDAY_URL_VALIDATION_LIMIT = 5;
     private static final String HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
     private static final String STAGE_ATS_ADAPTER = "ATS_ADAPTER";
+    private static final String STOP_REASON_HIT_MAX_JOBS = "HIT_MAX_JOBS";
+    private static final String STOP_REASON_TIME_BUDGET = "TIME_BUDGET";
+    private static final String STOP_REASON_ERROR = "ERROR";
+    private static final String STOP_REASON_COMPLETE = "COMPLETE";
 
     private final PoliteHttpClient httpClient;
     private final RobotsTxtService robotsTxtService;
@@ -67,7 +71,12 @@ public class AtsAdapterIngestionService {
         this.properties = properties;
     }
 
-    public AtsAdapterResult ingestIfSupported(long crawlRunId, CompanyTarget company, List<AtsEndpointRecord> endpoints) {
+    public AtsAdapterResult ingestIfSupported(
+        long crawlRunId,
+        CompanyTarget company,
+        List<AtsEndpointRecord> endpoints,
+        Integer maxJobsPerCompanyWorkday
+    ) {
         if (endpoints == null || endpoints.isEmpty()) {
             return null;
         }
@@ -109,7 +118,7 @@ public class AtsAdapterIngestionService {
                 }
             } else if (endpoint.atsType() == AtsType.WORKDAY) {
                 attemptedSupportedAdapter = true;
-                AdapterFetchResult result = ingestFromWorkday(crawlRunId, company, endpoint.endpointUrl());
+                AdapterFetchResult result = ingestFromWorkday(crawlRunId, company, endpoint.endpointUrl(), maxJobsPerCompanyWorkday);
                 jobsExtractedCount += result.jobsExtractedCount();
                 jobpostingPagesFoundCount += result.jobpostingPagesFoundCount();
                 merge(errors, result.errors());
@@ -139,7 +148,18 @@ public class AtsAdapterIngestionService {
                 "greenhouse_token_parse_failed",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.GREENHOUSE, endpointUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.GREENHOUSE,
+                endpointUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new AdapterFetchResult(0, 0, errors, false);
         }
 
@@ -167,7 +187,18 @@ public class AtsAdapterIngestionService {
                 "blocked_by_robots",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.GREENHOUSE,
+                normalizedFeedUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new GreenhouseAttempt(0, 0, false, false, false);
         }
 
@@ -177,7 +208,18 @@ public class AtsAdapterIngestionService {
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, status, fetch, null);
             increment(errors, status);
             FailureContext failure = classifyFailure(fetch, null, null);
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.GREENHOUSE,
+                normalizedFeedUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new GreenhouseAttempt(0, 0, false, true, false);
         }
 
@@ -194,7 +236,18 @@ public class AtsAdapterIngestionService {
                     "invalid_payload",
                     false
                 );
-                recordAtsFinish(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, startedAt, 0, false, failure);
+                recordAtsFinish(
+                    crawlRunId,
+                    company.companyId(),
+                    AtsType.GREENHOUSE,
+                    normalizedFeedUrl,
+                    startedAt,
+                    0,
+                    false,
+                    null,
+                    STOP_REASON_ERROR,
+                    failure
+                );
                 return new GreenhouseAttempt(0, 0, false, false, true);
             }
             int extracted = 0;
@@ -217,7 +270,18 @@ public class AtsAdapterIngestionService {
                 extracted = postings.size();
             }
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, "ats_fetch_success", fetch, null);
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, startedAt, extracted, truncated, null);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.GREENHOUSE,
+                normalizedFeedUrl,
+                startedAt,
+                extracted,
+                truncated,
+                null,
+                truncated ? STOP_REASON_HIT_MAX_JOBS : STOP_REASON_COMPLETE,
+                null
+            );
             return new GreenhouseAttempt(extracted, extracted > 0 ? 1 : 0, true, false, false);
         } catch (Exception e) {
             log.warn("Failed to parse Greenhouse payload for {}", company.ticker(), e);
@@ -230,7 +294,18 @@ public class AtsAdapterIngestionService {
                 "parse_error",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.GREENHOUSE, normalizedFeedUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.GREENHOUSE,
+                normalizedFeedUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new GreenhouseAttempt(0, 0, false, false, false);
         }
     }
@@ -251,7 +326,18 @@ public class AtsAdapterIngestionService {
                 "lever_account_parse_failed",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.LEVER,
+                feedUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new AdapterFetchResult(0, 0, errors, false);
         }
 
@@ -265,7 +351,18 @@ public class AtsAdapterIngestionService {
                 "blocked_by_robots",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.LEVER,
+                feedUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new AdapterFetchResult(0, 0, errors, false);
         }
 
@@ -275,7 +372,18 @@ public class AtsAdapterIngestionService {
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, status, fetch, null);
             increment(errors, status);
             FailureContext failure = classifyFailure(fetch, null, null);
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.LEVER,
+                feedUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new AdapterFetchResult(0, 0, errors, false);
         }
 
@@ -291,7 +399,18 @@ public class AtsAdapterIngestionService {
                     "invalid_payload",
                     false
                 );
-                recordAtsFinish(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, startedAt, 0, false, failure);
+                recordAtsFinish(
+                    crawlRunId,
+                    company.companyId(),
+                    AtsType.LEVER,
+                    feedUrl,
+                    startedAt,
+                    0,
+                    false,
+                    null,
+                    STOP_REASON_ERROR,
+                    failure
+                );
                 return new AdapterFetchResult(0, 0, errors, false);
             }
             int extracted = 0;
@@ -314,7 +433,18 @@ public class AtsAdapterIngestionService {
                 extracted = postings.size();
             }
             recordAtsAttempt(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, "ats_fetch_success", fetch, null);
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, startedAt, extracted, truncated, null);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.LEVER,
+                feedUrl,
+                startedAt,
+                extracted,
+                truncated,
+                null,
+                truncated ? STOP_REASON_HIT_MAX_JOBS : STOP_REASON_COMPLETE,
+                null
+            );
             return new AdapterFetchResult(extracted, extracted > 0 ? 1 : 0, errors, true);
         } catch (Exception e) {
             log.warn("Failed to parse Lever payload for {}", company.ticker(), e);
@@ -327,12 +457,28 @@ public class AtsAdapterIngestionService {
                 "parse_error",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.LEVER, feedUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.LEVER,
+                feedUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new AdapterFetchResult(0, 0, errors, false);
         }
     }
 
-    private AdapterFetchResult ingestFromWorkday(long crawlRunId, CompanyTarget company, String endpointUrl) {
+    private AdapterFetchResult ingestFromWorkday(
+        long crawlRunId,
+        CompanyTarget company,
+        String endpointUrl,
+        Integer maxJobsPerCompanyWorkday
+    ) {
         Map<String, Integer> errors = new LinkedHashMap<>();
         WorkdayEndpoint endpoint = deriveWorkdayEndpoint(endpointUrl);
         String cxsUrl = endpoint == null
@@ -348,7 +494,18 @@ public class AtsAdapterIngestionService {
                 "workday_endpoint_parse_failed",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.WORKDAY,
+                cxsUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new AdapterFetchResult(0, 0, errors, false);
         }
 
@@ -362,7 +519,18 @@ public class AtsAdapterIngestionService {
                 "blocked_by_robots",
                 false
             );
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, startedAt, 0, false, failure);
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.WORKDAY,
+                cxsUrl,
+                startedAt,
+                0,
+                false,
+                null,
+                STOP_REASON_ERROR,
+                failure
+            );
             return new AdapterFetchResult(0, 0, errors, false);
         }
 
@@ -370,14 +538,17 @@ public class AtsAdapterIngestionService {
         int pagesWithJobs = 0;
         boolean successfulFetch = false;
         boolean truncated = false;
+        boolean hitMaxJobs = false;
         FailureContext failure = null;
+        Integer totalJobsAvailable = null;
         java.util.concurrent.atomic.AtomicInteger validationsRemaining = new java.util.concurrent.atomic.AtomicInteger(WORKDAY_URL_VALIDATION_LIMIT);
-        int maxJobs = properties.getAts().getWorkday().getMaxJobsPerCompany();
+        int maxJobs = resolveWorkdayMaxJobs(maxJobsPerCompanyWorkday);
         int maxPages = (int) Math.max(1L, ((long) maxJobs + WORKDAY_PAGE_SIZE - 1) / WORKDAY_PAGE_SIZE);
         int offset = 0;
         for (int page = 0; page < maxPages; page++) {
             if (extracted >= maxJobs) {
                 truncated = true;
+                hitMaxJobs = true;
                 break;
             }
             HttpFetchResult fetch = fetchWorkdayPage(cxsUrl, offset);
@@ -391,6 +562,10 @@ public class AtsAdapterIngestionService {
 
             try {
                 JsonNode root = objectMapper.readTree(fetch.body());
+                Integer pageTotal = extractWorkdayTotalJobs(root);
+                if (pageTotal != null && pageTotal > 0) {
+                    totalJobsAvailable = totalJobsAvailable == null ? pageTotal : Math.max(totalJobsAvailable, pageTotal);
+                }
                 List<NormalizedJobPosting> postings = parseWorkdayJobPostings(endpoint, root, cxsUrl, errors, validationsRemaining);
                 if (postings.isEmpty()) {
                     successfulFetch = true;
@@ -403,10 +578,12 @@ public class AtsAdapterIngestionService {
                     int allowed = maxJobs - extracted;
                     if (allowed <= 0) {
                         truncated = true;
+                        hitMaxJobs = true;
                         break;
                     }
                     postings = postings.subList(0, allowed);
                     truncated = true;
+                    hitMaxJobs = true;
                 }
                 repository.upsertJobPostingsBatch(company.companyId(), crawlRunId, postings, Instant.now());
                 extracted += postings.size();
@@ -442,9 +619,39 @@ public class AtsAdapterIngestionService {
                     false
                 );
             }
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, startedAt, extracted, truncated, failure);
+            if (totalJobsAvailable != null && extracted < totalJobsAvailable) {
+                truncated = true;
+            }
+            String stopReason = STOP_REASON_ERROR;
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.WORKDAY,
+                cxsUrl,
+                startedAt,
+                extracted,
+                truncated,
+                totalJobsAvailable,
+                stopReason,
+                failure
+            );
         } else {
-            recordAtsFinish(crawlRunId, company.companyId(), AtsType.WORKDAY, cxsUrl, startedAt, extracted, truncated, null);
+            if (totalJobsAvailable != null && extracted < totalJobsAvailable) {
+                truncated = true;
+            }
+            String stopReason = hitMaxJobs ? STOP_REASON_HIT_MAX_JOBS : STOP_REASON_COMPLETE;
+            recordAtsFinish(
+                crawlRunId,
+                company.companyId(),
+                AtsType.WORKDAY,
+                cxsUrl,
+                startedAt,
+                extracted,
+                truncated,
+                totalJobsAvailable,
+                stopReason,
+                null
+            );
         }
         return new AdapterFetchResult(extracted, pagesWithJobs, errors, successfulFetch);
     }
@@ -701,6 +908,41 @@ public class AtsAdapterIngestionService {
             }
         }
         return lastFetch;
+    }
+
+    private int resolveWorkdayMaxJobs(Integer override) {
+        if (override == null) {
+            return properties.getAts().getWorkday().getMaxJobsPerCompany();
+        }
+        return Math.max(1, override);
+    }
+
+    private Integer extractWorkdayTotalJobs(JsonNode root) {
+        if (root == null || root.isNull()) {
+            return null;
+        }
+        for (String field : List.of("total", "totalResults", "totalCount", "resultsCount", "totalRecords", "jobCount")) {
+            JsonNode value = root.get(field);
+            if (value != null && value.canConvertToInt()) {
+                int parsed = value.asInt();
+                if (parsed > 0) {
+                    return parsed;
+                }
+            }
+        }
+        JsonNode paging = root.path("paging");
+        if (paging != null && !paging.isMissingNode()) {
+            for (String field : List.of("total", "totalCount", "resultsCount")) {
+                JsonNode value = paging.get(field);
+                if (value != null && value.canConvertToInt()) {
+                    int parsed = value.asInt();
+                    if (parsed > 0) {
+                        return parsed;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     List<NormalizedJobPosting> parseWorkdayJobPostings(
@@ -1294,10 +1536,16 @@ public class AtsAdapterIngestionService {
         Instant startedAt,
         int jobsExtracted,
         boolean truncated,
+        Integer totalJobsAvailable,
+        String stopReason,
         FailureContext failure
     ) {
         Instant finishedAt = Instant.now();
         boolean succeeded = failure == null;
+        String resolvedStopReason = stopReason;
+        if (resolvedStopReason == null || resolvedStopReason.isBlank()) {
+            resolvedStopReason = succeeded ? STOP_REASON_COMPLETE : STOP_REASON_ERROR;
+        }
         repository.upsertCrawlRunCompanyResultFinish(
             crawlRunId,
             companyId,
@@ -1310,6 +1558,8 @@ public class AtsAdapterIngestionService {
             Duration.between(startedAt, finishedAt).toMillis(),
             jobsExtracted,
             truncated,
+            totalJobsAvailable,
+            resolvedStopReason,
             succeeded ? null : failure.reasonCode(),
             succeeded ? null : failure.httpStatus(),
             succeeded ? null : failure.errorDetail(),

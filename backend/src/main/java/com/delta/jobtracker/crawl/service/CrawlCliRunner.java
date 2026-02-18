@@ -61,6 +61,7 @@ public class CrawlCliRunner implements ApplicationRunner {
             null,
             null,
             null,
+            null,
             null
         );
 

@@ -1775,6 +1775,8 @@ public class CrawlJdbcRepository {
         Long durationMs,
         int jobsExtracted,
         boolean truncated,
+        Integer totalJobsAvailable,
+        String stopReason,
         String reasonCode,
         Integer httpStatus,
         String errorDetail,
@@ -1792,6 +1794,8 @@ public class CrawlJdbcRepository {
             .addValue("durationMs", durationMs)
             .addValue("jobsExtracted", jobsExtracted)
             .addValue("truncated", truncated)
+            .addValue("totalJobsAvailable", totalJobsAvailable)
+            .addValue("stopReason", stopReason)
             .addValue("reasonCode", reasonCode)
             .addValue("httpStatus", httpStatus)
             .addValue("errorDetail", truncateErrorDetail(errorDetail))
@@ -1810,6 +1814,8 @@ public class CrawlJdbcRepository {
                     duration_ms,
                     jobs_extracted,
                     truncated,
+                    total_jobs_available,
+                    stop_reason,
                     reason_code,
                     http_status,
                     error_detail,
@@ -1827,6 +1833,8 @@ public class CrawlJdbcRepository {
                     :durationMs,
                     :jobsExtracted,
                     :truncated,
+                    :totalJobsAvailable,
+                    :stopReason,
                     :reasonCode,
                     :httpStatus,
                     :errorDetail,
@@ -1840,6 +1848,8 @@ public class CrawlJdbcRepository {
                     duration_ms = EXCLUDED.duration_ms,
                     jobs_extracted = EXCLUDED.jobs_extracted,
                     truncated = EXCLUDED.truncated,
+                    total_jobs_available = EXCLUDED.total_jobs_available,
+                    stop_reason = EXCLUDED.stop_reason,
                     reason_code = EXCLUDED.reason_code,
                     http_status = EXCLUDED.http_status,
                     error_detail = EXCLUDED.error_detail,
@@ -1869,6 +1879,8 @@ public class CrawlJdbcRepository {
                        r.duration_ms,
                        r.jobs_extracted,
                        r.truncated,
+                       r.total_jobs_available,
+                       r.stop_reason,
                        r.reason_code,
                        r.http_status,
                        r.error_detail,
@@ -1894,6 +1906,8 @@ public class CrawlJdbcRepository {
                 rs.getObject("duration_ms", Long.class),
                 rs.getInt("jobs_extracted"),
                 rs.getBoolean("truncated"),
+                rs.getObject("total_jobs_available", Integer.class),
+                rs.getString("stop_reason"),
                 rs.getString("reason_code"),
                 rs.getObject("http_status", Integer.class),
                 rs.getString("error_detail"),

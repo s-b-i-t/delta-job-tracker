@@ -43,6 +43,15 @@ public class CareersDiscoveryService {
         "/jobs/search"
     );
 
+    private static final List<String> LINK_SCAN_PATHS = List.of(
+        "/",
+        "/careers",
+        "/jobs",
+        "/about/careers"
+    );
+    private static final int MAX_LINK_SCAN_PAGES = 6;
+    private static final int MAX_LINK_SCAN_ENDPOINTS = 10;
+
     private static final List<String> HINT_TOKENS = List.of(
         "careers",
         "jobs",
@@ -121,11 +130,16 @@ public class CareersDiscoveryService {
     }
 
     DiscoveryOutcome discoverForCompany(CompanyTarget company) {
-        LinkedHashSet<String> candidates = buildCandidates(company);
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
         List<DiscoveryFailure> failures = new ArrayList<>();
 
+        scanForAtsLinks(company, seen, countsByType);
+        if (!countsByType.isEmpty()) {
+            return new DiscoveryOutcome(countsByType, null);
+        }
+
+        LinkedHashSet<String> candidates = buildCandidates(company);
         int maxCandidates = properties.getCareersDiscovery().getMaxCandidatesPerCompany();
         int inspected = 0;
         for (String candidate : candidates) {
@@ -225,6 +239,71 @@ public class CareersDiscoveryService {
             }
         }
         return out;
+    }
+
+    private void scanForAtsLinks(
+        CompanyTarget company,
+        LinkedHashSet<String> seen,
+        Map<AtsType, Integer> countsByType
+    ) {
+        if (company == null || company.domain() == null || company.domain().isBlank()) {
+            return;
+        }
+        List<String> hosts = new ArrayList<>();
+        hosts.add(company.domain());
+        if (!company.domain().startsWith("www.")) {
+            hosts.add("www." + company.domain());
+        }
+
+        List<String> pages = new ArrayList<>();
+        for (String host : hosts) {
+            for (String path : LINK_SCAN_PATHS) {
+                pages.add("https://" + host + path);
+            }
+        }
+
+        int pagesScanned = 0;
+        int endpointsFound = 0;
+        for (String page : pages) {
+            if (pagesScanned >= MAX_LINK_SCAN_PAGES || endpointsFound >= MAX_LINK_SCAN_ENDPOINTS) {
+                break;
+            }
+            pagesScanned++;
+            if (!robotsTxtService.isAllowed(page)) {
+                continue;
+            }
+            HttpFetchResult fetch = httpClient.get(page, HTML_ACCEPT);
+            if (!fetch.isSuccessful() || fetch.body() == null) {
+                continue;
+            }
+            Document doc = Jsoup.parse(fetch.body(), page);
+            for (Element anchor : doc.select("a[href]")) {
+                if (endpointsFound >= MAX_LINK_SCAN_ENDPOINTS) {
+                    break;
+                }
+                String href = anchor.attr("abs:href");
+                if (href == null || href.isBlank()) {
+                    continue;
+                }
+                if (!isAtsLink(href)) {
+                    continue;
+                }
+                List<AtsDetectionRecord> endpoints = atsEndpointExtractor.extract(href, null);
+                if (endpoints.isEmpty()) {
+                    continue;
+                }
+                registerEndpoints(company, page, endpoints, "link", 0.85, true, seen, countsByType);
+                endpointsFound += endpoints.size();
+            }
+        }
+    }
+
+    private boolean isAtsLink(String href) {
+        String lower = href.toLowerCase(Locale.ROOT);
+        return lower.contains("myworkdayjobs.com")
+            || lower.contains("boards.greenhouse.io")
+            || lower.contains("job-boards.greenhouse.io")
+            || lower.contains("jobs.lever.co");
     }
 
     private boolean containsHint(String value) {

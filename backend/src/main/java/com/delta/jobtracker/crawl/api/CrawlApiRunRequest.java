@@ -9,6 +9,7 @@ public record CrawlApiRunRequest(
     Integer discoverLimit,
     Integer maxJobPages,
     Integer maxSitemapUrls,
+    Integer maxJobsPerCompanyWorkday,
     Boolean ingestBeforeCrawl,
     Boolean resolveDomains,
     Boolean discoverCareers,

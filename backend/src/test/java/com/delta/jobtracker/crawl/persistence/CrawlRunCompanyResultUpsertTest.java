@@ -58,6 +58,8 @@ class CrawlRunCompanyResultUpsertTest {
             2000L,
             5,
             true,
+            12,
+            "HIT_MAX_JOBS",
             null,
             null,
             null,
@@ -85,6 +87,8 @@ class CrawlRunCompanyResultUpsertTest {
         assertEquals("SUCCEEDED", view.status());
         assertEquals(5, view.jobsExtracted());
         assertTrue(view.truncated());
+        assertEquals(12, view.totalJobsAvailable());
+        assertEquals("HIT_MAX_JOBS", view.stopReason());
         assertEquals("ATS_ADAPTER", view.stage());
     }
 }

@@ -89,7 +89,12 @@ public class CompanyCrawlerService {
         for (AtsEndpointRecord endpoint : existingEndpoints) {
             atsDetections.add(new AtsDetectionRecord(endpoint.atsType(), endpoint.endpointUrl()));
         }
-        AtsAdapterResult adapterResult = atsAdapterIngestionService.ingestIfSupported(crawlRunId, company, existingEndpoints);
+        AtsAdapterResult adapterResult = atsAdapterIngestionService.ingestIfSupported(
+            crawlRunId,
+            company,
+            existingEndpoints,
+            request.maxJobsPerCompanyWorkday()
+        );
         if (adapterResult != null) {
             mergeErrors(errors, adapterResult.errors());
             adapterSuccess = adapterResult.successfulFetch();
@@ -544,6 +549,7 @@ public class CompanyCrawlerService {
         boolean retryable
     ) {
         Instant finishedAt = Instant.now();
+        String stopReason = resolveStopReason(status, errorDetail);
         repository.upsertCrawlRunCompanyResultFinish(
             crawlRunId,
             companyId,
@@ -556,6 +562,8 @@ public class CompanyCrawlerService {
             java.time.Duration.between(startedAt, finishedAt).toMillis(),
             jobsExtracted,
             false,
+            null,
+            stopReason,
             reasonCode,
             httpStatus,
             errorDetail,
@@ -581,6 +589,19 @@ public class CompanyCrawlerService {
             .max(Map.Entry.comparingByValue())
             .map(Map.Entry::getKey)
             .orElse(null);
+    }
+
+    private String resolveStopReason(String status, String errorDetail) {
+        if ("FAILED".equalsIgnoreCase(status)) {
+            if (errorDetail != null) {
+                String lower = errorDetail.toLowerCase(Locale.ROOT);
+                if (lower.contains("time_budget") || lower.contains("budget_exceeded")) {
+                    return "TIME_BUDGET";
+                }
+            }
+            return "ERROR";
+        }
+        return "COMPLETE";
     }
 
     private boolean budgetExceeded(Instant deadline) {

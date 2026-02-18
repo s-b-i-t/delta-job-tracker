@@ -472,6 +472,7 @@ public class CrawlerProperties {
         private String sp500WikipediaUrl = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies";
         private String sp500Csv = "../data/sp500_constituents.csv";
         private String domainsCsv = "../data/domains.csv";
+        private String secCompanyTickersUrl = "https://www.sec.gov/files/company_tickers.json";
 
         public String getSp500WikipediaUrl() {
             return sp500WikipediaUrl;
@@ -495,6 +496,14 @@ public class CrawlerProperties {
 
         public void setDomainsCsv(String domainsCsv) {
             this.domainsCsv = domainsCsv;
+        }
+
+        public String getSecCompanyTickersUrl() {
+            return secCompanyTickersUrl;
+        }
+
+        public void setSecCompanyTickersUrl(String secCompanyTickersUrl) {
+            this.secCompanyTickersUrl = secCompanyTickersUrl;
         }
     }
 
