@@ -1,6 +1,9 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryAbortException;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlDaemonBootstrapResponse;
@@ -185,7 +188,8 @@ public class CrawlDaemonService {
             null
         );
 
-        try {
+        CanaryHttpBudget budget = buildRunBudget(startedAt);
+        try (CanaryHttpBudgetContext.Scope scope = budget == null ? null : CanaryHttpBudgetContext.activate(budget)) {
             CompanyCrawlSummary summary = companyCrawlerService.crawlCompany(crawlRunId, target, request);
             Instant finishedAt = Instant.now();
             boolean success = summary.closeoutSafe();
@@ -206,6 +210,10 @@ public class CrawlDaemonService {
                 queueRepository.markFailure(companyId, nextFailureRunAt(failuresSoFar), error);
                 repository.completeCrawlRun(crawlRunId, finishedAt, "FAILED", error);
             }
+        } catch (CanaryAbortException e) {
+            String error = e.getMessage();
+            queueRepository.markFailure(companyId, nextFailureRunAt(failuresSoFar), error);
+            repository.completeCrawlRun(crawlRunId, Instant.now(), "ABORTED", error);
         } catch (Exception e) {
             String error = "exception=" + e.getClass().getSimpleName();
             queueRepository.markFailure(companyId, nextFailureRunAt(failuresSoFar), error);
@@ -235,6 +243,24 @@ public class CrawlDaemonService {
         int minutes = backoff.get(index);
         int jitterSeconds = ThreadLocalRandom.current().nextInt(5, 30);
         return Instant.now().plusSeconds(Math.max(1, minutes) * 60L + jitterSeconds);
+    }
+
+    private CanaryHttpBudget buildRunBudget(Instant startedAt) {
+        int maxDurationSeconds = properties.getRun().getMaxDurationSeconds();
+        if (maxDurationSeconds <= 0) {
+            return null;
+        }
+        int maxAttempts = Math.max(1, 1 + properties.getRequestMaxRetries());
+        return new CanaryHttpBudget(
+            0,
+            0,
+            0.0,
+            1,
+            0,
+            maxAttempts,
+            properties.getRequestTimeoutSeconds(),
+            startedAt.plusSeconds(maxDurationSeconds)
+        );
     }
 
     private String summarizeErrors(Map<String, Integer> errors) {

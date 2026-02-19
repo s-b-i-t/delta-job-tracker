@@ -15,6 +15,7 @@ import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.SecCanarySummary;
 import com.delta.jobtracker.crawl.model.SecIngestionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -26,6 +27,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
@@ -78,31 +80,15 @@ public class SecCanaryService {
 
     public CanaryRunStatusResponse getCanaryRunStatus(long runId) {
         CanaryRunStatus record = repository.findCanaryRun(runId);
-        if (record == null) {
+        return buildStatusResponse(record);
+    }
+
+    public CanaryRunStatusResponse getLatestCanaryRunStatus(String type) {
+        if (type == null || type.isBlank()) {
             return null;
         }
-        SecCanarySummary summary = null;
-        Map<String, Integer> errorSummary = null;
-        try {
-            if (record.summaryJson() != null && !record.summaryJson().isBlank()) {
-                summary = objectMapper.readValue(record.summaryJson(), SecCanarySummary.class);
-            }
-            if (record.errorSummaryJson() != null && !record.errorSummaryJson().isBlank()) {
-                errorSummary = objectMapper.readValue(record.errorSummaryJson(), new TypeReference<>() {});
-            }
-        } catch (Exception e) {
-            log.warn("Failed to parse canary run summary for {}", runId, e);
-        }
-        return new CanaryRunStatusResponse(
-            record.runId(),
-            record.type(),
-            record.requestedLimit(),
-            record.startedAt(),
-            record.finishedAt(),
-            record.status(),
-            summary,
-            errorSummary
-        );
+        CanaryRunStatus record = repository.findLatestCanaryRun(type.trim().toUpperCase(Locale.ROOT));
+        return buildStatusResponse(record);
     }
 
     public SecCanarySummary runSecCanary(Integer requestedLimit) {
@@ -118,9 +104,16 @@ public class SecCanaryService {
         String abortReason = null;
         Long crawlRunId = null;
         int companiesIngested = 0;
+        int domainsResolved = 0;
         int jobsExtracted = 0;
+        long durationIngestMs = 0L;
+        long durationDomainResolutionMs = 0L;
+        long durationDiscoveryMs = 0L;
+        long durationCrawlMs = 0L;
+        long durationTotalMs = 0L;
         DomainResolutionResult domainResolution = new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of());
         CareersDiscoveryResult careersDiscovery = new CareersDiscoveryResult(Map.of(), 0, 0, Map.of());
+        Map<String, Integer> endpointsDiscoveredByAtsType = Map.of();
         Map<String, Integer> companiesCrawledByAtsType = Map.of();
         int cooldownSkips = 0;
 
@@ -138,7 +131,8 @@ public class SecCanaryService {
         try (CanaryHttpBudgetContext.Scope scope = CanaryHttpBudgetContext.activate(budget)) {
             Instant ingestStart = Instant.now();
             SecIngestionResult ingestionResult = ingestionService.ingestSecCompanies(limit);
-            stepDurationsMs.put("ingestSec", Duration.between(ingestStart, Instant.now()).toMillis());
+            durationIngestMs = Duration.between(ingestStart, Instant.now()).toMillis();
+            stepDurationsMs.put("ingestSec", durationIngestMs);
             List<String> tickers = ingestionResult.tickers();
             companiesIngested = tickers.size();
             if (!ingestionResult.sampleErrors().isEmpty()) {
@@ -153,21 +147,26 @@ public class SecCanaryService {
             } else {
                 Instant domainStart = Instant.now();
                 domainResolution = domainResolutionService.resolveMissingDomainsForTickers(tickers, tickers.size(), deadline);
-                stepDurationsMs.put("resolveDomains", Duration.between(domainStart, Instant.now()).toMillis());
+                durationDomainResolutionMs = Duration.between(domainStart, Instant.now()).toMillis();
+                stepDurationsMs.put("resolveDomains", durationDomainResolutionMs);
+                domainsResolved = domainResolution.resolvedCount();
                 if (deadlineExceeded(deadline)) {
                     status = "ABORTED";
                     abortReason = "time_budget_exceeded";
                 } else {
                     Instant discoveryStart = Instant.now();
                     careersDiscovery = careersDiscoveryService.discoverForTickers(tickers, tickers.size(), deadline);
-                    stepDurationsMs.put("discoverCareers", Duration.between(discoveryStart, Instant.now()).toMillis());
+                    durationDiscoveryMs = Duration.between(discoveryStart, Instant.now()).toMillis();
+                    stepDurationsMs.put("discoverCareers", durationDiscoveryMs);
+                    endpointsDiscoveredByAtsType = careersDiscovery.discoveredCountByAtsType();
                     if (deadlineExceeded(deadline)) {
                         status = "ABORTED";
                         abortReason = "time_budget_exceeded";
                     } else {
                         Instant crawlStart = Instant.now();
                         CrawlOutcome crawlOutcome = runAtsCanaryCrawl(tickers, deadline);
-                        stepDurationsMs.put("crawlAts", Duration.between(crawlStart, Instant.now()).toMillis());
+                        durationCrawlMs = Duration.between(crawlStart, Instant.now()).toMillis();
+                        stepDurationsMs.put("crawlAts", durationCrawlMs);
                         crawlRunId = crawlOutcome.crawlRunId();
                         jobsExtracted = crawlOutcome.jobsExtracted();
                         if (crawlOutcome.aborted()) {
@@ -201,17 +200,26 @@ public class SecCanaryService {
         if (careersDiscovery.failedCount() > 0 && careersDiscovery.topErrors().isEmpty()) {
             topErrors.put("discovery_failed", careersDiscovery.failedCount());
         }
+        ensureHostCooldownCategory(topErrors);
 
         Instant finishedAt = Instant.now();
+        durationTotalMs = Duration.between(startedAt, finishedAt).toMillis();
         return new SecCanarySummary(
             limit,
             startedAt,
             finishedAt,
             status,
             abortReason,
-            Duration.between(startedAt, finishedAt).toMillis(),
+            durationTotalMs,
+            durationIngestMs,
+            durationDomainResolutionMs,
+            durationDiscoveryMs,
+            durationCrawlMs,
+            durationTotalMs,
             crawlRunId,
             companiesIngested,
+            domainsResolved,
+            endpointsDiscoveredByAtsType,
             domainResolution,
             careersDiscovery,
             companiesCrawledByAtsType,
@@ -335,6 +343,56 @@ public class SecCanaryService {
             }
             int value = entry.getValue() == null ? 0 : entry.getValue();
             target.put(key, target.getOrDefault(key, 0) + value);
+        }
+    }
+
+    private CanaryRunStatusResponse buildStatusResponse(CanaryRunStatus record) {
+        if (record == null) {
+            return null;
+        }
+        SecCanarySummary summary = null;
+        Map<String, Integer> errorSummary = null;
+        try {
+            if (record.summaryJson() != null && !record.summaryJson().isBlank()) {
+                summary = objectMapper.readValue(record.summaryJson(), SecCanarySummary.class);
+            }
+            if (record.errorSummaryJson() != null && !record.errorSummaryJson().isBlank()) {
+                errorSummary = objectMapper.readValue(record.errorSummaryJson(), new TypeReference<>() {});
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse canary run summary for {}", record.runId(), e);
+        }
+        return new CanaryRunStatusResponse(
+            record.runId(),
+            record.type(),
+            record.requestedLimit(),
+            record.startedAt(),
+            record.finishedAt(),
+            record.status(),
+            summary,
+            errorSummary
+        );
+    }
+
+    private void ensureHostCooldownCategory(Map<String, Integer> topErrors) {
+        if (topErrors == null || topErrors.isEmpty()) {
+            return;
+        }
+        int cooldownCount = 0;
+        for (Map.Entry<String, Integer> entry : topErrors.entrySet()) {
+            String key = entry.getKey();
+            if (key == null || ReasonCodeClassifier.HOST_COOLDOWN.equals(key)) {
+                continue;
+            }
+            if (key.toLowerCase(Locale.ROOT).contains("host_cooldown")) {
+                cooldownCount += entry.getValue() == null ? 0 : entry.getValue();
+            }
+        }
+        if (cooldownCount > 0) {
+            topErrors.put(
+                ReasonCodeClassifier.HOST_COOLDOWN,
+                topErrors.getOrDefault(ReasonCodeClassifier.HOST_COOLDOWN, 0) + cooldownCount
+            );
         }
     }
 

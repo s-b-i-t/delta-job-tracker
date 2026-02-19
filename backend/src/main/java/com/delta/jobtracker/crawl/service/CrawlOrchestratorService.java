@@ -1,6 +1,9 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryAbortException;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
@@ -20,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -89,6 +93,7 @@ public class CrawlOrchestratorService {
         String status = "FAILED";
         String notes = "crawl_failed";
         List<CompanyCrawlSummary> summaries = List.of();
+        CanaryHttpBudget budget = buildRunBudget(startedAt);
 
         ScheduledExecutorService heartbeat = Executors.newSingleThreadScheduledExecutor();
         heartbeat.scheduleAtFixedRate(
@@ -104,7 +109,7 @@ public class CrawlOrchestratorService {
             TimeUnit.SECONDS
         );
 
-        try {
+        try (CanaryHttpBudgetContext.Scope scope = budget == null ? null : CanaryHttpBudgetContext.activate(budget)) {
             List<String> tickers = request.normalizedTickers();
             int companyLimit = request.companyLimit() == null
                 ? properties.getApi().getDefaultCompanyLimit()
@@ -115,10 +120,12 @@ public class CrawlOrchestratorService {
             int discoverLimit = request.discoverLimit() == null
                 ? properties.getAutomation().getDiscoverLimit()
                 : Math.max(1, request.discoverLimit());
+            Instant deadline = budget == null ? null : startedAt.plusSeconds(properties.getRun().getMaxDurationSeconds());
+
             if (shouldResolveDomains(request)) {
                 DomainResolutionResult resolution = tickers.isEmpty()
-                    ? domainResolutionService.resolveMissingDomains(resolveLimit)
-                    : domainResolutionService.resolveMissingDomainsForTickers(tickers, resolveLimit);
+                    ? domainResolutionService.resolveMissingDomains(resolveLimit, deadline)
+                    : domainResolutionService.resolveMissingDomainsForTickers(tickers, resolveLimit, deadline);
                 log.info(
                     "Domain resolver before crawl: resolved={} no_wikipedia_title={} no_item={} no_p856={} wdqs_error={}",
                     resolution.resolvedCount(),
@@ -127,12 +134,18 @@ public class CrawlOrchestratorService {
                     resolution.noP856Count(),
                     resolution.wdqsErrorCount()
                 );
+                if (budget != null) {
+                    budget.checkDeadline();
+                }
             }
             if (shouldDiscoverCareers(request)) {
                 CareersDiscoveryResult discovery = tickers.isEmpty()
-                    ? careersDiscoveryService.discover(discoverLimit)
-                    : careersDiscoveryService.discoverForTickers(tickers, discoverLimit);
+                    ? careersDiscoveryService.discover(discoverLimit, deadline)
+                    : careersDiscoveryService.discoverForTickers(tickers, discoverLimit, deadline);
                 log.info("Careers discovery before crawl: discovered={}, failed={}", discovery.discoveredCountByAtsType(), discovery.failedCount());
+                if (budget != null) {
+                    budget.checkDeadline();
+                }
             }
 
             List<CompanyTarget> targets = selectTargets(request, tickers, companyLimit);
@@ -150,7 +163,13 @@ public class CrawlOrchestratorService {
                 List<CompletableFuture<CompanyCrawlSummary>> futures = new ArrayList<>();
                 for (CompanyTarget target : targets) {
                     futures.add(CompletableFuture.supplyAsync(
-                        () -> companyCrawlerService.crawlCompany(crawlRunId, target, request),
+                        () -> {
+                            try (CanaryHttpBudgetContext.Scope innerScope = budget == null
+                                ? null
+                                : CanaryHttpBudgetContext.activate(budget)) {
+                                return companyCrawlerService.crawlCompany(crawlRunId, target, request);
+                            }
+                        },
                         crawlExecutor
                     ));
                 }
@@ -160,6 +179,9 @@ public class CrawlOrchestratorService {
                 for (int i = 0; i < futures.size(); i++) {
                     CompanyTarget target = targets.get(i);
                     try {
+                        if (budget != null) {
+                            budget.checkDeadline();
+                        }
                         CompanyCrawlSummary summary = futures.get(i).join();
                         runSummaries.add(summary);
                         jobsExtracted += summary.jobsExtractedCount();
@@ -169,6 +191,30 @@ public class CrawlOrchestratorService {
                         } else {
                             failed++;
                         }
+                    } catch (CompletionException e) {
+                        Throwable cause = e.getCause();
+                        if (cause instanceof CanaryAbortException abortException) {
+                            throw abortException;
+                        }
+                        hadErrors = true;
+                        failed++;
+                        log.warn("Company crawl failed for {} ({})", target.ticker(), target.domain(), e);
+                        Map<String, Integer> errorMap = new LinkedHashMap<>();
+                        errorMap.put("company_crawl_exception", 1);
+                        runSummaries.add(new CompanyCrawlSummary(
+                            target.companyId(),
+                            target.ticker(),
+                            target.domain(),
+                            0,
+                            0,
+                            List.of(),
+                            0,
+                            0,
+                            false,
+                            errorMap
+                        ));
+                    } catch (CanaryAbortException e) {
+                        throw e;
                     } catch (Exception e) {
                         hadErrors = true;
                         failed++;
@@ -195,6 +241,10 @@ public class CrawlOrchestratorService {
                 status = hadErrors ? "COMPLETED_WITH_ERRORS" : "COMPLETED";
                 notes = "companies=" + summaries.size();
             }
+        } catch (CanaryAbortException e) {
+            log.info("Crawl run {} aborted: {}", crawlRunId, e.getMessage());
+            status = "ABORTED";
+            notes = e.getMessage();
         } catch (Exception e) {
             log.warn("Crawl run {} failed", crawlRunId, e);
             status = "FAILED";
@@ -205,6 +255,24 @@ public class CrawlOrchestratorService {
             heartbeat.shutdownNow();
         }
         return new CrawlRunSummary(crawlRunId, startedAt, finishedAt, status, summaries);
+    }
+
+    private CanaryHttpBudget buildRunBudget(Instant startedAt) {
+        int maxDurationSeconds = properties.getRun().getMaxDurationSeconds();
+        if (maxDurationSeconds <= 0) {
+            return null;
+        }
+        int maxAttempts = Math.max(1, 1 + properties.getRequestMaxRetries());
+        return new CanaryHttpBudget(
+            0,
+            0,
+            0.0,
+            1,
+            0,
+            maxAttempts,
+            properties.getRequestTimeoutSeconds(),
+            startedAt.plusSeconds(maxDurationSeconds)
+        );
     }
 
     public List<CompanyTarget> previewTargets(CrawlRunRequest request) {

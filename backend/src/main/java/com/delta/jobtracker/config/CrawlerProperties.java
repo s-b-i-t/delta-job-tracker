@@ -33,6 +33,7 @@ public class CrawlerProperties {
     private Data data = new Data();
     private Cli cli = new Cli();
     private Ats ats = new Ats();
+    private Run run = new Run();
     private Canary canary = new Canary();
 
     public String getUserAgent() {
@@ -225,6 +226,14 @@ public class CrawlerProperties {
 
     public void setAts(Ats ats) {
         this.ats = ats;
+    }
+
+    public Run getRun() {
+        return run;
+    }
+
+    public void setRun(Run run) {
+        this.run = run;
     }
 
     public Canary getCanary() {
@@ -645,6 +654,18 @@ public class CrawlerProperties {
 
         public void setMaxJobsPerCompany(int maxJobsPerCompany) {
             this.maxJobsPerCompany = maxJobsPerCompany;
+        }
+    }
+
+    public static class Run {
+        private int maxDurationSeconds = 0;
+
+        public int getMaxDurationSeconds() {
+            return Math.max(0, maxDurationSeconds);
+        }
+
+        public void setMaxDurationSeconds(int maxDurationSeconds) {
+            this.maxDurationSeconds = Math.max(0, maxDurationSeconds);
         }
     }
 

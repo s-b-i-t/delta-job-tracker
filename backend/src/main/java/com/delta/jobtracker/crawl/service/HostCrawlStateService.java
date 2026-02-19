@@ -82,6 +82,11 @@ public class HostCrawlStateService {
         );
     }
 
+    public List<HostCrawlState> listCooldownHosts(Integer limit) {
+        int safeLimit = limit == null ? 100 : Math.max(1, Math.min(limit, 500));
+        return repository.findHostsInCooldown(Instant.now(), safeLimit);
+    }
+
     private Duration backoffFor(int failures) {
         if (BACKOFF_STEPS.isEmpty()) {
             return null;

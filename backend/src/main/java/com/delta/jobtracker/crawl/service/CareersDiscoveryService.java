@@ -90,20 +90,20 @@ public class CareersDiscoveryService {
     }
 
     public CareersDiscoveryResult discover(Integer requestedLimit) {
+        return discover(requestedLimit, null);
+    }
+
+    public CareersDiscoveryResult discover(Integer requestedLimit, Instant deadline) {
         int limit = requestedLimit == null
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
 
         List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(limit);
-        return discoverForCompanies(companies, null);
+        return discoverForCompanies(companies, deadline);
     }
 
     public CareersDiscoveryResult discoverForTickers(List<String> tickers, Integer requestedLimit) {
-        int limit = requestedLimit == null
-            ? properties.getCareersDiscovery().getDefaultLimit()
-            : Math.max(1, requestedLimit);
-        List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
-        return discoverForCompanies(companies, null);
+        return discoverForTickers(tickers, requestedLimit, null);
     }
 
     public CareersDiscoveryResult discoverForTickers(

@@ -67,8 +67,8 @@ class CrawlOrchestratorServiceLimitTest {
         );
         service.run(request);
 
-        verify(domainResolutionService).resolveMissingDomains(111);
-        verify(careersDiscoveryService).discover(222);
+        verify(domainResolutionService).resolveMissingDomains(eq(111), any());
+        verify(careersDiscoveryService).discover(eq(222), any());
         verify(repository).findCompanyTargetsWithAts(eq(List.of()), eq(37));
     }
 
@@ -92,15 +92,17 @@ class CrawlOrchestratorServiceLimitTest {
         );
         service.run(request);
 
-        verify(domainResolutionService).resolveMissingDomains(91);
-        verify(careersDiscoveryService).discover(92);
+        verify(domainResolutionService).resolveMissingDomains(eq(91), any());
+        verify(careersDiscoveryService).discover(eq(92), any());
         verify(repository).findCompanyTargetsWithAts(eq(List.of()), eq(7));
     }
 
     private CrawlOrchestratorService createService(CrawlerProperties properties) {
         when(repository.insertCrawlRun(any(), any(), any())).thenReturn(1L);
-        when(domainResolutionService.resolveMissingDomains(anyInt())).thenReturn(new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of()));
-        when(careersDiscoveryService.discover(anyInt())).thenReturn(new CareersDiscoveryResult(new LinkedHashMap<>(), 0, 0, new LinkedHashMap<>()));
+        when(domainResolutionService.resolveMissingDomains(anyInt(), any()))
+            .thenReturn(new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of()));
+        when(careersDiscoveryService.discover(anyInt(), any()))
+            .thenReturn(new CareersDiscoveryResult(new LinkedHashMap<>(), 0, 0, new LinkedHashMap<>()));
         when(repository.findCompanyTargetsWithAts(any(), anyInt())).thenReturn(List.of());
         return new CrawlOrchestratorService(
             repository,

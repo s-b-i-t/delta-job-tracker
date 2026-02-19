@@ -36,6 +36,9 @@ crawler:
     success-interval-minutes: 60
     failure-backoff-minutes: [5, 15, 60, 360, 1440]
 
+  run:
+    max-duration-seconds: 0
+
   # these paths match your repo layout
   data:
     sp500-csv: ../data/sp500_constituents.csv

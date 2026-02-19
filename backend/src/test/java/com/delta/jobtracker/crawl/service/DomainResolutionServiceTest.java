@@ -198,7 +198,7 @@ class DomainResolutionServiceTest {
     private String wdqsResponseWithWebsite() {
         return """
             {"results":{"bindings":[
-              {"articleTitle":{"value":"Apple Inc."},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
+              {"candidateTitle":{"value":"Apple Inc."},"articleTitle":{"value":"Apple Inc."},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
             ]}}
             """;
     }
@@ -206,7 +206,7 @@ class DomainResolutionServiceTest {
     private String wdqsResponseWithoutWebsite() {
         return """
             {"results":{"bindings":[
-              {"articleTitle":{"value":"Test Company"},"item":{"value":"http://www.wikidata.org/entity/Q999"}}
+              {"candidateTitle":{"value":"Test Company"},"articleTitle":{"value":"Test Company"},"item":{"value":"http://www.wikidata.org/entity/Q999"}}
             ]}}
             """;
     }

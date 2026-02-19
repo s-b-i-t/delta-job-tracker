@@ -8,6 +8,7 @@ import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.SecCanarySummary;
 import com.delta.jobtracker.crawl.model.SecIngestionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,9 +21,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
@@ -113,18 +117,30 @@ class SecCanaryServiceTest {
                 repository,
                 new CrawlerProperties(),
                 executor,
-                new ObjectMapper()
+                testObjectMapper()
             );
 
             SecCanarySummary summary = service.runSecCanary(2);
             assertNotNull(summary);
             assertEquals(2, summary.companiesIngested());
+            assertEquals(1, summary.domainsResolved());
             assertEquals(5, summary.jobsExtracted());
             assertEquals("COMPLETED_WITH_ERRORS", summary.status());
             assertEquals(domainResult, summary.domainResolution());
             assertEquals(discoveryResult, summary.careersDiscovery());
+            assertEquals(discovered, summary.endpointsDiscoveredByAtsType());
             assertEquals(2, summary.companiesCrawledByAtsType().get("WORKDAY"));
             assertEquals(1, summary.topErrors().get("HTTP_404"));
+            assertNotNull(summary.stepDurationsMs());
+            assertTrue(summary.stepDurationsMs().containsKey("ingestSec"));
+            assertTrue(summary.stepDurationsMs().containsKey("resolveDomains"));
+            assertTrue(summary.stepDurationsMs().containsKey("discoverCareers"));
+            assertTrue(summary.stepDurationsMs().containsKey("crawlAts"));
+            assertEquals(summary.durationIngestMs(), summary.stepDurationsMs().get("ingestSec"));
+            assertEquals(summary.durationDomainResolutionMs(), summary.stepDurationsMs().get("resolveDomains"));
+            assertEquals(summary.durationDiscoveryMs(), summary.stepDurationsMs().get("discoverCareers"));
+            assertEquals(summary.durationCrawlMs(), summary.stepDurationsMs().get("crawlAts"));
+            assertTrue(summary.durationTotalMs() >= summary.durationCrawlMs());
         } finally {
             executor.shutdownNow();
         }
@@ -145,7 +161,7 @@ class SecCanaryServiceTest {
                 repository,
                 new CrawlerProperties(),
                 executor,
-                new ObjectMapper()
+                testObjectMapper()
             );
 
             SecCanarySummary summary = service.runSecCanary(5);
@@ -155,6 +171,128 @@ class SecCanaryServiceTest {
             verify(repository, never()).insertCrawlRun(any(), any(), any());
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void runSecCanaryCountsHostCooldownInTopErrors() {
+        List<String> tickers = List.of("AAA");
+        when(ingestionService.ingestSecCompanies(1))
+            .thenReturn(new SecIngestionResult(tickers, 1, 0, List.of()));
+
+        when(domainResolutionService.resolveMissingDomainsForTickers(eq(tickers), eq(1), any()))
+            .thenReturn(new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of()));
+
+        CareersDiscoveryResult discoveryResult = new CareersDiscoveryResult(
+            Map.of(),
+            1,
+            1,
+            Map.of("discovery_host_cooldown", 1)
+        );
+        when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(1), any()))
+            .thenReturn(discoveryResult);
+
+        when(repository.insertCrawlRun(any(), any(), any())).thenReturn(123L);
+        when(repository.findCompanyTargetsWithAts(eq(tickers), eq(1)))
+            .thenReturn(List.of());
+        when(repository.countCrawlRunCompaniesByAtsType(123L))
+            .thenReturn(Map.of());
+        when(repository.countCrawlRunCompanyFailures(123L))
+            .thenReturn(Map.of());
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            SecCanaryService service = new SecCanaryService(
+                ingestionService,
+                domainResolutionService,
+                careersDiscoveryService,
+                companyCrawlerService,
+                repository,
+                new CrawlerProperties(),
+                executor,
+                testObjectMapper()
+            );
+
+            SecCanarySummary summary = service.runSecCanary(1);
+            assertEquals(1, summary.topErrors().get(ReasonCodeClassifier.HOST_COOLDOWN));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void startSecCanaryPersistsAbortStatus() throws Exception {
+        when(repository.findRunningCanaryRun("SEC")).thenReturn(null);
+        when(repository.insertCanaryRun(eq("SEC"), eq(1), any())).thenReturn(99L);
+        when(ingestionService.ingestSecCompanies(1))
+            .thenThrow(new com.delta.jobtracker.crawl.http.CanaryAbortException("canary_time_budget_exceeded"));
+
+        ExecutorService executor = new DirectExecutorService();
+        SecCanaryService service = new SecCanaryService(
+            ingestionService,
+            domainResolutionService,
+            careersDiscoveryService,
+            companyCrawlerService,
+            repository,
+            new CrawlerProperties(),
+            executor,
+            testObjectMapper()
+        );
+
+        service.startSecCanary(1);
+
+        org.mockito.ArgumentCaptor<String> statusCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> summaryCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(repository).updateCanaryRun(
+            eq(99L),
+            any(),
+            statusCaptor.capture(),
+            summaryCaptor.capture(),
+            any()
+        );
+
+        assertEquals("ABORTED", statusCaptor.getValue());
+        SecCanarySummary persisted = testObjectMapper().readValue(summaryCaptor.getValue(), SecCanarySummary.class);
+        assertEquals("ABORTED", persisted.status());
+        assertEquals("canary_time_budget_exceeded", persisted.abortReason());
+    }
+
+    private ObjectMapper testObjectMapper() {
+        return new ObjectMapper().findAndRegisterModules();
+    }
+
+    private static final class DirectExecutorService extends AbstractExecutorService {
+        private boolean shutdown;
+
+        @Override
+        public void shutdown() {
+            shutdown = true;
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            shutdown = true;
+            return List.of();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            command.run();
         }
     }
 }

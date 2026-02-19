@@ -10,6 +10,7 @@ import com.delta.jobtracker.crawl.service.CareersDiscoveryRunService;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
+import com.delta.jobtracker.crawl.service.HostCrawlStateService;
 import com.delta.jobtracker.crawl.service.SecCanaryService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
 import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
@@ -46,6 +47,8 @@ class CrawlControllerRunRequestDefaultsTest {
     private WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
     @Mock
     private SecCanaryService secCanaryService;
+    @Mock
+    private HostCrawlStateService hostCrawlStateService;
 
     @Test
     void appliesApiDefaultCompanyLimitWhenMissingFromRequest() {
@@ -64,7 +67,8 @@ class CrawlControllerRunRequestDefaultsTest {
             crawlStatusService,
             workdayInvalidUrlCleanupService,
             properties,
-            secCanaryService
+            secCanaryService,
+            hostCrawlStateService
         );
         controller.runCrawl(new CrawlApiRunRequest(
             List.of("AAPL"),

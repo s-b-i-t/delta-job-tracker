@@ -23,6 +23,7 @@ import com.delta.jobtracker.crawl.model.CrawlRunDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.FullCycleSummary;
+import com.delta.jobtracker.crawl.model.HostCrawlState;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
@@ -36,6 +37,7 @@ import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryRunService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
+import com.delta.jobtracker.crawl.service.HostCrawlStateService;
 import com.delta.jobtracker.crawl.service.SecCanaryService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
 import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
@@ -66,6 +68,7 @@ public class CrawlController {
     private final WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
     private final CrawlerProperties crawlerProperties;
     private final SecCanaryService secCanaryService;
+    private final HostCrawlStateService hostCrawlStateService;
 
     public CrawlController(
         UniverseIngestionService ingestionService,
@@ -76,7 +79,8 @@ public class CrawlController {
         CrawlStatusService crawlStatusService,
         WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService,
         CrawlerProperties crawlerProperties,
-        SecCanaryService secCanaryService
+        SecCanaryService secCanaryService,
+        HostCrawlStateService hostCrawlStateService
     ) {
         this.ingestionService = ingestionService;
         this.crawlOrchestratorService = crawlOrchestratorService;
@@ -87,6 +91,7 @@ public class CrawlController {
         this.workdayInvalidUrlCleanupService = workdayInvalidUrlCleanupService;
         this.crawlerProperties = crawlerProperties;
         this.secCanaryService = secCanaryService;
+        this.hostCrawlStateService = hostCrawlStateService;
     }
 
     @PostMapping("/ingest")
@@ -110,6 +115,24 @@ public class CrawlController {
             throw new ResponseStatusException(NOT_FOUND, "Canary run not found: " + runId);
         }
         return status;
+    }
+
+    @GetMapping("/canary/latest")
+    public CanaryRunStatusResponse getLatestCanaryRun(
+        @RequestParam(name = "type") String type
+    ) {
+        CanaryRunStatusResponse status = secCanaryService.getLatestCanaryRunStatus(type);
+        if (status == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Canary run not found for type: " + type);
+        }
+        return status;
+    }
+
+    @GetMapping("/hosts/cooldown")
+    public List<HostCrawlState> getHostsCoolingDown(
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return hostCrawlStateService.listCooldownHosts(limit);
     }
 
     @PostMapping("/crawl/run")

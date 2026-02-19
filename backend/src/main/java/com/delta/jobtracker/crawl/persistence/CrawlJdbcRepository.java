@@ -334,6 +334,42 @@ public class CrawlJdbcRepository {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
+    public CanaryRunStatus findLatestCanaryRun(String type) {
+        if (type == null || type.isBlank()) {
+            return null;
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("type", type);
+        List<CanaryRunStatus> rows = jdbc.query(
+            """
+                SELECT id,
+                       type,
+                       requested_limit,
+                       started_at,
+                       finished_at,
+                       status,
+                       summary_json,
+                       error_summary_json
+                FROM canary_runs
+                WHERE type = :type
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+            params,
+            (rs, rowNum) -> new CanaryRunStatus(
+                rs.getLong("id"),
+                rs.getString("type"),
+                (Integer) rs.getObject("requested_limit"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getString("status"),
+                rs.getString("summary_json"),
+                rs.getString("error_summary_json")
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
     public void updateCanaryRun(
         long runId,
         Instant finishedAt,
@@ -648,6 +684,35 @@ public class CrawlJdbcRepository {
             )
         );
         return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public List<HostCrawlState> findHostsInCooldown(Instant now, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 500));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("now", toTimestamp(now == null ? Instant.now() : now))
+            .addValue("limit", safeLimit);
+        return jdbc.query(
+            """
+                SELECT host,
+                       consecutive_failures,
+                       last_error_category,
+                       last_attempt_at,
+                       next_allowed_at
+                FROM host_crawl_state
+                WHERE next_allowed_at IS NOT NULL
+                  AND next_allowed_at > :now
+                ORDER BY next_allowed_at ASC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new HostCrawlState(
+                rs.getString("host"),
+                rs.getInt("consecutive_failures"),
+                rs.getString("last_error_category"),
+                toInstant(rs.getTimestamp("last_attempt_at")),
+                toInstant(rs.getTimestamp("next_allowed_at"))
+            )
+        );
     }
 
     public void upsertHostCrawlState(

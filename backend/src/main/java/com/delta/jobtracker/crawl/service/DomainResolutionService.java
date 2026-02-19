@@ -71,20 +71,20 @@ public class DomainResolutionService {
     }
 
     public DomainResolutionResult resolveMissingDomains(Integer requestedLimit) {
+        return resolveMissingDomains(requestedLimit, null);
+    }
+
+    public DomainResolutionResult resolveMissingDomains(Integer requestedLimit, Instant deadline) {
         int limit = requestedLimit == null
             ? properties.getDomainResolution().getDefaultLimit()
             : Math.max(1, requestedLimit);
 
         List<CompanyIdentity> missingDomain = repository.findCompaniesMissingDomain(limit);
-        return resolveCompanies(missingDomain, limit, null);
+        return resolveCompanies(missingDomain, limit, deadline);
     }
 
     public DomainResolutionResult resolveMissingDomainsForTickers(List<String> tickers, Integer requestedLimit) {
-        int limit = requestedLimit == null
-            ? properties.getDomainResolution().getDefaultLimit()
-            : Math.max(1, requestedLimit);
-        List<CompanyIdentity> missingDomain = repository.findCompaniesMissingDomainByTickers(tickers, limit);
-        return resolveCompanies(missingDomain, limit, null);
+        return resolveMissingDomainsForTickers(tickers, requestedLimit, null);
     }
 
     public DomainResolutionResult resolveMissingDomainsForTickers(
