@@ -2,6 +2,8 @@ package com.delta.jobtracker.crawl.http;
 
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -13,6 +15,7 @@ public class CanaryHttpBudget {
     private final int maxConsecutiveErrors;
     private final int maxAttemptsPerRequest;
     private final int requestTimeoutSeconds;
+    private final Instant deadline;
 
     private final Map<String, Integer> hostCounts = new ConcurrentHashMap<>();
     private int totalRequests;
@@ -28,7 +31,8 @@ public class CanaryHttpBudget {
         int minRequestsFor429Rate,
         int maxConsecutiveErrors,
         int maxAttemptsPerRequest,
-        int requestTimeoutSeconds
+        int requestTimeoutSeconds,
+        Instant deadline
     ) {
         this.maxRequestsPerHost = Math.max(0, maxRequestsPerHost);
         this.maxTotalRequests = Math.max(0, maxTotalRequests);
@@ -37,6 +41,29 @@ public class CanaryHttpBudget {
         this.maxConsecutiveErrors = Math.max(0, maxConsecutiveErrors);
         this.maxAttemptsPerRequest = Math.max(1, maxAttemptsPerRequest);
         this.requestTimeoutSeconds = Math.max(1, requestTimeoutSeconds);
+        this.deadline = deadline;
+    }
+
+    public CanaryHttpBudget(
+        int maxRequestsPerHost,
+        int maxTotalRequests,
+        double max429Rate,
+        int minRequestsFor429Rate,
+        int maxConsecutiveErrors,
+        int maxAttemptsPerRequest,
+        int requestTimeoutSeconds,
+        Duration runBudget
+    ) {
+        this(
+            maxRequestsPerHost,
+            maxTotalRequests,
+            max429Rate,
+            minRequestsFor429Rate,
+            maxConsecutiveErrors,
+            maxAttemptsPerRequest,
+            requestTimeoutSeconds,
+            runBudget == null ? null : Instant.now().plus(runBudget)
+        );
     }
 
     public int maxAttemptsPerRequest() {
@@ -47,10 +74,21 @@ public class CanaryHttpBudget {
         return requestTimeoutSeconds;
     }
 
-    public synchronized void beforeRequest(String host) {
+    public boolean isExpired() {
+        return deadline != null && Instant.now().isAfter(deadline);
+    }
+
+    public synchronized void checkDeadline() {
         if (aborted) {
             throw new CanaryAbortException(abortReason == null ? "canary_aborted" : abortReason);
         }
+        if (isExpired()) {
+            abort("canary_time_budget_exceeded");
+        }
+    }
+
+    public synchronized void beforeRequest(String host) {
+        checkDeadline();
         if (maxTotalRequests > 0 && totalRequests >= maxTotalRequests) {
             abort("total_request_budget_exceeded");
         }
@@ -65,9 +103,7 @@ public class CanaryHttpBudget {
     }
 
     public synchronized void recordResult(HttpFetchResult result) {
-        if (aborted) {
-            throw new CanaryAbortException(abortReason == null ? "canary_aborted" : abortReason);
-        }
+        checkDeadline();
         if (result == null) {
             return;
         }

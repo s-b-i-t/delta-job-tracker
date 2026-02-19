@@ -134,7 +134,7 @@ public class PoliteHttpClient {
             );
             hostLimiter.acquire();
             hostAcquired = true;
-            enforcePerHostDelay(host);
+            enforcePerHostDelay(host, budget);
 
             String safeUserAgent = CrawlerProperties.normalizeUserAgent(properties.getUserAgent());
             String safeAccept = (acceptHeader == null || acceptHeader.isBlank()) ? "*/*" : acceptHeader;
@@ -273,6 +273,10 @@ public class PoliteHttpClient {
     }
 
     private boolean sleepBackoff(int attempt) {
+        CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
+        if (budget != null) {
+            budget.checkDeadline();
+        }
         int baseDelayMs = properties.getRequestRetryBaseDelayMs();
         if (baseDelayMs <= 0) {
             return true;
@@ -289,6 +293,9 @@ public class PoliteHttpClient {
         long sleepMs = (delay / 2) + jitter;
         try {
             Thread.sleep(sleepMs);
+            if (budget != null) {
+                budget.checkDeadline();
+            }
             return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -296,7 +303,7 @@ public class PoliteHttpClient {
         }
     }
 
-    private void enforcePerHostDelay(String host) throws InterruptedException {
+    private void enforcePerHostDelay(String host, CanaryHttpBudget budget) throws InterruptedException {
         Object lock = hostLocks.computeIfAbsent(host, ignored -> new Object());
         synchronized (lock) {
             Instant now = Instant.now();
@@ -304,7 +311,13 @@ public class PoliteHttpClient {
             if (allowedAt.isAfter(now)) {
                 long sleepMs = Duration.between(now, allowedAt).toMillis();
                 if (sleepMs > 0) {
+                    if (budget != null) {
+                        budget.checkDeadline();
+                    }
                     Thread.sleep(sleepMs);
+                    if (budget != null) {
+                        budget.checkDeadline();
+                    }
                 }
             }
             hostNextAllowed.put(host, Instant.now().plusMillis(Math.max(1, properties.getPerHostDelayMs())));

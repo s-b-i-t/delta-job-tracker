@@ -131,7 +131,8 @@ public class SecCanaryService {
             properties.getCanary().getMinRequestsFor429Rate(),
             properties.getCanary().getMaxConsecutiveErrors(),
             properties.getCanary().getMaxAttemptsPerRequest(),
-            properties.getCanary().getRequestTimeoutSeconds()
+            properties.getCanary().getRequestTimeoutSeconds(),
+            deadline
         );
 
         try (CanaryHttpBudgetContext.Scope scope = CanaryHttpBudgetContext.activate(budget)) {

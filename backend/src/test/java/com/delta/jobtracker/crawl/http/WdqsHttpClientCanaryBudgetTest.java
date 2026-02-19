@@ -44,7 +44,8 @@ class WdqsHttpClientCanaryBudgetTest {
             1,
             5,
             1,
-            5
+            5,
+            java.time.Instant.now().plusSeconds(30)
         );
 
         try (CanaryHttpBudgetContext.Scope ignored = CanaryHttpBudgetContext.activate(budget)) {

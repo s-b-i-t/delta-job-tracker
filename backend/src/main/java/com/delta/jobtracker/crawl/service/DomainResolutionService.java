@@ -2,6 +2,8 @@ package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.WdqsHttpClient;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
@@ -529,8 +531,10 @@ public class DomainResolutionService {
             if (wdqsNextAllowedAt.isAfter(now)) {
                 long sleepMs = Duration.between(now, wdqsNextAllowedAt).toMillis();
                 if (sleepMs > 0) {
+                    checkCanaryDeadline();
                     try {
                         Thread.sleep(sleepMs);
+                        checkCanaryDeadline();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
@@ -742,9 +746,18 @@ public class DomainResolutionService {
     private void sleepBackoff(int attempt) {
         long backoffMs = Math.min(WDQS_RETRY_MAX_MS, WDQS_RETRY_BASE_MS * (1L << (attempt - 1)));
         try {
+            checkCanaryDeadline();
             Thread.sleep(backoffMs);
+            checkCanaryDeadline();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    private void checkCanaryDeadline() {
+        CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
+        if (budget != null) {
+            budget.checkDeadline();
         }
     }
 
