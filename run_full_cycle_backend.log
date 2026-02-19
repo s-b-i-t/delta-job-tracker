@@ -1,13 +1,9 @@
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.3.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
 Daemon will be stopped at the end of the build 
-
-> Task :compileJava
-Note: /home/bhatt/programming/delta-job-tracker/backend/src/main/java/com/delta/jobtracker/crawl/jobs/JobPostingExtractor.java uses or overrides a deprecated API.
-Note: Recompile with -Xlint:deprecation for details.
-
+> Task :compileJava UP-TO-DATE
 > Task :processResources UP-TO-DATE
-> Task :classes
-> Task :resolveMainClassName
+> Task :classes UP-TO-DATE
+> Task :resolveMainClassName UP-TO-DATE
 
 > Task :bootRun
 
@@ -20,57 +16,61 @@ Note: Recompile with -Xlint:deprecation for details.
 
  :: Spring Boot ::                (v4.0.2)
 
-2026-02-17T19:21:18.294-05:00  INFO 12274 --- [           main] c.d.j.DeltaJobTrackerApplication         : Starting DeltaJobTrackerApplication using Java 21.0.10 with PID 12274 (/home/bhatt/programming/delta-job-tracker/backend/build/classes/java/main started by bhatt in /home/bhatt/programming/delta-job-tracker/backend)
-2026-02-17T19:21:18.299-05:00  INFO 12274 --- [           main] c.d.j.DeltaJobTrackerApplication         : No active profile set, falling back to 1 default profile: "default"
-2026-02-17T19:21:19.722-05:00  INFO 12274 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
-2026-02-17T19:21:19.734-05:00  INFO 12274 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-02-17T19:21:19.734-05:00  INFO 12274 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.15]
-2026-02-17T19:21:19.774-05:00  INFO 12274 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1413 ms
-2026-02-17T19:21:20.218-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-02-17T19:21:20.390-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2d4fb0d8
-2026-02-17T19:21:20.391-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2026-02-17T19:21:20.417-05:00  INFO 12274 --- [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5432/delta_job_tracker (PostgreSQL 16.12)
-2026-02-17T19:21:20.485-05:00  INFO 12274 --- [           main] o.f.core.internal.command.DbValidate     : Successfully validated 13 migrations (execution time 00:00.039s)
-2026-02-17T19:21:20.523-05:00  INFO 12274 --- [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 13
-2026-02-17T19:21:20.528-05:00  INFO 12274 --- [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
-2026-02-17T19:21:20.859-05:00  INFO 12274 --- [           main] o.s.b.w.a.WelcomePageHandlerMapping      : Adding welcome page: class path resource [static/index.html]
-2026-02-17T19:21:21.192-05:00  INFO 12274 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
-2026-02-17T19:21:21.248-05:00  WARN 12274 --- [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Failed to start bean 'webServerStartStop'
-2026-02-17T19:21:21.250-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
-2026-02-17T19:21:21.254-05:00  INFO 12274 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
-2026-02-17T19:21:21.266-05:00  INFO 12274 --- [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
-
-Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
-2026-02-17T19:21:21.277-05:00 ERROR 12274 --- [           main] o.s.b.d.LoggingFailureAnalysisReporter   : 
-
-***************************
-APPLICATION FAILED TO START
-***************************
-
-Description:
-
-Web server failed to start. Port 8080 was already in use.
-
-Action:
-
-Identify and stop the process that's listening on port 8080 or configure this application to listen on another port.
-
-
-> Task :bootRun FAILED
-
-[Incubating] Problems report is available at: file:///home/bhatt/programming/delta-job-tracker/backend/build/reports/problems/problems-report.html
-
-FAILURE: Build failed with an exception.
-
-* What went wrong:
-Execution failed for task ':bootRun'.
-> Process 'command '/usr/lib/jvm/java-21-openjdk-amd64/bin/java'' finished with non-zero exit value 1
-
-* Try:
-> Run with --stacktrace option to get the stack trace.
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights from a Build Scan (powered by Develocity).
-> Get more help at https://help.gradle.org.
-
-BUILD FAILED in 16s
-4 actionable tasks: 3 executed, 1 up-to-date
+2026-02-18T15:31:49.677-05:00  INFO 15967 --- [           main] c.d.j.DeltaJobTrackerApplication         : Starting DeltaJobTrackerApplication using Java 21.0.10 with PID 15967 (/home/bhatt/programming/delta-job-tracker/backend/build/classes/java/main started by bhatt in /home/bhatt/programming/delta-job-tracker/backend)
+2026-02-18T15:31:49.681-05:00  INFO 15967 --- [           main] c.d.j.DeltaJobTrackerApplication         : No active profile set, falling back to 1 default profile: "default"
+2026-02-18T15:31:50.880-05:00  INFO 15967 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-02-18T15:31:50.892-05:00  INFO 15967 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-02-18T15:31:50.892-05:00  INFO 15967 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.15]
+2026-02-18T15:31:50.930-05:00  INFO 15967 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1201 ms
+2026-02-18T15:31:51.346-05:00  INFO 15967 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-02-18T15:31:51.486-05:00  INFO 15967 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2d4fb0d8
+2026-02-18T15:31:51.487-05:00  INFO 15967 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-02-18T15:31:51.513-05:00  INFO 15967 --- [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5432/delta_job_tracker (PostgreSQL 16.12)
+2026-02-18T15:31:51.571-05:00  INFO 15967 --- [           main] o.f.core.internal.command.DbValidate     : Successfully validated 13 migrations (execution time 00:00.033s)
+2026-02-18T15:31:51.606-05:00  INFO 15967 --- [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 13
+2026-02-18T15:31:51.610-05:00  INFO 15967 --- [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-02-18T15:31:51.903-05:00  INFO 15967 --- [           main] o.s.b.w.a.WelcomePageHandlerMapping      : Adding welcome page: class path resource [static/index.html]
+2026-02-18T15:31:52.215-05:00  INFO 15967 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-02-18T15:31:52.278-05:00  INFO 15967 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-02-18T15:31:52.285-05:00  INFO 15967 --- [           main] c.d.j.DeltaJobTrackerApplication         : Started DeltaJobTrackerApplication in 3.031 seconds (process running for 3.35)
+2026-02-18T15:31:53.348-05:00  INFO 15967 --- [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-02-18T15:31:53.349-05:00  INFO 15967 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-02-18T15:31:53.350-05:00  INFO 15967 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-02-18T15:32:14.497-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.c.service.CompanyCrawlerService    : Crawling CPAY (corpay.com)
+2026-02-18T15:32:14.497-05:00  INFO 15967 --- [pool-3-thread-1] c.d.j.c.service.CompanyCrawlerService    : Crawling CRWD (crowdstrike.com)
+2026-02-18T15:32:14.498-05:00  INFO 15967 --- [pool-3-thread-3] c.d.j.c.service.CompanyCrawlerService    : Crawling CIEN (ciena.com)
+2026-02-18T15:32:14.498-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling CHD (churchdwight.com)
+2026-02-18T15:32:14.500-05:00  INFO 15967 --- [pool-3-thread-5] c.d.j.c.service.CompanyCrawlerService    : Crawling BX (blackstone.com)
+2026-02-18T15:32:15.021-05:00  WARN 15967 --- [pool-3-thread-2] c.d.j.crawl.robots.RobotsTxtService      : robots fetch failed host=corpay.wd3.myworkdayjobs.com robots_unavailable=true status=422 errorCode=null errorMessage=null decision=disallow_all atsAdapterBypass=true
+2026-02-18T15:32:15.022-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.crawl.robots.RobotsTxtService      : robots policy bypass for ats adapter host=corpay.wd3.myworkdayjobs.com robots_unavailable=true allowAtsAdapterWhenUnavailable=true
+2026-02-18T15:32:17.875-05:00  WARN 15967 --- [pool-3-thread-2] c.d.j.crawl.robots.RobotsTxtService      : robots fetch failed host=corpay.wd103.myworkdayjobs.com robots_unavailable=true status=502 errorCode=null errorMessage=null decision=disallow_all atsAdapterBypass=true
+2026-02-18T15:32:17.875-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.crawl.robots.RobotsTxtService      : robots policy bypass for ats adapter host=corpay.wd103.myworkdayjobs.com robots_unavailable=true allowAtsAdapterWhenUnavailable=true
+2026-02-18T15:32:24.677-05:00  INFO 15967 --- [pool-3-thread-5] c.d.j.c.service.CompanyCrawlerService    : Crawling BR (broadridge.com)
+2026-02-18T15:32:26.168-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.c.service.CompanyCrawlerService    : Crawling BMY (bms.com)
+2026-02-18T15:32:27.669-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling BKNG (bookingholdings.com)
+2026-02-18T15:32:28.365-05:00  INFO 15967 --- [pool-3-thread-3] c.d.j.c.service.CompanyCrawlerService    : Crawling ACN (accenture.com)
+2026-02-18T15:32:29.058-05:00  WARN 15967 --- [pool-3-thread-4] c.d.j.crawl.robots.RobotsTxtService      : robots fetch failed host=bookingholdings.com robots_unavailable=true status=403 errorCode=null errorMessage=null decision=disallow_all atsAdapterBypass=true
+2026-02-18T15:32:29.122-05:00  WARN 15967 --- [pool-3-thread-4] c.d.j.crawl.robots.RobotsTxtService      : robots fetch failed host=www.bookingholdings.com robots_unavailable=true status=403 errorCode=null errorMessage=null decision=disallow_all atsAdapterBypass=true
+2026-02-18T15:32:30.505-05:00  WARN 15967 --- [pool-3-thread-3] c.d.j.crawl.robots.RobotsTxtService      : robots fetch failed host=accenture.wd103.myworkdayjobs.com robots_unavailable=true status=502 errorCode=null errorMessage=null decision=disallow_all atsAdapterBypass=true
+2026-02-18T15:32:30.506-05:00  INFO 15967 --- [pool-3-thread-3] c.d.j.crawl.robots.RobotsTxtService      : robots policy bypass for ats adapter host=accenture.wd103.myworkdayjobs.com robots_unavailable=true allowAtsAdapterWhenUnavailable=true
+2026-02-18T15:32:30.075-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling UBER (uber.com)
+2026-02-18T15:32:33.503-05:00  INFO 15967 --- [pool-3-thread-5] c.d.j.c.service.CompanyCrawlerService    : Crawling BKR (bakerhughes.com)
+2026-02-18T15:32:37.903-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling BIIB (biogen.com)
+2026-02-18T15:32:40.167-05:00  INFO 15967 --- [pool-3-thread-1] c.d.j.c.service.CompanyCrawlerService    : Crawling BDX (bd.com)
+2026-02-18T15:32:42.974-05:00  INFO 15967 --- [pool-3-thread-3] c.d.j.c.service.CompanyCrawlerService    : Crawling BAC (bankofamerica.com)
+2026-02-18T15:32:47.398-05:00  INFO 15967 --- [pool-3-thread-3] c.d.j.c.service.CompanyCrawlerService    : Crawling BA (boeing.com)
+2026-02-18T15:32:47.511-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling ABNB (airbnb.com)
+2026-02-18T15:32:49.241-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling ARES (aresmgmt.com)
+2026-02-18T15:32:50.860-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.c.service.CompanyCrawlerService    : Crawling APO (apollo.com)
+2026-02-18T15:32:54.739-05:00  INFO 15967 --- [pool-3-thread-1] c.d.j.c.service.CompanyCrawlerService    : Crawling AMGN (amgen.com)
+2026-02-18T15:32:58.884-05:00  INFO 15967 --- [pool-3-thread-5] c.d.j.c.service.CompanyCrawlerService    : Crawling ALLE (allegion.com)
+2026-02-18T15:33:01.838-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.c.service.CompanyCrawlerService    : Crawling ALB (albemarle.com)
+2026-02-18T15:33:03.606-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling AIZ (assurant.com)
+2026-02-18T15:33:10.449-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.c.service.CompanyCrawlerService    : Crawling AIG (aig.com)
+2026-02-18T15:33:12.972-05:00  INFO 15967 --- [pool-3-thread-3] c.d.j.c.service.CompanyCrawlerService    : Crawling AEE (ameren.com)
+2026-02-18T15:33:16.972-05:00  INFO 15967 --- [pool-3-thread-4] c.d.j.c.service.CompanyCrawlerService    : Crawling ACGL (archcapgroup.com)
+2026-02-18T15:33:18.487-05:00  INFO 15967 --- [pool-3-thread-5] c.d.j.c.service.CompanyCrawlerService    : Crawling ABT (abbott.com)
+2026-02-18T15:33:19.371-05:00  INFO 15967 --- [pool-3-thread-1] c.d.j.c.service.CompanyCrawlerService    : Crawling ABBV (abbvie.com)
+2026-02-18T15:33:20.174-05:00  INFO 15967 --- [pool-3-thread-2] c.d.j.c.service.CompanyCrawlerService    : Crawling A (agilent.com)
+2026-02-18T15:35:52.181-05:00  INFO 15967 --- [io-8080-exec-10] .d.j.c.s.WorkdayInvalidUrlCleanupService : Workday invalid URL cleanup progress: scanned=100, invalid=0, deleted=0, errors=100, lastId=100
+2026-02-18T15:37:30.988-05:00  INFO 15967 --- [io-8080-exec-10] .d.j.c.s.WorkdayInvalidUrlCleanupService : Workday invalid URL cleanup progress: scanned=200, invalid=0, deleted=0, errors=200, lastId=200

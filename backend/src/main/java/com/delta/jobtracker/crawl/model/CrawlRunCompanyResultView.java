@@ -9,6 +9,7 @@ public record CrawlRunCompanyResultView(
     String status,
     String stage,
     String atsType,
+    String atsTypeKey,
     String endpointUrl,
     Instant startedAt,
     Instant finishedAt,

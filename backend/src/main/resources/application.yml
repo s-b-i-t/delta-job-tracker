@@ -40,3 +40,14 @@ crawler:
   data:
     sp500-csv: ../data/sp500_constituents.csv
     domains-csv: ../data/domains.csv
+
+  canary:
+    default-limit: 50
+    max-duration-seconds: 600
+    request-timeout-seconds: 20
+    max-requests-per-host: 75
+    max-total-requests: 5000
+    max-429-rate: 0.08
+    min-requests-for-429-rate: 25
+    max-consecutive-errors: 25
+    max-attempts-per-request: 1

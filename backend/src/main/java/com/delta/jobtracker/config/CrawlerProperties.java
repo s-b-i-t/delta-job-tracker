@@ -33,6 +33,7 @@ public class CrawlerProperties {
     private Data data = new Data();
     private Cli cli = new Cli();
     private Ats ats = new Ats();
+    private Canary canary = new Canary();
 
     public String getUserAgent() {
         return normalizeUserAgent(userAgent);
@@ -224,6 +225,14 @@ public class CrawlerProperties {
 
     public void setAts(Ats ats) {
         this.ats = ats;
+    }
+
+    public Canary getCanary() {
+        return canary;
+    }
+
+    public void setCanary(Canary canary) {
+        this.canary = canary;
     }
 
     public static String normalizeUserAgent(String candidate) {
@@ -618,6 +627,90 @@ public class CrawlerProperties {
 
         public void setMaxJobsPerCompany(int maxJobsPerCompany) {
             this.maxJobsPerCompany = maxJobsPerCompany;
+        }
+    }
+
+    public static class Canary {
+        private int defaultLimit = 50;
+        private int maxDurationSeconds = 600;
+        private int requestTimeoutSeconds = 20;
+        private int maxRequestsPerHost = 75;
+        private int maxTotalRequests = 5000;
+        private double max429Rate = 0.08;
+        private int minRequestsFor429Rate = 25;
+        private int maxConsecutiveErrors = 25;
+        private int maxAttemptsPerRequest = 1;
+
+        public int getDefaultLimit() {
+            return Math.max(1, defaultLimit);
+        }
+
+        public void setDefaultLimit(int defaultLimit) {
+            this.defaultLimit = Math.max(1, defaultLimit);
+        }
+
+        public int getMaxDurationSeconds() {
+            return Math.max(1, maxDurationSeconds);
+        }
+
+        public void setMaxDurationSeconds(int maxDurationSeconds) {
+            this.maxDurationSeconds = Math.max(1, maxDurationSeconds);
+        }
+
+        public int getRequestTimeoutSeconds() {
+            return Math.max(1, requestTimeoutSeconds);
+        }
+
+        public void setRequestTimeoutSeconds(int requestTimeoutSeconds) {
+            this.requestTimeoutSeconds = Math.max(1, requestTimeoutSeconds);
+        }
+
+        public int getMaxRequestsPerHost() {
+            return Math.max(1, maxRequestsPerHost);
+        }
+
+        public void setMaxRequestsPerHost(int maxRequestsPerHost) {
+            this.maxRequestsPerHost = Math.max(1, maxRequestsPerHost);
+        }
+
+        public int getMaxTotalRequests() {
+            return Math.max(1, maxTotalRequests);
+        }
+
+        public void setMaxTotalRequests(int maxTotalRequests) {
+            this.maxTotalRequests = Math.max(1, maxTotalRequests);
+        }
+
+        public double getMax429Rate() {
+            return Math.max(0.0, max429Rate);
+        }
+
+        public void setMax429Rate(double max429Rate) {
+            this.max429Rate = Math.max(0.0, max429Rate);
+        }
+
+        public int getMinRequestsFor429Rate() {
+            return Math.max(1, minRequestsFor429Rate);
+        }
+
+        public void setMinRequestsFor429Rate(int minRequestsFor429Rate) {
+            this.minRequestsFor429Rate = Math.max(1, minRequestsFor429Rate);
+        }
+
+        public int getMaxConsecutiveErrors() {
+            return Math.max(1, maxConsecutiveErrors);
+        }
+
+        public void setMaxConsecutiveErrors(int maxConsecutiveErrors) {
+            this.maxConsecutiveErrors = Math.max(1, maxConsecutiveErrors);
+        }
+
+        public int getMaxAttemptsPerRequest() {
+            return Math.max(1, maxAttemptsPerRequest);
+        }
+
+        public void setMaxAttemptsPerRequest(int maxAttemptsPerRequest) {
+            this.maxAttemptsPerRequest = Math.max(1, maxAttemptsPerRequest);
         }
     }
 }

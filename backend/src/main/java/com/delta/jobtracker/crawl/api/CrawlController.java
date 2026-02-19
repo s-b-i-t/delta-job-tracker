@@ -29,11 +29,13 @@ import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.WorkdayInvalidUrlCleanupResponse;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
+import com.delta.jobtracker.crawl.model.SecCanarySummary;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryRunService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
+import com.delta.jobtracker.crawl.service.SecCanaryService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
 import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,6 +64,7 @@ public class CrawlController {
     private final CrawlStatusService crawlStatusService;
     private final WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
     private final CrawlerProperties crawlerProperties;
+    private final SecCanaryService secCanaryService;
 
     public CrawlController(
         UniverseIngestionService ingestionService,
@@ -71,7 +74,8 @@ public class CrawlController {
         CareersDiscoveryRunService careersDiscoveryRunService,
         CrawlStatusService crawlStatusService,
         WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService,
-        CrawlerProperties crawlerProperties
+        CrawlerProperties crawlerProperties,
+        SecCanaryService secCanaryService
     ) {
         this.ingestionService = ingestionService;
         this.crawlOrchestratorService = crawlOrchestratorService;
@@ -81,6 +85,7 @@ public class CrawlController {
         this.crawlStatusService = crawlStatusService;
         this.workdayInvalidUrlCleanupService = workdayInvalidUrlCleanupService;
         this.crawlerProperties = crawlerProperties;
+        this.secCanaryService = secCanaryService;
     }
 
     @PostMapping("/ingest")
@@ -88,6 +93,13 @@ public class CrawlController {
         @RequestParam(name = "source", required = false, defaultValue = "wiki") String source
     ) {
         return ingestionService.ingest(source);
+    }
+
+    @PostMapping("/canary/sec")
+    public SecCanarySummary runSecCanary(
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return secCanaryService.runSecCanary(limit);
     }
 
     @PostMapping("/crawl/run")
@@ -153,6 +165,15 @@ public class CrawlController {
         @RequestParam(name = "limit", required = false) Integer limit
     ) {
         return crawlStatusService.getCrawlRunCompanyResults(crawlRunId, status, limit);
+    }
+
+    @GetMapping("/crawl/run/{id:\\d+}/companies/stages")
+    public List<CrawlRunCompanyResultView> getCrawlRunCompanyStages(
+        @PathVariable("id") long crawlRunId,
+        @RequestParam(name = "status", required = false) String status,
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return crawlStatusService.getCrawlRunCompanyStageResults(crawlRunId, status, limit);
     }
 
     @GetMapping("/crawl/run/{id:\\d+}/failures")

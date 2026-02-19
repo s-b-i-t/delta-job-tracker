@@ -63,7 +63,7 @@ public class DomainResolutionService {
             : Math.max(1, requestedLimit);
 
         List<CompanyIdentity> missingDomain = repository.findCompaniesMissingDomain(limit);
-        return resolveCompanies(missingDomain, limit);
+        return resolveCompanies(missingDomain, limit, null);
     }
 
     public DomainResolutionResult resolveMissingDomainsForTickers(List<String> tickers, Integer requestedLimit) {
@@ -71,10 +71,22 @@ public class DomainResolutionService {
             ? properties.getDomainResolution().getDefaultLimit()
             : Math.max(1, requestedLimit);
         List<CompanyIdentity> missingDomain = repository.findCompaniesMissingDomainByTickers(tickers, limit);
-        return resolveCompanies(missingDomain, limit);
+        return resolveCompanies(missingDomain, limit, null);
     }
 
-    private DomainResolutionResult resolveCompanies(List<CompanyIdentity> missingDomain, int limit) {
+    public DomainResolutionResult resolveMissingDomainsForTickers(
+        List<String> tickers,
+        Integer requestedLimit,
+        Instant deadline
+    ) {
+        int limit = requestedLimit == null
+            ? properties.getDomainResolution().getDefaultLimit()
+            : Math.max(1, requestedLimit);
+        List<CompanyIdentity> missingDomain = repository.findCompaniesMissingDomainByTickers(tickers, limit);
+        return resolveCompanies(missingDomain, limit, deadline);
+    }
+
+    private DomainResolutionResult resolveCompanies(List<CompanyIdentity> missingDomain, int limit, Instant deadline) {
         if (missingDomain.isEmpty()) {
             return new DomainResolutionResult(0, 0, 0, 0, 0, List.of());
         }
@@ -96,6 +108,10 @@ public class DomainResolutionService {
         );
 
         for (int from = 0; from < missingDomain.size(); from += batchSize) {
+            if (deadline != null && Instant.now().isAfter(deadline)) {
+                log.info("Domain resolver stopped early due to time budget (processed {} of {})", from, missingDomain.size());
+                break;
+            }
             int to = Math.min(missingDomain.size(), from + batchSize);
             List<CompanyIdentity> batch = missingDomain.subList(from, to);
             int batchIndex = (from / batchSize) + 1;
@@ -104,6 +120,10 @@ public class DomainResolutionService {
             Map<String, List<CompanyIdentity>> companiesByTitle = new LinkedHashMap<>();
 
             for (CompanyIdentity company : batch) {
+                if (deadline != null && Instant.now().isAfter(deadline)) {
+                    log.info("Domain resolver stopped early due to time budget (batch {}/{})", batchIndex, batchCount);
+                    break;
+                }
                 List<String> titles = buildTitleVariants(company.wikipediaTitle());
                 if (titles.isEmpty()) {
                     counts.noWikipediaTitle++;
@@ -213,11 +233,12 @@ public class DomainResolutionService {
         String query =
             """
                 PREFIX schema: <http://schema.org/>
-                SELECT ?articleTitle ?item ?officialWebsite WHERE {
-                  VALUES ?articleTitle { %s }
+                SELECT ?candidateTitle ?articleTitle ?item ?officialWebsite WHERE {
+                  VALUES ?candidateTitle { %s }
                   ?article schema:isPartOf <https://en.wikipedia.org/> ;
                            schema:name ?articleTitle ;
                            schema:about ?item .
+                  FILTER (LCASE(STR(?articleTitle)) = LCASE(STR(?candidateTitle)))
                   OPTIONAL { ?item wdt:P856 ?officialWebsite . }
                 }
                 """.formatted(values);
@@ -231,18 +252,19 @@ public class DomainResolutionService {
         JsonNode bindings = root.path("results").path("bindings");
         if (bindings.isArray()) {
             for (JsonNode row : bindings) {
+                String candidate = row.path("candidateTitle").path("value").asText(null);
                 String title = row.path("articleTitle").path("value").asText(null);
                 String item = row.path("item").path("value").asText(null);
                 String website = row.path("officialWebsite").path("value").asText(null);
-                if (title == null || item == null) {
+                if (candidate == null || title == null || item == null) {
                     continue;
                 }
                 String qid = extractQid(item);
-                WdqsMatch existing = matches.get(title);
+                WdqsMatch existing = matches.get(candidate);
                 if (existing == null) {
-                    matches.put(title, new WdqsMatch(qid, website));
+                    matches.put(candidate, new WdqsMatch(qid, website));
                 } else if ((existing.website() == null || existing.website().isBlank()) && website != null) {
-                    matches.put(title, new WdqsMatch(existing.qid() != null ? existing.qid() : qid, website));
+                    matches.put(candidate, new WdqsMatch(existing.qid() != null ? existing.qid() : qid, website));
                 }
             }
         }
@@ -312,7 +334,12 @@ public class DomainResolutionService {
         if (spaced.isBlank()) {
             return List.of();
         }
-        return List.of(spaced);
+        List<String> variants = new ArrayList<>();
+        String cleaned = cleanupTitle(spaced);
+        addVariant(variants, cleaned);
+        addVariant(variants, stripCorporateSuffixes(cleaned));
+        addVariant(variants, cleaned.replace("&", "and"));
+        return List.copyOf(variants);
     }
 
     private String stripFragmentAndQuery(String value) {
@@ -334,6 +361,71 @@ public class DomainResolutionService {
         } catch (Exception e) {
             return value;
         }
+    }
+
+    private void addVariant(List<String> variants, String candidate) {
+        if (candidate == null || candidate.isBlank()) {
+            return;
+        }
+        String normalized = candidate.trim();
+        if (!variants.contains(normalized)) {
+            variants.add(normalized);
+        }
+    }
+
+    private String cleanupTitle(String value) {
+        String cleaned = value.trim();
+        cleaned = cleaned.replaceAll("\\s*/.*$", "");
+        cleaned = cleaned.replaceAll("\\s*\\(.*\\)$", "");
+        cleaned = cleaned.replaceAll("\\s+", " ").trim();
+        return cleaned;
+    }
+
+    private String stripCorporateSuffixes(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        String cleaned = value.trim();
+        String[] tokens = cleaned.split(" ");
+        int end = tokens.length;
+        while (end > 1) {
+            String token = normalizeSuffixToken(tokens[end - 1]);
+            if (!isCorporateSuffix(token)) {
+                break;
+            }
+            end--;
+        }
+        if (end == tokens.length) {
+            return cleaned;
+        }
+        return String.join(" ", java.util.Arrays.copyOf(tokens, end)).trim();
+    }
+
+    private String normalizeSuffixToken(String token) {
+        if (token == null) {
+            return "";
+        }
+        return token.replaceAll("[^A-Za-z]", "").toUpperCase(Locale.ROOT);
+    }
+
+    private boolean isCorporateSuffix(String token) {
+        return token.equals("INC")
+            || token.equals("CORP")
+            || token.equals("CORPORATION")
+            || token.equals("CO")
+            || token.equals("COMPANY")
+            || token.equals("LTD")
+            || token.equals("LIMITED")
+            || token.equals("PLC")
+            || token.equals("LLC")
+            || token.equals("LP")
+            || token.equals("AG")
+            || token.equals("SA")
+            || token.equals("NV")
+            || token.equals("HOLDING")
+            || token.equals("HOLDINGS")
+            || token.equals("GROUP")
+            || token.equals("TRUST");
     }
 
     private String normalizeDomain(String websiteUrl) {

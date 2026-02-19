@@ -4,6 +4,7 @@ import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
+import com.delta.jobtracker.crawl.model.SecIngestionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -103,6 +104,21 @@ public class UniverseIngestionService {
         return new IngestionSummary(
             counts.companiesUpserted,
             counts.domainsSeeded,
+            errors.totalCount(),
+            errors.sampleErrors()
+        );
+    }
+
+    public SecIngestionResult ingestSecCompanies(int requestedLimit) {
+        int limit = Math.max(1, requestedLimit);
+        String secUrl = properties.getData().getSecCompanyTickersUrl();
+        MutableCounts counts = new MutableCounts();
+        ErrorCollector errors = new ErrorCollector();
+        Map<String, Long> companyIdsByTicker = new HashMap<>();
+        List<String> tickers = ingestCompaniesFromSec(secUrl, companyIdsByTicker, counts, errors, limit);
+        return new SecIngestionResult(
+            tickers,
+            counts.companiesUpserted,
             errors.totalCount(),
             errors.sampleErrors()
         );
@@ -239,7 +255,7 @@ public class UniverseIngestionService {
                     errors.add("SEC record " + entry.getKey() + " missing ticker/name");
                     continue;
                 }
-                long companyId = repository.upsertCompany(ticker, name, null);
+                long companyId = repository.upsertCompany(ticker, name, null, name);
                 companyIdsByTicker.put(ticker, companyId);
                 counts.companiesUpserted++;
             }
@@ -248,6 +264,58 @@ public class UniverseIngestionService {
             return false;
         }
         return counts.companiesUpserted > before;
+    }
+
+    private List<String> ingestCompaniesFromSec(
+        String secUrl,
+        Map<String, Long> companyIdsByTicker,
+        MutableCounts counts,
+        ErrorCollector errors,
+        int limit
+    ) {
+        if (secUrl == null || secUrl.isBlank()) {
+            errors.add("sec company tickers URL is blank");
+            return List.of();
+        }
+        int before = counts.companiesUpserted;
+        List<String> tickers = new ArrayList<>();
+        HttpFetchResult fetch = httpClient.get(secUrl, "application/json,*/*;q=0.8");
+        if (!fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
+            String status = fetch.errorCode() == null ? "http_" + fetch.statusCode() : fetch.errorCode();
+            errors.add("failed to fetch SEC tickers JSON: " + status);
+            return List.of();
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(fetch.body());
+            if (root == null || !root.isObject()) {
+                errors.add("SEC tickers payload was not a JSON object");
+                return List.of();
+            }
+            for (var entry : iterable(root.fields())) {
+                if (tickers.size() >= limit) {
+                    break;
+                }
+                JsonNode value = entry.getValue();
+                String ticker = normalizeTicker(value.path("ticker").asText(null));
+                String name = normalizeText(value.path("title").asText(null));
+                if (ticker == null) {
+                    ticker = syntheticTickerFromName(name);
+                }
+                if (ticker == null || name == null) {
+                    errors.add("SEC record " + entry.getKey() + " missing ticker/name");
+                    continue;
+                }
+                long companyId = repository.upsertCompany(ticker, name, null, name);
+                companyIdsByTicker.put(ticker, companyId);
+                counts.companiesUpserted++;
+                tickers.add(ticker);
+            }
+        } catch (Exception e) {
+            errors.add("failed to parse SEC tickers JSON: " + rootMessage(e));
+            return List.of();
+        }
+        return counts.companiesUpserted > before ? List.copyOf(tickers) : List.of();
     }
 
     private void ingestDomainSeeds(

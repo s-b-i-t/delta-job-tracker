@@ -61,7 +61,11 @@ public class PoliteHttpClient {
     }
 
     private HttpFetchResult send(String url, String method, String acceptHeader, String body, String contentType) {
+        CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
         int maxAttempts = Math.max(1, 1 + properties.getRequestMaxRetries());
+        if (budget != null) {
+            maxAttempts = Math.max(1, budget.maxAttemptsPerRequest());
+        }
         HttpFetchResult lastResult = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             lastResult = executeOnce(url, method, acceptHeader, body, contentType);
@@ -95,6 +99,10 @@ public class PoliteHttpClient {
         }
 
         String host = uri.getHost().toLowerCase(Locale.ROOT);
+        CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
+        if (budget != null) {
+            budget.beforeRequest(host);
+        }
         boolean acquired = false;
         boolean hostAcquired = false;
         try {
@@ -110,8 +118,12 @@ public class PoliteHttpClient {
 
             String safeUserAgent = CrawlerProperties.normalizeUserAgent(properties.getUserAgent());
             String safeAccept = (acceptHeader == null || acceptHeader.isBlank()) ? "*/*" : acceptHeader;
+            int timeoutSeconds = properties.getRequestTimeoutSeconds();
+            if (budget != null) {
+                timeoutSeconds = budget.requestTimeoutSeconds();
+            }
             HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
-                .timeout(Duration.ofSeconds(properties.getRequestTimeoutSeconds()))
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .header("User-Agent", safeUserAgent)
                 .header("Accept", safeAccept)
                 .header("Accept-Language", "en-US,en;q=0.8");
@@ -131,7 +143,7 @@ public class PoliteHttpClient {
             }
             byte[] responseBytes = response.body();
             String responseBody = responseBytes == null ? null : new String(responseBytes, StandardCharsets.UTF_8);
-            return new HttpFetchResult(
+            HttpFetchResult result = new HttpFetchResult(
                 url,
                 response.uri(),
                 response.statusCode(),
@@ -144,15 +156,35 @@ public class PoliteHttpClient {
                 null,
                 null
             );
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } catch (HttpTimeoutException e) {
-            return errorResult(url, startedAt, "timeout", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "timeout", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } catch (IOException e) {
-            return errorResult(url, startedAt, "io_error", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "io_error", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return errorResult(url, startedAt, "interrupted", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "interrupted", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } catch (Exception e) {
-            return errorResult(url, startedAt, "http_error", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "http_error", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } finally {
             if (hostAcquired) {
                 Semaphore hostLimiter = hostLimiters.get(host);

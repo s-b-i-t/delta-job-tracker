@@ -1721,46 +1721,101 @@ public class CrawlJdbcRepository {
         Instant startedAt,
         boolean retryable
     ) {
+        String atsTypeKey = normalizeAtsTypeKey(atsType);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("status", status)
             .addValue("stage", stage)
             .addValue("atsType", atsType)
+            .addValue("atsTypeKey", atsTypeKey)
             .addValue("endpointUrl", endpointUrl)
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("retryable", retryable);
-        jdbc.update(
+        if (postgres) {
+            jdbc.update(
+                """
+                    INSERT INTO crawl_run_company_results (
+                        crawl_run_id,
+                        company_id,
+                        status,
+                        stage,
+                        ats_type,
+                        ats_type_key,
+                        endpoint_url,
+                        started_at,
+                        retryable
+                    )
+                    VALUES (
+                        :crawlRunId,
+                        :companyId,
+                        :status,
+                        :stage,
+                        :atsType,
+                        :atsTypeKey,
+                        :endpointUrl,
+                        :startedAt,
+                        :retryable
+                    )
+                    ON CONFLICT (crawl_run_id, company_id, stage, ats_type_key)
+                    DO UPDATE SET
+                        status = EXCLUDED.status,
+                        ats_type = COALESCE(EXCLUDED.ats_type, crawl_run_company_results.ats_type),
+                        ats_type_key = EXCLUDED.ats_type_key,
+                        endpoint_url = COALESCE(EXCLUDED.endpoint_url, crawl_run_company_results.endpoint_url),
+                        started_at = COALESCE(crawl_run_company_results.started_at, EXCLUDED.started_at),
+                        retryable = EXCLUDED.retryable
+                    """,
+                params
+            );
+            return;
+        }
+
+        int updated = jdbc.update(
             """
-                INSERT INTO crawl_run_company_results (
-                    crawl_run_id,
-                    company_id,
-                    status,
-                    stage,
-                    ats_type,
-                    endpoint_url,
-                    started_at,
-                    retryable
-                )
-                VALUES (
-                    :crawlRunId,
-                    :companyId,
-                    :status,
-                    :stage,
-                    :atsType,
-                    :endpointUrl,
-                    :startedAt,
-                    :retryable
-                )
-                ON CONFLICT (crawl_run_id, company_id, stage, endpoint_url)
-                DO UPDATE SET
-                    status = EXCLUDED.status,
-                    ats_type = COALESCE(EXCLUDED.ats_type, crawl_run_company_results.ats_type),
-                    started_at = COALESCE(crawl_run_company_results.started_at, EXCLUDED.started_at),
-                    retryable = EXCLUDED.retryable
+                UPDATE crawl_run_company_results
+                SET status = :status,
+                    ats_type = COALESCE(:atsType, ats_type),
+                    ats_type_key = :atsTypeKey,
+                    endpoint_url = COALESCE(:endpointUrl, endpoint_url),
+                    started_at = COALESCE(started_at, :startedAt),
+                    retryable = :retryable
+                WHERE crawl_run_id = :crawlRunId
+                  AND company_id = :companyId
+                  AND stage = :stage
+                  AND ats_type_key = :atsTypeKey
                 """,
             params
         );
+        if (updated == 0) {
+            jdbc.update(
+                """
+                    INSERT INTO crawl_run_company_results (
+                        crawl_run_id,
+                        company_id,
+                        status,
+                        stage,
+                        ats_type,
+                        ats_type_key,
+                        endpoint_url,
+                        started_at,
+                        retryable
+                    )
+                    VALUES (
+                        :crawlRunId,
+                        :companyId,
+                        :status,
+                        :stage,
+                        :atsType,
+                        :atsTypeKey,
+                        :endpointUrl,
+                        :startedAt,
+                        :retryable
+                    )
+                    """,
+                params
+            );
+        }
     }
 
     public void upsertCrawlRunCompanyResultFinish(
@@ -1782,12 +1837,14 @@ public class CrawlJdbcRepository {
         String errorDetail,
         boolean retryable
     ) {
+        String atsTypeKey = normalizeAtsTypeKey(atsType);
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("status", status)
             .addValue("stage", stage)
             .addValue("atsType", atsType)
+            .addValue("atsTypeKey", atsTypeKey)
             .addValue("endpointUrl", endpointUrl)
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("finishedAt", toTimestamp(finishedAt))
@@ -1800,63 +1857,142 @@ public class CrawlJdbcRepository {
             .addValue("httpStatus", httpStatus)
             .addValue("errorDetail", truncateErrorDetail(errorDetail))
             .addValue("retryable", retryable);
-        jdbc.update(
+        if (postgres) {
+            jdbc.update(
+                """
+                    INSERT INTO crawl_run_company_results (
+                        crawl_run_id,
+                        company_id,
+                        status,
+                        stage,
+                        ats_type,
+                        ats_type_key,
+                        endpoint_url,
+                        started_at,
+                        finished_at,
+                        duration_ms,
+                        jobs_extracted,
+                        truncated,
+                        total_jobs_available,
+                        stop_reason,
+                        reason_code,
+                        http_status,
+                        error_detail,
+                        retryable
+                    )
+                    VALUES (
+                        :crawlRunId,
+                        :companyId,
+                        :status,
+                        :stage,
+                        :atsType,
+                        :atsTypeKey,
+                        :endpointUrl,
+                        :startedAt,
+                        :finishedAt,
+                        :durationMs,
+                        :jobsExtracted,
+                        :truncated,
+                        :totalJobsAvailable,
+                        :stopReason,
+                        :reasonCode,
+                        :httpStatus,
+                        :errorDetail,
+                        :retryable
+                    )
+                    ON CONFLICT (crawl_run_id, company_id, stage, ats_type_key)
+                    DO UPDATE SET
+                        status = EXCLUDED.status,
+                        ats_type = COALESCE(EXCLUDED.ats_type, crawl_run_company_results.ats_type),
+                        ats_type_key = EXCLUDED.ats_type_key,
+                        endpoint_url = COALESCE(EXCLUDED.endpoint_url, crawl_run_company_results.endpoint_url),
+                        finished_at = EXCLUDED.finished_at,
+                        duration_ms = EXCLUDED.duration_ms,
+                        jobs_extracted = EXCLUDED.jobs_extracted,
+                        truncated = EXCLUDED.truncated,
+                        total_jobs_available = EXCLUDED.total_jobs_available,
+                        stop_reason = EXCLUDED.stop_reason,
+                        reason_code = EXCLUDED.reason_code,
+                        http_status = EXCLUDED.http_status,
+                        error_detail = EXCLUDED.error_detail,
+                        retryable = EXCLUDED.retryable
+                    """,
+                params
+            );
+            return;
+        }
+
+        int updated = jdbc.update(
             """
-                INSERT INTO crawl_run_company_results (
-                    crawl_run_id,
-                    company_id,
-                    status,
-                    stage,
-                    ats_type,
-                    endpoint_url,
-                    started_at,
-                    finished_at,
-                    duration_ms,
-                    jobs_extracted,
-                    truncated,
-                    total_jobs_available,
-                    stop_reason,
-                    reason_code,
-                    http_status,
-                    error_detail,
-                    retryable
-                )
-                VALUES (
-                    :crawlRunId,
-                    :companyId,
-                    :status,
-                    :stage,
-                    :atsType,
-                    :endpointUrl,
-                    :startedAt,
-                    :finishedAt,
-                    :durationMs,
-                    :jobsExtracted,
-                    :truncated,
-                    :totalJobsAvailable,
-                    :stopReason,
-                    :reasonCode,
-                    :httpStatus,
-                    :errorDetail,
-                    :retryable
-                )
-                ON CONFLICT (crawl_run_id, company_id, stage, endpoint_url)
-                DO UPDATE SET
-                    status = EXCLUDED.status,
-                    ats_type = COALESCE(EXCLUDED.ats_type, crawl_run_company_results.ats_type),
-                    finished_at = EXCLUDED.finished_at,
-                    duration_ms = EXCLUDED.duration_ms,
-                    jobs_extracted = EXCLUDED.jobs_extracted,
-                    truncated = EXCLUDED.truncated,
-                    total_jobs_available = EXCLUDED.total_jobs_available,
-                    stop_reason = EXCLUDED.stop_reason,
-                    reason_code = EXCLUDED.reason_code,
-                    http_status = EXCLUDED.http_status,
-                    error_detail = EXCLUDED.error_detail,
-                    retryable = EXCLUDED.retryable
+                UPDATE crawl_run_company_results
+                SET status = :status,
+                    ats_type = COALESCE(:atsType, ats_type),
+                    ats_type_key = :atsTypeKey,
+                    endpoint_url = COALESCE(:endpointUrl, endpoint_url),
+                    finished_at = :finishedAt,
+                    duration_ms = :durationMs,
+                    jobs_extracted = :jobsExtracted,
+                    truncated = :truncated,
+                    total_jobs_available = :totalJobsAvailable,
+                    stop_reason = :stopReason,
+                    reason_code = :reasonCode,
+                    http_status = :httpStatus,
+                    error_detail = :errorDetail,
+                    retryable = :retryable
+                WHERE crawl_run_id = :crawlRunId
+                  AND company_id = :companyId
+                  AND stage = :stage
+                  AND ats_type_key = :atsTypeKey
                 """,
             params
         );
+        if (updated == 0) {
+            jdbc.update(
+                """
+                    INSERT INTO crawl_run_company_results (
+                        crawl_run_id,
+                        company_id,
+                        status,
+                        stage,
+                        ats_type,
+                        ats_type_key,
+                        endpoint_url,
+                        started_at,
+                        finished_at,
+                        duration_ms,
+                        jobs_extracted,
+                        truncated,
+                        total_jobs_available,
+                        stop_reason,
+                        reason_code,
+                        http_status,
+                        error_detail,
+                        retryable
+                    )
+                    VALUES (
+                        :crawlRunId,
+                        :companyId,
+                        :status,
+                        :stage,
+                        :atsType,
+                        :atsTypeKey,
+                        :endpointUrl,
+                        :startedAt,
+                        :finishedAt,
+                        :durationMs,
+                        :jobsExtracted,
+                        :truncated,
+                        :totalJobsAvailable,
+                        :stopReason,
+                        :reasonCode,
+                        :httpStatus,
+                        :errorDetail,
+                        :retryable
+                    )
+                    """,
+                params
+            );
+        }
     }
 
     public List<CrawlRunCompanyResultView> findCrawlRunCompanyResults(long crawlRunId, String status, int limit) {
@@ -1873,6 +2009,7 @@ public class CrawlJdbcRepository {
                        r.status,
                        r.stage,
                        r.ats_type,
+                       r.ats_type_key,
                        r.endpoint_url,
                        r.started_at,
                        r.finished_at,
@@ -1900,6 +2037,117 @@ public class CrawlJdbcRepository {
                 rs.getString("status"),
                 rs.getString("stage"),
                 rs.getString("ats_type"),
+                rs.getString("ats_type_key"),
+                rs.getString("endpoint_url"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getObject("duration_ms", Long.class),
+                rs.getInt("jobs_extracted"),
+                rs.getBoolean("truncated"),
+                rs.getObject("total_jobs_available", Integer.class),
+                rs.getString("stop_reason"),
+                rs.getString("reason_code"),
+                rs.getObject("http_status", Integer.class),
+                rs.getString("error_detail"),
+                rs.getBoolean("retryable")
+            )
+        );
+    }
+
+    public Map<String, Integer> countCrawlRunCompaniesByAtsType(long crawlRunId) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId);
+        jdbc.query(
+            """
+                SELECT COALESCE(r.ats_type, 'UNKNOWN') AS ats_type,
+                       COUNT(DISTINCT r.company_id) AS total
+                FROM crawl_run_company_results r
+                WHERE r.crawl_run_id = :crawlRunId
+                  AND r.stage = 'ATS_ADAPTER'
+                GROUP BY COALESCE(r.ats_type, 'UNKNOWN')
+                ORDER BY total DESC, ats_type
+                """,
+            params,
+            rs -> {
+                String atsType = rs.getString("ats_type");
+                int total = rs.getInt("total");
+                if (atsType != null) {
+                    counts.put(atsType, total);
+                }
+            }
+        );
+        return counts;
+    }
+
+    public List<CrawlRunCompanyResultView> findCrawlRunCompanyOverallResults(long crawlRunId, String status, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 500));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId)
+            .addValue("status", status)
+            .addValue("limit", safeLimit);
+        return jdbc.query(
+            """
+                WITH ranked AS (
+                    SELECT r.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY r.company_id
+                               ORDER BY
+                                 CASE r.status
+                                   WHEN 'RUNNING' THEN 4
+                                   WHEN 'SUCCEEDED' THEN 3
+                                   WHEN 'FAILED' THEN 2
+                                   WHEN 'SKIPPED' THEN 1
+                                   ELSE 0
+                                 END DESC,
+                                 CASE r.stage
+                                   WHEN 'ATS_ADAPTER' THEN 4
+                                   WHEN 'JSONLD' THEN 3
+                                   WHEN 'ROBOTS_SITEMAP' THEN 2
+                                   WHEN 'DOMAIN' THEN 1
+                                   ELSE 0
+                                 END DESC,
+                                 CASE WHEN r.started_at IS NULL THEN 1 ELSE 0 END,
+                                 r.started_at DESC
+                           ) AS rn
+                    FROM crawl_run_company_results r
+                    WHERE r.crawl_run_id = :crawlRunId
+                )
+                SELECT r.company_id,
+                       c.ticker,
+                       c.name AS company_name,
+                       r.status,
+                       r.stage,
+                       r.ats_type,
+                       r.ats_type_key,
+                       r.endpoint_url,
+                       r.started_at,
+                       r.finished_at,
+                       r.duration_ms,
+                       r.jobs_extracted,
+                       r.truncated,
+                       r.total_jobs_available,
+                       r.stop_reason,
+                       r.reason_code,
+                       r.http_status,
+                       r.error_detail,
+                       r.retryable
+                FROM ranked r
+                JOIN companies c ON c.id = r.company_id
+                WHERE r.rn = 1
+                  AND (:status IS NULL OR r.status = :status)
+                ORDER BY r.started_at DESC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new CrawlRunCompanyResultView(
+                rs.getLong("company_id"),
+                rs.getString("ticker"),
+                rs.getString("company_name"),
+                rs.getString("status"),
+                rs.getString("stage"),
+                rs.getString("ats_type"),
+                rs.getString("ats_type_key"),
                 rs.getString("endpoint_url"),
                 toInstant(rs.getTimestamp("started_at")),
                 toInstant(rs.getTimestamp("finished_at")),
@@ -2680,6 +2928,13 @@ public class CrawlJdbcRepository {
             log.warn("Unknown ats_type value in job view: {}", raw);
             return null;
         }
+    }
+
+    private String normalizeAtsTypeKey(String atsType) {
+        if (atsType == null || atsType.isBlank()) {
+            return "NONE";
+        }
+        return atsType.trim().toUpperCase(Locale.ROOT);
     }
 
     private boolean detectPostgres(NamedParameterJdbcTemplate jdbcTemplate) {

@@ -97,7 +97,7 @@ public class CareersDiscoveryRunService {
                             stage = "DOMAIN";
                         } else {
                             int beforeCount = repository.countAtsEndpointsForCompany(company.companyId());
-                            CareersDiscoveryService.DiscoveryOutcome outcome = discoveryService.discoverForCompany(company);
+                            CareersDiscoveryService.DiscoveryOutcome outcome = discoveryService.discoverForCompany(company, null);
                             int afterCount = repository.countAtsEndpointsForCompany(company.companyId());
                             endpointsAdded += Math.max(0, afterCount - beforeCount);
                             if (outcome != null && outcome.countsByType() != null) {

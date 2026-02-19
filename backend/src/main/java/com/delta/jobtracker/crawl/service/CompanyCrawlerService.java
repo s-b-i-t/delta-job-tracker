@@ -129,6 +129,51 @@ public class CompanyCrawlerService {
             );
         }
 
+        if (Boolean.TRUE.equals(request.atsOnly())) {
+            String stageEndpoint = stageEndpointUrl(company);
+            Instant skippedAt = Instant.now();
+            recordStageFinish(
+                crawlRunId,
+                company.companyId(),
+                STAGE_ROBOTS_SITEMAP,
+                stageEndpoint,
+                skippedAt,
+                "SKIPPED",
+                0,
+                "ATS_ONLY",
+                null,
+                "ats_only",
+                false
+            );
+            recordStageFinish(
+                crawlRunId,
+                company.companyId(),
+                STAGE_JSONLD,
+                stageEndpoint,
+                skippedAt,
+                "SKIPPED",
+                0,
+                "ATS_ONLY",
+                null,
+                "ats_only",
+                false
+            );
+            int adapterPages = adapterResult == null ? 0 : adapterResult.jobpostingPagesFoundCount();
+            int adapterJobs = adapterResult == null ? 0 : adapterResult.jobsExtractedCount();
+            return new CompanyCrawlSummary(
+                company.companyId(),
+                company.ticker(),
+                company.domain(),
+                0,
+                0,
+                dedupeAtsDetections(atsDetections),
+                adapterPages,
+                adapterJobs,
+                adapterSuccess,
+                topErrors(errors, 5)
+            );
+        }
+
         String stageEndpoint = stageEndpointUrl(company);
         Instant robotsStartedAt = Instant.now();
         repository.upsertCrawlRunCompanyResultStart(

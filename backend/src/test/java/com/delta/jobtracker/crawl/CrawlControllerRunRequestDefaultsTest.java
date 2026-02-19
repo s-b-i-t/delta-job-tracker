@@ -10,6 +10,7 @@ import com.delta.jobtracker.crawl.service.CareersDiscoveryRunService;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
+import com.delta.jobtracker.crawl.service.SecCanaryService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
 import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,8 @@ class CrawlControllerRunRequestDefaultsTest {
     private CrawlStatusService crawlStatusService;
     @Mock
     private WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
+    @Mock
+    private SecCanaryService secCanaryService;
 
     @Test
     void appliesApiDefaultCompanyLimitWhenMissingFromRequest() {
@@ -60,7 +63,8 @@ class CrawlControllerRunRequestDefaultsTest {
             careersDiscoveryRunService,
             crawlStatusService,
             workdayInvalidUrlCleanupService,
-            properties
+            properties,
+            secCanaryService
         );
         controller.runCrawl(new CrawlApiRunRequest(
             List.of("AAPL"),

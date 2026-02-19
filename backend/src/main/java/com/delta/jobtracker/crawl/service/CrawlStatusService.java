@@ -183,6 +183,12 @@ public class CrawlStatusService {
     public List<CrawlRunCompanyResultView> getCrawlRunCompanyResults(long crawlRunId, String status, Integer limit) {
         ensureRunExists(crawlRunId);
         int safeLimit = limit == null ? 200 : Math.max(1, Math.min(limit, 500));
+        return repository.findCrawlRunCompanyOverallResults(crawlRunId, normalizeStatus(status), safeLimit);
+    }
+
+    public List<CrawlRunCompanyResultView> getCrawlRunCompanyStageResults(long crawlRunId, String status, Integer limit) {
+        ensureRunExists(crawlRunId);
+        int safeLimit = limit == null ? 200 : Math.max(1, Math.min(limit, 500));
         return repository.findCrawlRunCompanyResults(crawlRunId, normalizeStatus(status), safeLimit);
     }
 

@@ -90,7 +90,7 @@ public class CareersDiscoveryService {
             : Math.max(1, requestedLimit);
 
         List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(limit);
-        return discoverForCompanies(companies);
+        return discoverForCompanies(companies, null);
     }
 
     public CareersDiscoveryResult discoverForTickers(List<String> tickers, Integer requestedLimit) {
@@ -98,17 +98,33 @@ public class CareersDiscoveryService {
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
         List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
-        return discoverForCompanies(companies);
+        return discoverForCompanies(companies, null);
     }
 
-    private CareersDiscoveryResult discoverForCompanies(List<CompanyTarget> companies) {
+    public CareersDiscoveryResult discoverForTickers(
+        List<String> tickers,
+        Integer requestedLimit,
+        Instant deadline
+    ) {
+        int limit = requestedLimit == null
+            ? properties.getCareersDiscovery().getDefaultLimit()
+            : Math.max(1, requestedLimit);
+        List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
+        return discoverForCompanies(companies, deadline);
+    }
+
+    private CareersDiscoveryResult discoverForCompanies(List<CompanyTarget> companies, Instant deadline) {
         Map<String, Integer> discoveredCountByType = new LinkedHashMap<>();
         int failedCount = 0;
         Map<String, Integer> topErrors = new LinkedHashMap<>();
 
         for (CompanyTarget company : companies) {
+            if (deadline != null && Instant.now().isAfter(deadline)) {
+                log.info("Careers discovery stopped early due to time budget");
+                break;
+            }
             try {
-                DiscoveryOutcome outcome = discoverForCompany(company);
+                DiscoveryOutcome outcome = discoverForCompany(company, deadline);
                 if (!outcome.hasEndpoints()) {
                     failedCount++;
                     DiscoveryFailure failure = outcome.primaryFailure();
@@ -129,7 +145,7 @@ public class CareersDiscoveryService {
         return new CareersDiscoveryResult(discoveredCountByType, failedCount, topErrors);
     }
 
-    DiscoveryOutcome discoverForCompany(CompanyTarget company) {
+    DiscoveryOutcome discoverForCompany(CompanyTarget company, Instant deadline) {
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
         List<DiscoveryFailure> failures = new ArrayList<>();
@@ -143,6 +159,10 @@ public class CareersDiscoveryService {
         int maxCandidates = properties.getCareersDiscovery().getMaxCandidatesPerCompany();
         int inspected = 0;
         for (String candidate : candidates) {
+            if (deadline != null && Instant.now().isAfter(deadline)) {
+                failures.add(new DiscoveryFailure("discovery_time_budget_exceeded", candidate, null));
+                break;
+            }
             if (inspected >= maxCandidates) {
                 break;
             }
