@@ -2,10 +2,13 @@ package com.delta.jobtracker.crawl.http;
 
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
+import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import com.delta.jobtracker.crawl.service.HostCrawlStateService;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,7 +45,8 @@ class PoliteHttpClientRetryTest {
         properties.setRequestRetryMaxDelayMs(5);
 
         executor = Executors.newFixedThreadPool(1);
-        PoliteHttpClient client = new PoliteHttpClient(properties, executor);
+        HostCrawlStateService hostCrawlStateService = new HostCrawlStateService(Mockito.mock(CrawlJdbcRepository.class));
+        PoliteHttpClient client = new PoliteHttpClient(properties, executor, hostCrawlStateService);
 
         String url = server.url("/retry").toString();
         HttpFetchResult result = client.get(url, "text/plain");

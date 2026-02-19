@@ -174,14 +174,14 @@ public class UniverseIngestionService {
                 : cells.get(nameIndex);
             String name = normalizeText(nameCell == null ? null : nameCell.text());
             String sector = normalizeText(readCell(cells, sectorIndex));
-            String cik = normalizeText(readCell(cells, cikIndex));
+            String cik = normalizeCik(normalizeText(readCell(cells, cikIndex)));
             if (ticker == null || name == null) {
                 errors.add("wiki row " + rowNumber + " missing required fields");
                 continue;
             }
 
             String wikipediaTitle = extractWikipediaTitle(nameCell);
-            long companyId = repository.upsertCompany(ticker, name, sector, wikipediaTitle);
+            long companyId = repository.upsertCompany(ticker, name, sector, wikipediaTitle, cik);
             companyIdsByTicker.put(ticker, companyId);
             counts.companiesUpserted++;
 
@@ -255,7 +255,8 @@ public class UniverseIngestionService {
                     errors.add("SEC record " + entry.getKey() + " missing ticker/name");
                     continue;
                 }
-                long companyId = repository.upsertCompany(ticker, name, null, name);
+                String cik = normalizeCik(value.path("cik_str").asText(null));
+                long companyId = repository.upsertCompany(ticker, name, null, null, cik);
                 companyIdsByTicker.put(ticker, companyId);
                 counts.companiesUpserted++;
             }
@@ -306,7 +307,8 @@ public class UniverseIngestionService {
                     errors.add("SEC record " + entry.getKey() + " missing ticker/name");
                     continue;
                 }
-                long companyId = repository.upsertCompany(ticker, name, null, name);
+                String cik = normalizeCik(value.path("cik_str").asText(null));
+                long companyId = repository.upsertCompany(ticker, name, null, null, cik);
                 companyIdsByTicker.put(ticker, companyId);
                 counts.companiesUpserted++;
                 tickers.add(ticker);
@@ -430,6 +432,20 @@ public class UniverseIngestionService {
         String cleaned = value.replace('\u00A0', ' ').trim();
         cleaned = FOOTNOTE_PATTERN.matcher(cleaned).replaceAll("").trim();
         return cleaned.isEmpty() ? null : cleaned;
+    }
+
+    private String normalizeCik(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String digits = value.replaceAll("\\D", "");
+        if (digits.isBlank()) {
+            return null;
+        }
+        if (digits.length() < 10) {
+            return String.format("%1$" + 10 + "s", digits).replace(' ', '0');
+        }
+        return digits;
     }
 
     private String syntheticTickerFromName(String name) {

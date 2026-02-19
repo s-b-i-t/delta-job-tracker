@@ -367,6 +367,8 @@ public class CrawlerProperties {
         private int defaultLimit = 50;
         private int batchSize = 50;
         private int wdqsMinDelayMs = 2000;
+        private int wdqsTimeoutSeconds = 8;
+        private int cacheTtlMinutes = 720;
 
         public int getDefaultLimit() {
             return Math.max(1, defaultLimit);
@@ -390,6 +392,22 @@ public class CrawlerProperties {
 
         public void setWdqsMinDelayMs(int wdqsMinDelayMs) {
             this.wdqsMinDelayMs = Math.max(1, wdqsMinDelayMs);
+        }
+
+        public int getWdqsTimeoutSeconds() {
+            return Math.max(1, wdqsTimeoutSeconds);
+        }
+
+        public void setWdqsTimeoutSeconds(int wdqsTimeoutSeconds) {
+            this.wdqsTimeoutSeconds = Math.max(1, wdqsTimeoutSeconds);
+        }
+
+        public int getCacheTtlMinutes() {
+            return Math.max(0, cacheTtlMinutes);
+        }
+
+        public void setCacheTtlMinutes(int cacheTtlMinutes) {
+            this.cacheTtlMinutes = Math.max(0, cacheTtlMinutes);
         }
     }
 

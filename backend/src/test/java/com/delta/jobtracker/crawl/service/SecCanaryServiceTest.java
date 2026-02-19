@@ -8,6 +8,7 @@ import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.SecCanarySummary;
 import com.delta.jobtracker.crawl.model.SecIngestionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
@@ -17,6 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -50,13 +53,13 @@ class SecCanaryServiceTest {
         when(ingestionService.ingestSecCompanies(2))
             .thenReturn(new SecIngestionResult(tickers, 2, 0, List.of()));
 
-        DomainResolutionResult domainResult = new DomainResolutionResult(1, 0, 0, 0, 0, List.of());
+        DomainResolutionResult domainResult = new DomainResolutionResult(1, 0, 0, 0, 0, 0, List.of());
         when(domainResolutionService.resolveMissingDomainsForTickers(eq(tickers), eq(2), any()))
             .thenReturn(domainResult);
 
         Map<String, Integer> discovered = new LinkedHashMap<>();
         discovered.put("WORKDAY", 2);
-        CareersDiscoveryResult discoveryResult = new CareersDiscoveryResult(discovered, 0, Map.of());
+        CareersDiscoveryResult discoveryResult = new CareersDiscoveryResult(discovered, 0, 0, Map.of());
         when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(2), any()))
             .thenReturn(discoveryResult);
 
@@ -100,24 +103,31 @@ class SecCanaryServiceTest {
         when(repository.countCrawlRunCompanyFailures(123L))
             .thenReturn(Map.of("HTTP_404", 1L));
 
-        SecCanaryService service = new SecCanaryService(
-            ingestionService,
-            domainResolutionService,
-            careersDiscoveryService,
-            companyCrawlerService,
-            repository,
-            new CrawlerProperties()
-        );
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            SecCanaryService service = new SecCanaryService(
+                ingestionService,
+                domainResolutionService,
+                careersDiscoveryService,
+                companyCrawlerService,
+                repository,
+                new CrawlerProperties(),
+                executor,
+                new ObjectMapper()
+            );
 
-        SecCanarySummary summary = service.runSecCanary(2);
-        assertNotNull(summary);
-        assertEquals(2, summary.companiesIngested());
-        assertEquals(5, summary.jobsExtracted());
-        assertEquals("COMPLETED_WITH_ERRORS", summary.status());
-        assertEquals(domainResult, summary.domainResolution());
-        assertEquals(discoveryResult, summary.careersDiscovery());
-        assertEquals(2, summary.companiesCrawledByAtsType().get("WORKDAY"));
-        assertEquals(1, summary.topErrors().get("HTTP_404"));
+            SecCanarySummary summary = service.runSecCanary(2);
+            assertNotNull(summary);
+            assertEquals(2, summary.companiesIngested());
+            assertEquals(5, summary.jobsExtracted());
+            assertEquals("COMPLETED_WITH_ERRORS", summary.status());
+            assertEquals(domainResult, summary.domainResolution());
+            assertEquals(discoveryResult, summary.careersDiscovery());
+            assertEquals(2, summary.companiesCrawledByAtsType().get("WORKDAY"));
+            assertEquals(1, summary.topErrors().get("HTTP_404"));
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -125,19 +135,26 @@ class SecCanaryServiceTest {
         when(ingestionService.ingestSecCompanies(5))
             .thenReturn(new SecIngestionResult(List.of(), 0, 0, List.of()));
 
-        SecCanaryService service = new SecCanaryService(
-            ingestionService,
-            domainResolutionService,
-            careersDiscoveryService,
-            companyCrawlerService,
-            repository,
-            new CrawlerProperties()
-        );
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            SecCanaryService service = new SecCanaryService(
+                ingestionService,
+                domainResolutionService,
+                careersDiscoveryService,
+                companyCrawlerService,
+                repository,
+                new CrawlerProperties(),
+                executor,
+                new ObjectMapper()
+            );
 
-        SecCanarySummary summary = service.runSecCanary(5);
-        assertEquals("NO_COMPANIES", summary.status());
-        verify(domainResolutionService, never()).resolveMissingDomainsForTickers(any(), any(), any());
-        verify(careersDiscoveryService, never()).discoverForTickers(any(), any(), any());
-        verify(repository, never()).insertCrawlRun(any(), any(), any());
+            SecCanarySummary summary = service.runSecCanary(5);
+            assertEquals("NO_COMPANIES", summary.status());
+            verify(domainResolutionService, never()).resolveMissingDomainsForTickers(any(), any(), any());
+            verify(careersDiscoveryService, never()).discoverForTickers(any(), any(), any());
+            verify(repository, never()).insertCrawlRun(any(), any(), any());
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }

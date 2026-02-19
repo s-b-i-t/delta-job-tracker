@@ -5,6 +5,9 @@ import com.delta.jobtracker.crawl.http.CanaryAbortException;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
+import com.delta.jobtracker.crawl.model.CanaryRunResponse;
+import com.delta.jobtracker.crawl.model.CanaryRunStatus;
+import com.delta.jobtracker.crawl.model.CanaryRunStatusResponse;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunRequest;
@@ -12,8 +15,11 @@ import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.SecCanarySummary;
 import com.delta.jobtracker.crawl.model.SecIngestionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -21,6 +27,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 @Service
 public class SecCanaryService {
@@ -32,6 +39,8 @@ public class SecCanaryService {
     private final CompanyCrawlerService companyCrawlerService;
     private final CrawlJdbcRepository repository;
     private final CrawlerProperties properties;
+    private final ExecutorService canaryExecutor;
+    private final ObjectMapper objectMapper;
 
     public SecCanaryService(
         UniverseIngestionService ingestionService,
@@ -39,7 +48,9 @@ public class SecCanaryService {
         CareersDiscoveryService careersDiscoveryService,
         CompanyCrawlerService companyCrawlerService,
         CrawlJdbcRepository repository,
-        CrawlerProperties properties
+        CrawlerProperties properties,
+        @Qualifier("canaryExecutor") ExecutorService canaryExecutor,
+        ObjectMapper objectMapper
     ) {
         this.ingestionService = ingestionService;
         this.domainResolutionService = domainResolutionService;
@@ -47,6 +58,51 @@ public class SecCanaryService {
         this.companyCrawlerService = companyCrawlerService;
         this.repository = repository;
         this.properties = properties;
+        this.canaryExecutor = canaryExecutor;
+        this.objectMapper = objectMapper;
+    }
+
+    public CanaryRunResponse startSecCanary(Integer requestedLimit) {
+        int limit = requestedLimit == null
+            ? properties.getCanary().getDefaultLimit()
+            : Math.max(1, requestedLimit);
+        CanaryRunStatus existing = repository.findRunningCanaryRun("SEC");
+        if (existing != null) {
+            return new CanaryRunResponse(existing.runId(), existing.status());
+        }
+        Instant startedAt = Instant.now();
+        long runId = repository.insertCanaryRun("SEC", limit, startedAt);
+        canaryExecutor.submit(() -> runAndPersistCanary(runId, limit));
+        return new CanaryRunResponse(runId, "RUNNING");
+    }
+
+    public CanaryRunStatusResponse getCanaryRunStatus(long runId) {
+        CanaryRunStatus record = repository.findCanaryRun(runId);
+        if (record == null) {
+            return null;
+        }
+        SecCanarySummary summary = null;
+        Map<String, Integer> errorSummary = null;
+        try {
+            if (record.summaryJson() != null && !record.summaryJson().isBlank()) {
+                summary = objectMapper.readValue(record.summaryJson(), SecCanarySummary.class);
+            }
+            if (record.errorSummaryJson() != null && !record.errorSummaryJson().isBlank()) {
+                errorSummary = objectMapper.readValue(record.errorSummaryJson(), new TypeReference<>() {});
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse canary run summary for {}", runId, e);
+        }
+        return new CanaryRunStatusResponse(
+            record.runId(),
+            record.type(),
+            record.requestedLimit(),
+            record.startedAt(),
+            record.finishedAt(),
+            record.status(),
+            summary,
+            errorSummary
+        );
     }
 
     public SecCanarySummary runSecCanary(Integer requestedLimit) {
@@ -63,9 +119,10 @@ public class SecCanaryService {
         Long crawlRunId = null;
         int companiesIngested = 0;
         int jobsExtracted = 0;
-        DomainResolutionResult domainResolution = new DomainResolutionResult(0, 0, 0, 0, 0, List.of());
-        CareersDiscoveryResult careersDiscovery = new CareersDiscoveryResult(Map.of(), 0, Map.of());
+        DomainResolutionResult domainResolution = new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of());
+        CareersDiscoveryResult careersDiscovery = new CareersDiscoveryResult(Map.of(), 0, 0, Map.of());
         Map<String, Integer> companiesCrawledByAtsType = Map.of();
+        int cooldownSkips = 0;
 
         CanaryHttpBudget budget = new CanaryHttpBudget(
             properties.getCanary().getMaxRequestsPerHost(),
@@ -138,7 +195,9 @@ public class SecCanaryService {
             }
         }
         mergeDomainErrors(domainResolution, topErrors);
-        if (careersDiscovery.failedCount() > 0) {
+        cooldownSkips = careersDiscovery.cooldownSkips();
+        mergeErrors(topErrors, careersDiscovery.topErrors());
+        if (careersDiscovery.failedCount() > 0 && careersDiscovery.topErrors().isEmpty()) {
             topErrors.put("discovery_failed", careersDiscovery.failedCount());
         }
 
@@ -156,9 +215,29 @@ public class SecCanaryService {
             careersDiscovery,
             companiesCrawledByAtsType,
             jobsExtracted,
+            cooldownSkips,
             topErrors,
             stepDurationsMs
         );
+    }
+
+    private void runAndPersistCanary(long runId, int requestedLimit) {
+        try {
+            SecCanarySummary summary = runSecCanary(requestedLimit);
+            String runStatus = mapRunStatus(summary.status());
+            String summaryJson = null;
+            String errorSummaryJson = null;
+            try {
+                summaryJson = objectMapper.writeValueAsString(summary);
+                errorSummaryJson = objectMapper.writeValueAsString(summary.topErrors());
+            } catch (Exception e) {
+                log.warn("Failed to serialize canary summary for {}", runId, e);
+            }
+            repository.updateCanaryRun(runId, summary.finishedAt(), runStatus, summaryJson, errorSummaryJson);
+        } catch (Exception e) {
+            log.warn("SEC canary run {} failed", runId, e);
+            repository.updateCanaryRun(runId, Instant.now(), "FAILED", null, null);
+        }
     }
 
     private CrawlOutcome runAtsCanaryCrawl(List<String> tickers, Instant deadline) {
@@ -228,7 +307,7 @@ public class SecCanaryService {
             return;
         }
         if (domainResolution.noWikipediaTitleCount() > 0) {
-            topErrors.put("domain_no_wikipedia_title", domainResolution.noWikipediaTitleCount());
+            topErrors.put("domain_no_identifier", domainResolution.noWikipediaTitleCount());
         }
         if (domainResolution.noItemCount() > 0) {
             topErrors.put("domain_no_item", domainResolution.noItemCount());
@@ -239,10 +318,40 @@ public class SecCanaryService {
         if (domainResolution.wdqsErrorCount() > 0) {
             topErrors.put("domain_wdqs_error", domainResolution.wdqsErrorCount());
         }
+        if (domainResolution.wdqsTimeoutCount() > 0) {
+            topErrors.put("domain_wdqs_timeout", domainResolution.wdqsTimeoutCount());
+        }
+    }
+
+    private void mergeErrors(Map<String, Integer> target, Map<String, Integer> source) {
+        if (target == null || source == null || source.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Integer> entry : source.entrySet()) {
+            String key = entry.getKey();
+            if (key == null) {
+                continue;
+            }
+            int value = entry.getValue() == null ? 0 : entry.getValue();
+            target.put(key, target.getOrDefault(key, 0) + value);
+        }
     }
 
     private boolean deadlineExceeded(Instant deadline) {
         return deadline != null && Instant.now().isAfter(deadline);
+    }
+
+    private String mapRunStatus(String summaryStatus) {
+        if (summaryStatus == null) {
+            return "FAILED";
+        }
+        if ("ABORTED".equals(summaryStatus)) {
+            return "ABORTED";
+        }
+        if ("FAILED".equals(summaryStatus)) {
+            return "FAILED";
+        }
+        return "SUCCEEDED";
     }
 
     private record CrawlOutcome(

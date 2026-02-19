@@ -3,6 +3,7 @@ package com.delta.jobtracker.crawl.persistence;
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
 import com.delta.jobtracker.crawl.model.AtsAttemptSample;
 import com.delta.jobtracker.crawl.model.AtsType;
+import com.delta.jobtracker.crawl.model.CanaryRunStatus;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyFailureView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryRunStatus;
@@ -16,6 +17,7 @@ import com.delta.jobtracker.crawl.model.CrawlRunCompanyFailureView;
 import com.delta.jobtracker.crawl.model.CrawlRunCompanyResultView;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.DiscoveryFailureEntry;
+import com.delta.jobtracker.crawl.model.HostCrawlState;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingUrlRef;
@@ -231,6 +233,127 @@ public class CrawlJdbcRepository {
                 SET finished_at = :finishedAt,
                     status = :status,
                     last_error = COALESCE(:lastError, last_error)
+                WHERE id = :runId
+                """,
+            params
+        );
+    }
+
+    public long insertCanaryRun(String type, Integer requestedLimit, Instant startedAt) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("type", type)
+            .addValue("requestedLimit", requestedLimit)
+            .addValue("startedAt", toTimestamp(startedAt))
+            .addValue("status", "RUNNING");
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbc.update(
+            """
+                INSERT INTO canary_runs (
+                    type,
+                    requested_limit,
+                    started_at,
+                    status
+                )
+                VALUES (
+                    :type,
+                    :requestedLimit,
+                    :startedAt,
+                    :status
+                )
+                """,
+            params,
+            keyHolder,
+            new String[] {"id"}
+        );
+        Number key = keyHolder.getKey();
+        return key == null ? 0L : key.longValue();
+    }
+
+    public CanaryRunStatus findCanaryRun(long runId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId);
+        List<CanaryRunStatus> rows = jdbc.query(
+            """
+                SELECT id,
+                       type,
+                       requested_limit,
+                       started_at,
+                       finished_at,
+                       status,
+                       summary_json,
+                       error_summary_json
+                FROM canary_runs
+                WHERE id = :runId
+                """,
+            params,
+            (rs, rowNum) -> new CanaryRunStatus(
+                rs.getLong("id"),
+                rs.getString("type"),
+                (Integer) rs.getObject("requested_limit"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getString("status"),
+                rs.getString("summary_json"),
+                rs.getString("error_summary_json")
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public CanaryRunStatus findRunningCanaryRun(String type) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("type", type);
+        List<CanaryRunStatus> rows = jdbc.query(
+            """
+                SELECT id,
+                       type,
+                       requested_limit,
+                       started_at,
+                       finished_at,
+                       status,
+                       summary_json,
+                       error_summary_json
+                FROM canary_runs
+                WHERE type = :type
+                  AND status = 'RUNNING'
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+            params,
+            (rs, rowNum) -> new CanaryRunStatus(
+                rs.getLong("id"),
+                rs.getString("type"),
+                (Integer) rs.getObject("requested_limit"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getString("status"),
+                rs.getString("summary_json"),
+                rs.getString("error_summary_json")
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public void updateCanaryRun(
+        long runId,
+        Instant finishedAt,
+        String status,
+        String summaryJson,
+        String errorSummaryJson
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("runId", runId)
+            .addValue("finishedAt", toTimestamp(finishedAt))
+            .addValue("status", status)
+            .addValue("summaryJson", summaryJson)
+            .addValue("errorSummaryJson", errorSummaryJson);
+        jdbc.update(
+            """
+                UPDATE canary_runs
+                SET finished_at = :finishedAt,
+                    status = :status,
+                    summary_json = :summaryJson,
+                    error_summary_json = :errorSummaryJson
                 WHERE id = :runId
                 """,
             params
@@ -499,23 +622,100 @@ public class CrawlJdbcRepository {
         return count == null ? 0L : count;
     }
 
+    public HostCrawlState findHostCrawlState(String host) {
+        if (host == null || host.isBlank()) {
+            return null;
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("host", host.toLowerCase(Locale.ROOT));
+        List<HostCrawlState> rows = jdbc.query(
+            """
+                SELECT host,
+                       consecutive_failures,
+                       last_error_category,
+                       last_attempt_at,
+                       next_allowed_at
+                FROM host_crawl_state
+                WHERE host = :host
+                """,
+            params,
+            (rs, rowNum) -> new HostCrawlState(
+                rs.getString("host"),
+                rs.getInt("consecutive_failures"),
+                rs.getString("last_error_category"),
+                toInstant(rs.getTimestamp("last_attempt_at")),
+                toInstant(rs.getTimestamp("next_allowed_at"))
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public void upsertHostCrawlState(
+        String host,
+        int consecutiveFailures,
+        String lastErrorCategory,
+        Instant lastAttemptAt,
+        Instant nextAllowedAt
+    ) {
+        if (host == null || host.isBlank()) {
+            return;
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("host", host.toLowerCase(Locale.ROOT))
+            .addValue("consecutiveFailures", Math.max(0, consecutiveFailures))
+            .addValue("lastErrorCategory", lastErrorCategory)
+            .addValue("lastAttemptAt", toTimestamp(lastAttemptAt))
+            .addValue("nextAllowedAt", toTimestamp(nextAllowedAt));
+        jdbc.update(
+            """
+                INSERT INTO host_crawl_state (
+                    host,
+                    consecutive_failures,
+                    last_error_category,
+                    last_attempt_at,
+                    next_allowed_at
+                )
+                VALUES (
+                    :host,
+                    :consecutiveFailures,
+                    :lastErrorCategory,
+                    :lastAttemptAt,
+                    :nextAllowedAt
+                )
+                ON CONFLICT (host)
+                DO UPDATE SET
+                    consecutive_failures = EXCLUDED.consecutive_failures,
+                    last_error_category = EXCLUDED.last_error_category,
+                    last_attempt_at = EXCLUDED.last_attempt_at,
+                    next_allowed_at = EXCLUDED.next_allowed_at
+                """,
+            params
+        );
+    }
+
     public long upsertCompany(String ticker, String name, String sector) {
-        return upsertCompany(ticker, name, sector, null);
+        return upsertCompany(ticker, name, sector, null, null);
     }
 
     public long upsertCompany(String ticker, String name, String sector, String wikipediaTitle) {
+        return upsertCompany(ticker, name, sector, wikipediaTitle, null);
+    }
+
+    public long upsertCompany(String ticker, String name, String sector, String wikipediaTitle, String cik) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("ticker", ticker)
             .addValue("name", name)
             .addValue("sector", sector)
-            .addValue("wikipediaTitle", wikipediaTitle);
+            .addValue("wikipediaTitle", wikipediaTitle)
+            .addValue("cik", cik);
 
         int updated = jdbc.update(
             """
                 UPDATE companies
                 SET name = :name,
                     sector = COALESCE(:sector, sector),
-                    wikipedia_title = COALESCE(:wikipediaTitle, wikipedia_title)
+                    wikipedia_title = COALESCE(:wikipediaTitle, wikipedia_title),
+                    cik = COALESCE(:cik, cik)
                 WHERE ticker = :ticker
                 """,
             params
@@ -524,8 +724,8 @@ public class CrawlJdbcRepository {
             try {
                 jdbc.update(
                     """
-                        INSERT INTO companies (ticker, name, sector, wikipedia_title)
-                        VALUES (:ticker, :name, :sector, :wikipediaTitle)
+                        INSERT INTO companies (ticker, name, sector, wikipedia_title, cik)
+                        VALUES (:ticker, :name, :sector, :wikipediaTitle, :cik)
                         """,
                     params
                 );
@@ -535,7 +735,8 @@ public class CrawlJdbcRepository {
                         UPDATE companies
                         SET name = :name,
                             sector = COALESCE(:sector, sector),
-                            wikipedia_title = COALESCE(:wikipediaTitle, wikipedia_title)
+                            wikipedia_title = COALESCE(:wikipediaTitle, wikipedia_title),
+                            cik = COALESCE(:cik, cik)
                         WHERE ticker = :ticker
                         """,
                     params
@@ -556,6 +757,32 @@ public class CrawlJdbcRepository {
             throw new IllegalStateException("Failed to upsert company for ticker " + ticker);
         }
         return id;
+    }
+
+    public void updateCompanyDomainResolutionCache(
+        long companyId,
+        String method,
+        String status,
+        String errorCategory,
+        Instant attemptedAt
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("method", method)
+            .addValue("status", status)
+            .addValue("errorCategory", errorCategory)
+            .addValue("attemptedAt", toTimestamp(attemptedAt));
+        jdbc.update(
+            """
+                UPDATE companies
+                SET domain_resolution_method = :method,
+                    domain_resolution_status = :status,
+                    domain_resolution_error = :errorCategory,
+                    domain_resolution_attempted_at = :attemptedAt
+                WHERE id = :companyId
+                """,
+            params
+        );
     }
 
     public void upsertCompanyDomain(long companyId, String domain, String careersHintUrl) {
@@ -770,7 +997,16 @@ public class CrawlJdbcRepository {
             .addValue("limit", limit);
         return jdbc.query(
             """
-                SELECT c.id AS company_id, c.ticker, c.name, c.sector, c.wikipedia_title
+                SELECT c.id AS company_id,
+                       c.ticker,
+                       c.name,
+                       c.sector,
+                       c.wikipedia_title,
+                       c.cik,
+                       c.domain_resolution_method,
+                       c.domain_resolution_status,
+                       c.domain_resolution_error,
+                       c.domain_resolution_attempted_at
                 FROM companies c
                 WHERE NOT EXISTS (
                     SELECT 1
@@ -794,7 +1030,16 @@ public class CrawlJdbcRepository {
             .addValue("limit", limit);
         return jdbc.query(
             """
-                SELECT c.id AS company_id, c.ticker, c.name, c.sector, c.wikipedia_title
+                SELECT c.id AS company_id,
+                       c.ticker,
+                       c.name,
+                       c.sector,
+                       c.wikipedia_title,
+                       c.cik,
+                       c.domain_resolution_method,
+                       c.domain_resolution_status,
+                       c.domain_resolution_error,
+                       c.domain_resolution_attempted_at
                 FROM companies c
                 WHERE c.ticker IN (:tickers)
                   AND NOT EXISTS (
@@ -2895,7 +3140,12 @@ public class CrawlJdbcRepository {
             rs.getString("ticker"),
             rs.getString("name"),
             rs.getString("sector"),
-            rs.getString("wikipedia_title")
+            rs.getString("wikipedia_title"),
+            rs.getString("cik"),
+            rs.getString("domain_resolution_method"),
+            rs.getString("domain_resolution_status"),
+            rs.getString("domain_resolution_error"),
+            toInstant(rs.getTimestamp("domain_resolution_attempted_at"))
         );
     }
 

@@ -8,6 +8,7 @@ public record DomainResolutionResult(
     int noItemCount,
     int noP856Count,
     int wdqsErrorCount,
+    int wdqsTimeoutCount,
     List<String> sampleErrors
 ) {
 }

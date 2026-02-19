@@ -1,7 +1,7 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
-import com.delta.jobtracker.crawl.http.PoliteHttpClient;
+import com.delta.jobtracker.crawl.http.WdqsHttpClient;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
@@ -34,7 +34,7 @@ class DomainResolutionServiceTest {
     @Mock
     private CrawlJdbcRepository repository;
     @Mock
-    private PoliteHttpClient httpClient;
+    private WdqsHttpClient wdqsHttpClient;
 
     private DomainResolutionService service;
 
@@ -43,14 +43,14 @@ class DomainResolutionServiceTest {
         CrawlerProperties properties = new CrawlerProperties();
         properties.getDomainResolution().setWdqsMinDelayMs(0);
         properties.getDomainResolution().setBatchSize(10);
-        service = new DomainResolutionService(properties, repository, httpClient, new ObjectMapper());
+        service = new DomainResolutionService(properties, repository, wdqsHttpClient, new ObjectMapper());
     }
 
     @Test
     void resolvesWikipediaTitleWithP856() {
-        CompanyIdentity company = new CompanyIdentity(1L, "AAPL", "Apple Inc.", "Tech", "Apple_Inc.");
+        CompanyIdentity company = new CompanyIdentity(1L, "AAPL", "Apple Inc.", "Tech", "Apple_Inc.", null, null, null, null, null);
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithWebsite()));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithWebsite()));
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -70,9 +70,9 @@ class DomainResolutionServiceTest {
 
     @Test
     void reportsNoP856WhenItemHasNoWebsite() {
-        CompanyIdentity company = new CompanyIdentity(2L, "TEST", "Test Co", null, "Test_Company");
+        CompanyIdentity company = new CompanyIdentity(2L, "TEST", "Test Co", null, "Test_Company", null, null, null, null, null);
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithoutWebsite()));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithoutWebsite()));
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -85,9 +85,9 @@ class DomainResolutionServiceTest {
 
     @Test
     void reportsNoItemWhenSitelinkMissing() {
-        CompanyIdentity company = new CompanyIdentity(3L, "NONE", "Missing Co", null, "Missing_Co");
+        CompanyIdentity company = new CompanyIdentity(3L, "NONE", "Missing Co", null, "Missing_Co", null, null, null, null, null);
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsEmptyResponse()));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsEmptyResponse()));
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -100,17 +100,51 @@ class DomainResolutionServiceTest {
 
     @Test
     void reportsWdqsErrorWhenQueryFails() {
-        CompanyIdentity company = new CompanyIdentity(4L, "FAIL", "Failure Inc", null, "Failure_Inc");
+        CompanyIdentity company = new CompanyIdentity(4L, "FAIL", "Failure Inc", null, "Failure_Inc", null, null, null, null, null);
         when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
-        when(httpClient.postForm(anyString(), anyString(), anyString())).thenReturn(failureFetch());
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString())).thenReturn(failureFetch());
 
         DomainResolutionResult result = service.resolveMissingDomains(1);
 
         assertThat(result.resolvedCount()).isZero();
         assertThat(result.wdqsErrorCount()).isEqualTo(1);
+        assertThat(result.wdqsTimeoutCount()).isEqualTo(0);
         verify(repository, never()).upsertCompanyDomain(
             anyLong(), anyString(), any(), anyString(), anyDouble(), any(Instant.class), anyString(), anyString()
         );
+    }
+
+    @Test
+    void resolvesCikWithP856() {
+        CompanyIdentity company = new CompanyIdentity(5L, "CIK", "Cik Corp", null, null, "0000320193", null, null, null, null);
+        when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString())).thenReturn(successFetch(wdqsResponseWithCikWebsite()));
+
+        DomainResolutionResult result = service.resolveMissingDomains(1);
+
+        assertThat(result.resolvedCount()).isEqualTo(1);
+        verify(repository).upsertCompanyDomain(
+            eq(5L),
+            eq("apple.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("cik"),
+            eq("Q312")
+        );
+    }
+
+    @Test
+    void reportsWdqsTimeoutWhenQueryTimesOut() {
+        CompanyIdentity company = new CompanyIdentity(6L, "TIME", "Timeout Co", null, "Timeout_Co", null, null, null, null, null);
+        when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString())).thenReturn(timeoutFetch());
+
+        DomainResolutionResult result = service.resolveMissingDomains(1);
+
+        assertThat(result.wdqsTimeoutCount()).isEqualTo(1);
+        assertThat(result.wdqsErrorCount()).isZero();
     }
 
     private HttpFetchResult successFetch(String body) {
@@ -145,6 +179,22 @@ class DomainResolutionServiceTest {
         );
     }
 
+    private HttpFetchResult timeoutFetch() {
+        return new HttpFetchResult(
+            "https://query.wikidata.org",
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            Instant.now(),
+            Duration.ZERO,
+            "timeout",
+            "timeout"
+        );
+    }
+
     private String wdqsResponseWithWebsite() {
         return """
             {"results":{"bindings":[
@@ -164,6 +214,14 @@ class DomainResolutionServiceTest {
     private String wdqsEmptyResponse() {
         return """
             {"results":{"bindings":[]}}
+            """;
+    }
+
+    private String wdqsResponseWithCikWebsite() {
+        return """
+            {"results":{"bindings":[
+              {"candidateCik":{"value":"0000320193"},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
+            ]}}
             """;
     }
 }

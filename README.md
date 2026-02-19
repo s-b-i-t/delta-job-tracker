@@ -114,11 +114,16 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
 - `POST /api/ingest`
   - Default source is Wikipedia (`List_of_S%26P_500_companies`), parsed with Jsoup.
   - Supports file fallback via `source=file` using `data/sp500_constituents.csv`.
+  - SEC ingest stores CIK as a zero-padded 10-digit string when available.
   - Always ingests `data/domains.csv` after companies as seed/override domains.
   - Returns `companiesUpserted`, `domainsSeeded`, `errorsCount`, and up to 10 `sampleErrors`.
   - `GET /api/ingest` is intentionally not supported and returns `405`.
+- `POST /api/canary/sec?limit=N`
+  - Starts an async SEC canary run and returns `{runId, status}` quickly.
+- `GET /api/canary/{runId}`
+  - Returns run status and the latest SEC canary summary when available.
 - `POST /api/domains/resolve?limit=N`
-  - Resolves official websites from Wikidata and upserts normalized domains with source metadata.
+  - Resolves official websites from Wikidata (Wikipedia title first, then CIK) and upserts normalized domains with source metadata.
 - `POST /api/careers/discover?limit=N`
   - Probes careers URLs and stores ATS endpoints (`WORKDAY`, `GREENHOUSE`, `LEVER`) when found.
 - `POST /api/crawl/run`
@@ -164,6 +169,7 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
 - Domain resolution and careers discovery limits are independent (`crawler.automation.resolve-limit`, `crawler.automation.discover-limit`).
 - Redirect following enabled.
 - 403/429 host backoff enabled.
+- Host cooldown persists across runs for repeated timeouts/robots/429s.
 - Robots.txt fetch failure behavior is configurable (`crawler.robots.fail-open`).
 - ATS adapter policy when robots is unavailable is configurable (`crawler.robots.allow-ats-adapter-when-unavailable`).
 - Sitemap recursion and URL/page fetches are capped.
@@ -188,6 +194,14 @@ cd backend
 cd backend
 ./gradlew test
 ```
+
+## Flyway validation
+
+Do not disable Flyway validation (`SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false` is not supported).
+If you previously edited an applied migration (for example `V16__crawl_run_company_results_observability.sql`) and see a checksum mismatch:
+
+- Recommended (dev only): reset the local database volume (for example `RESET_DB=1 ./scripts/run_full_cycle.sh`) and rerun.
+- Alternative (dev only): run `./gradlew flywayRepair` to align checksums **only** if you are sure the schema matches the migration history.
 
 ## Full cycle helper
 

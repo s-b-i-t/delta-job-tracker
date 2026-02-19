@@ -16,6 +16,7 @@ public record SecCanarySummary(
     CareersDiscoveryResult careersDiscovery,
     Map<String, Integer> companiesCrawledByAtsType,
     int jobsExtracted,
+    int cooldownSkips,
     Map<String, Integer> topErrors,
     Map<String, Long> stepDurationsMs
 ) {

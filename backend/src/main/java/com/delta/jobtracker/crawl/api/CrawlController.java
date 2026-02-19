@@ -14,6 +14,8 @@ import com.delta.jobtracker.crawl.model.CareersDiscoveryFailuresResponse;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryRunResponse;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryRunStatus;
+import com.delta.jobtracker.crawl.model.CanaryRunResponse;
+import com.delta.jobtracker.crawl.model.CanaryRunStatusResponse;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CoverageDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.CrawlTargetsDiagnosticsResponse;
@@ -29,7 +31,6 @@ import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.WorkdayInvalidUrlCleanupResponse;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
-import com.delta.jobtracker.crawl.model.SecCanarySummary;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
@@ -96,10 +97,19 @@ public class CrawlController {
     }
 
     @PostMapping("/canary/sec")
-    public SecCanarySummary runSecCanary(
+    public CanaryRunResponse runSecCanary(
         @RequestParam(name = "limit", required = false) Integer limit
     ) {
-        return secCanaryService.runSecCanary(limit);
+        return secCanaryService.startSecCanary(limit);
+    }
+
+    @GetMapping("/canary/{runId:\\d+}")
+    public CanaryRunStatusResponse getCanaryRunStatus(@PathVariable("runId") long runId) {
+        CanaryRunStatusResponse status = secCanaryService.getCanaryRunStatus(runId);
+        if (status == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Canary run not found: " + runId);
+        }
+        return status;
     }
 
     @PostMapping("/crawl/run")

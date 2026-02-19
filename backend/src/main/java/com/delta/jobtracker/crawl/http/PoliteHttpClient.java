@@ -2,6 +2,8 @@ package com.delta.jobtracker.crawl.http;
 
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
+import com.delta.jobtracker.crawl.service.HostCrawlStateService;
+import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -32,8 +34,13 @@ public class PoliteHttpClient {
     private final Map<String, Semaphore> hostLimiters = new ConcurrentHashMap<>();
     private final Map<String, Object> hostLocks = new ConcurrentHashMap<>();
     private final Map<String, Instant> hostNextAllowed = new ConcurrentHashMap<>();
+    private final HostCrawlStateService hostCrawlStateService;
 
-    public PoliteHttpClient(CrawlerProperties properties, @Qualifier("httpExecutor") ExecutorService httpExecutor) {
+    public PoliteHttpClient(
+        CrawlerProperties properties,
+        @Qualifier("httpExecutor") ExecutorService httpExecutor,
+        HostCrawlStateService hostCrawlStateService
+    ) {
         this.properties = properties;
         this.client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -42,6 +49,7 @@ public class PoliteHttpClient {
             .executor(httpExecutor)
             .build();
         this.globalLimiter = new Semaphore(Math.max(1, properties.getGlobalConcurrency()));
+        this.hostCrawlStateService = hostCrawlStateService;
     }
 
     public HttpFetchResult get(String url, String acceptHeader) {
@@ -158,18 +166,21 @@ public class PoliteHttpClient {
             );
             if (budget != null) {
                 budget.recordResult(result);
+                recordHostCooldownIfNeeded(host, result);
             }
             return result;
         } catch (HttpTimeoutException e) {
             HttpFetchResult result = errorResult(url, startedAt, "timeout", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
+                recordHostCooldownIfNeeded(host, result);
             }
             return result;
         } catch (IOException e) {
             HttpFetchResult result = errorResult(url, startedAt, "io_error", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
+                recordHostCooldownIfNeeded(host, result);
             }
             return result;
         } catch (InterruptedException e) {
@@ -177,12 +188,14 @@ public class PoliteHttpClient {
             HttpFetchResult result = errorResult(url, startedAt, "interrupted", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
+                recordHostCooldownIfNeeded(host, result);
             }
             return result;
         } catch (Exception e) {
             HttpFetchResult result = errorResult(url, startedAt, "http_error", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
+                recordHostCooldownIfNeeded(host, result);
             }
             return result;
         } finally {
@@ -208,6 +221,41 @@ public class PoliteHttpClient {
         }
         int status = result.statusCode();
         return status == 408 || status == 429 || status >= 500;
+    }
+
+    private void recordHostCooldownIfNeeded(String host, HttpFetchResult result) {
+        if (hostCrawlStateService == null || host == null || host.isBlank() || result == null) {
+            return;
+        }
+        if (result.isSuccessful()) {
+            hostCrawlStateService.recordSuccess(host);
+            return;
+        }
+        String category = cooldownCategory(result);
+        if (category != null) {
+            hostCrawlStateService.recordFailure(host, category);
+        }
+    }
+
+    private String cooldownCategory(HttpFetchResult result) {
+        if (result == null) {
+            return null;
+        }
+        if (result.errorCode() != null) {
+            String code = result.errorCode().toLowerCase(Locale.ROOT);
+            if (code.contains("timeout")) {
+                return ReasonCodeClassifier.TIMEOUT;
+            }
+            return null;
+        }
+        int status = result.statusCode();
+        if (status == 429) {
+            return ReasonCodeClassifier.HTTP_429_RATE_LIMIT;
+        }
+        if (status == 408) {
+            return ReasonCodeClassifier.TIMEOUT;
+        }
+        return null;
     }
 
     private boolean sleepBackoff(int attempt) {

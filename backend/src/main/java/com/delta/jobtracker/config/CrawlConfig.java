@@ -28,6 +28,11 @@ public class CrawlConfig {
         return Executors.newSingleThreadExecutor();
     }
 
+    @Bean(name = "canaryExecutor", destroyMethod = "shutdown")
+    public ExecutorService canaryExecutor() {
+        return Executors.newSingleThreadExecutor();
+    }
+
     @Bean(name = "discoveryExecutor", destroyMethod = "shutdown")
     public ExecutorService discoveryExecutor(CrawlerProperties properties) {
         int size = Math.max(2, properties.getGlobalConcurrency());
