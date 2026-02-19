@@ -1,6 +1,9 @@
 package com.delta.jobtracker.crawl.http;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryAbortException;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -40,6 +43,15 @@ public class WdqsHttpClient {
         if (uri == null) {
             return errorResult(url, startedAt, "invalid_url", "URL missing host or malformed");
         }
+        String host = uri.getHost();
+        if (host != null) {
+            host = host.toLowerCase();
+        }
+
+        CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
+        if (budget != null && host != null) {
+            budget.beforeRequest(host);
+        }
 
         String safeAccept = (acceptHeader == null || acceptHeader.isBlank()) ? "*/*" : acceptHeader;
         int timeoutSeconds = properties.getDomainResolution().getWdqsTimeoutSeconds();
@@ -56,7 +68,7 @@ public class WdqsHttpClient {
             HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
             byte[] responseBytes = response.body();
             String responseBody = responseBytes == null ? null : new String(responseBytes, StandardCharsets.UTF_8);
-            return new HttpFetchResult(
+            HttpFetchResult result = new HttpFetchResult(
                 url,
                 response.uri(),
                 response.statusCode(),
@@ -69,15 +81,37 @@ public class WdqsHttpClient {
                 null,
                 null
             );
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } catch (HttpTimeoutException e) {
-            return errorResult(url, startedAt, "timeout", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "timeout", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } catch (IOException e) {
-            return errorResult(url, startedAt, "io_error", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "io_error", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return errorResult(url, startedAt, "interrupted", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "interrupted", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
+        } catch (CanaryAbortException e) {
+            throw e;
         } catch (Exception e) {
-            return errorResult(url, startedAt, "http_error", e.getMessage());
+            HttpFetchResult result = errorResult(url, startedAt, "http_error", e.getMessage());
+            if (budget != null) {
+                budget.recordResult(result);
+            }
+            return result;
         }
     }
 

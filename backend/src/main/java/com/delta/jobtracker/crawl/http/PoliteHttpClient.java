@@ -1,6 +1,7 @@
 package com.delta.jobtracker.crawl.http;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryAbortException;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.service.HostCrawlStateService;
 import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
@@ -107,6 +108,17 @@ public class PoliteHttpClient {
         }
 
         String host = uri.getHost().toLowerCase(Locale.ROOT);
+        if (hostCrawlStateService != null) {
+            Instant nextAllowedAt = hostCrawlStateService.nextAllowedAt(host);
+            if (nextAllowedAt != null && nextAllowedAt.isAfter(Instant.now())) {
+                return errorResult(
+                    url,
+                    startedAt,
+                    "host_cooldown",
+                    "cooldown_until=" + nextAllowedAt
+                );
+            }
+        }
         CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
         if (budget != null) {
             budget.beforeRequest(host);
@@ -191,6 +203,8 @@ public class PoliteHttpClient {
                 recordHostCooldownIfNeeded(host, result);
             }
             return result;
+        } catch (CanaryAbortException e) {
+            throw e;
         } catch (Exception e) {
             HttpFetchResult result = errorResult(url, startedAt, "http_error", e.getMessage());
             if (budget != null) {

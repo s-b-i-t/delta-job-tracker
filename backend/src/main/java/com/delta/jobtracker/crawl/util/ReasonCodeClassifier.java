@@ -15,6 +15,7 @@ public final class ReasonCodeClassifier {
     public static final String HTTP_5XX = "HTTP_5XX";
     public static final String PARSING_FAILED = "PARSING_FAILED";
     public static final String ATS_NOT_FOUND = "ATS_NOT_FOUND";
+    public static final String HOST_COOLDOWN = "HOST_COOLDOWN";
     public static final String UNKNOWN = "UNKNOWN";
 
     private ReasonCodeClassifier() {
@@ -70,6 +71,9 @@ public final class ReasonCodeClassifier {
         String lower = key.toLowerCase(Locale.ROOT);
         if (lower.contains("blocked_by_robots")) {
             return ROBOTS_BLOCKED;
+        }
+        if (lower.contains("host_cooldown")) {
+            return HOST_COOLDOWN;
         }
         if (lower.contains("no_sitemaps")
             || lower.contains("sitemap_no_urls")
