@@ -141,7 +141,7 @@ public class CrawlOrchestratorService {
             if (shouldDiscoverCareers(request)) {
                 CareersDiscoveryResult discovery = tickers.isEmpty()
                     ? careersDiscoveryService.discover(discoverLimit, deadline)
-                    : careersDiscoveryService.discoverForTickers(tickers, discoverLimit, deadline);
+                    : careersDiscoveryService.discoverForTickers(tickers, discoverLimit, deadline, false);
                 log.info("Careers discovery before crawl: discovered={}, failed={}", discovery.discoveredCountByAtsType(), discovery.failedCount());
                 if (budget != null) {
                     budget.checkDeadline();

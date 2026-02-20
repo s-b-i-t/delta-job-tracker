@@ -421,8 +421,16 @@ public class CrawlerProperties {
     }
 
     public static class CareersDiscovery {
+        private static final List<Integer> DEFAULT_FAILURE_BACKOFF = List.of(5, 15, 60, 360, 1440);
+
         private int defaultLimit = 50;
         private int maxCandidatesPerCompany = 60;
+        private int maxSlugCandidates = 8;
+        private int maxCareersPaths = 4;
+        private int robotsCooldownDays = 14;
+        private int maxDurationSeconds = 900;
+        private int maxVendorProbeRequestsPerHost = 200;
+        private List<Integer> failureBackoffMinutes = new ArrayList<>(DEFAULT_FAILURE_BACKOFF);
 
         public int getDefaultLimit() {
             return Math.max(1, defaultLimit);
@@ -438,6 +446,65 @@ public class CrawlerProperties {
 
         public void setMaxCandidatesPerCompany(int maxCandidatesPerCompany) {
             this.maxCandidatesPerCompany = Math.max(1, maxCandidatesPerCompany);
+        }
+
+        public int getMaxSlugCandidates() {
+            return Math.max(1, maxSlugCandidates);
+        }
+
+        public void setMaxSlugCandidates(int maxSlugCandidates) {
+            this.maxSlugCandidates = Math.max(1, maxSlugCandidates);
+        }
+
+        public int getMaxCareersPaths() {
+            return Math.max(0, maxCareersPaths);
+        }
+
+        public void setMaxCareersPaths(int maxCareersPaths) {
+            this.maxCareersPaths = Math.max(0, maxCareersPaths);
+        }
+
+        public int getRobotsCooldownDays() {
+            return Math.max(1, robotsCooldownDays);
+        }
+
+        public void setRobotsCooldownDays(int robotsCooldownDays) {
+            this.robotsCooldownDays = Math.max(1, robotsCooldownDays);
+        }
+
+        public int getMaxDurationSeconds() {
+            return Math.max(0, maxDurationSeconds);
+        }
+
+        public void setMaxDurationSeconds(int maxDurationSeconds) {
+            this.maxDurationSeconds = Math.max(0, maxDurationSeconds);
+        }
+
+        public int getMaxVendorProbeRequestsPerHost() {
+            return Math.max(1, maxVendorProbeRequestsPerHost);
+        }
+
+        public void setMaxVendorProbeRequestsPerHost(int maxVendorProbeRequestsPerHost) {
+            this.maxVendorProbeRequestsPerHost = Math.max(1, maxVendorProbeRequestsPerHost);
+        }
+
+        public List<Integer> getFailureBackoffMinutes() {
+            if (failureBackoffMinutes == null || failureBackoffMinutes.isEmpty()) {
+                return DEFAULT_FAILURE_BACKOFF;
+            }
+            List<Integer> sanitized = new ArrayList<>();
+            for (Integer value : failureBackoffMinutes) {
+                if (value != null && value > 0) {
+                    sanitized.add(value);
+                }
+            }
+            return sanitized.isEmpty() ? DEFAULT_FAILURE_BACKOFF : sanitized;
+        }
+
+        public void setFailureBackoffMinutes(List<Integer> failureBackoffMinutes) {
+            this.failureBackoffMinutes = failureBackoffMinutes == null
+                ? new ArrayList<>(DEFAULT_FAILURE_BACKOFF)
+                : new ArrayList<>(failureBackoffMinutes);
         }
     }
 
@@ -509,6 +576,9 @@ public class CrawlerProperties {
         private String sp500Csv = "../data/sp500_constituents.csv";
         private String domainsCsv = "../data/domains.csv";
         private String secCompanyTickersUrl = "https://www.sec.gov/files/company_tickers.json";
+        private String secCompanyTickersCachePath = "../data/sec_company_tickers_cache.json";
+        private int secCompanyTickersCacheTtlHours = 24;
+        private String secUserAgent;
 
         public String getSp500WikipediaUrl() {
             return sp500WikipediaUrl;
@@ -540,6 +610,30 @@ public class CrawlerProperties {
 
         public void setSecCompanyTickersUrl(String secCompanyTickersUrl) {
             this.secCompanyTickersUrl = secCompanyTickersUrl;
+        }
+
+        public String getSecCompanyTickersCachePath() {
+            return secCompanyTickersCachePath;
+        }
+
+        public void setSecCompanyTickersCachePath(String secCompanyTickersCachePath) {
+            this.secCompanyTickersCachePath = secCompanyTickersCachePath;
+        }
+
+        public int getSecCompanyTickersCacheTtlHours() {
+            return Math.max(0, secCompanyTickersCacheTtlHours);
+        }
+
+        public void setSecCompanyTickersCacheTtlHours(int secCompanyTickersCacheTtlHours) {
+            this.secCompanyTickersCacheTtlHours = Math.max(0, secCompanyTickersCacheTtlHours);
+        }
+
+        public String getSecUserAgent() {
+            return secUserAgent;
+        }
+
+        public void setSecUserAgent(String secUserAgent) {
+            this.secUserAgent = secUserAgent;
         }
     }
 

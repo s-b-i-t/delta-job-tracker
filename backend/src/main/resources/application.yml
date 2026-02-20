@@ -43,6 +43,10 @@ crawler:
   data:
     sp500-csv: ../data/sp500_constituents.csv
     domains-csv: ../data/domains.csv
+    sec-company-tickers-url: https://www.sec.gov/files/company_tickers.json
+    sec-company-tickers-cache-path: ../data/sec_company_tickers_cache.json
+    sec-company-tickers-cache-ttl-hours: 24
+    sec-user-agent: ${CRAWLER_SEC_USER_AGENT:}
 
   canary:
     default-limit: 50
@@ -54,3 +58,12 @@ crawler:
     min-requests-for-429-rate: 25
     max-consecutive-errors: 25
     max-attempts-per-request: 1
+
+  careers-discovery:
+    default-limit: 50
+    max-duration-seconds: 900
+    max-slug-candidates: 8
+    max-careers-paths: 4
+    robots-cooldown-days: 14
+    max-vendor-probe-requests-per-host: 200
+    failure-backoff-minutes: [5, 15, 60, 360, 1440]

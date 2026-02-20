@@ -68,10 +68,11 @@ curl -X POST "http://localhost:8080/api/ingest?source=file"
 curl -X POST "http://localhost:8080/api/domains/resolve?limit=200"
 ```
 
-3. Discover careers/ATS endpoints from domains:
+3. Discover careers/ATS endpoints from domains (async):
 
 ```bash
 curl -X POST "http://localhost:8080/api/careers/discover?limit=200"
+curl http://localhost:8080/api/careers/discover/runs/latest
 ```
 
 4. Run crawl batch:
@@ -118,8 +119,14 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
   - Always ingests `data/domains.csv` after companies as seed/override domains.
   - Returns `companiesUpserted`, `domainsSeeded`, `errorsCount`, and up to 10 `sampleErrors`.
   - `GET /api/ingest` is intentionally not supported and returns `405`.
+- `POST /api/universe/ingest/sec?limit=N`
+  - Ingests SEC company tickers into `companies` with `CIK`, `ticker`, and `name`.
+  - Returns `inserted`, `updated`, `total`, and `errorCount` with sample errors.
+  - Uses `crawler.data.sec-user-agent` (env `CRAWLER_SEC_USER_AGENT`) when set; falls back to `crawler.user-agent`.
 - `POST /api/canary/sec?limit=N`
   - Starts an async SEC canary run and returns `{runId, status}` quickly.
+- `POST /api/canary/sec-full-cycle?companyLimit=N&discoverVendorProbeOnly=true&crawl=true`
+  - Runs SEC ingest → domain resolution → ATS discovery → ATS crawl (atsOnly=true) with canary budgets.
 - `GET /api/canary/{runId}`
   - Returns run status and the latest SEC canary summary when available.
 - `GET /api/canary/latest?type=SEC`
@@ -128,8 +135,13 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
   - Lists hosts currently in cooldown with `next_allowed_at` timestamps.
 - `POST /api/domains/resolve?limit=N`
   - Resolves official websites from Wikidata (Wikipedia title first, then CIK) and upserts normalized domains with source metadata.
-- `POST /api/careers/discover?limit=N`
-  - Probes careers URLs and stores ATS endpoints (`WORKDAY`, `GREENHOUSE`, `LEVER`) when found.
+- `POST /api/careers/discover?limit=N&vendorProbeOnly=true`
+  - Starts an async discovery run and returns `{runId, status, statusUrl}`.
+  - `vendorProbeOnly=true` skips homepage/careers path fetches and only probes ATS vendor hosts.
+- `GET /api/careers/discover/run/{id}`
+  - Returns discovery run status + metrics.
+- `GET /api/careers/discover/runs/latest`
+  - Returns the most recent discovery run status.
 - `POST /api/crawl/run`
   - Orchestrates crawl pipeline:
     1. Optional domain resolution for missing domains

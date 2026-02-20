@@ -28,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -93,20 +94,24 @@ public class CareersDiscoveryService {
     }
 
     public CareersDiscoveryResult discover(Integer requestedLimit) {
-        return discover(requestedLimit, null);
+        return discover(requestedLimit, null, false);
     }
 
     public CareersDiscoveryResult discover(Integer requestedLimit, Instant deadline) {
+        return discover(requestedLimit, deadline, false);
+    }
+
+    public CareersDiscoveryResult discover(Integer requestedLimit, Instant deadline, boolean vendorProbeOnly) {
         int limit = requestedLimit == null
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
 
         List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(limit);
-        return discoverForCompanies(companies, deadline);
+        return discoverForCompanies(companies, deadline, vendorProbeOnly);
     }
 
     public CareersDiscoveryResult discoverForTickers(List<String> tickers, Integer requestedLimit) {
-        return discoverForTickers(tickers, requestedLimit, null);
+        return discoverForTickers(tickers, requestedLimit, null, false);
     }
 
     public CareersDiscoveryResult discoverForTickers(
@@ -114,18 +119,32 @@ public class CareersDiscoveryService {
         Integer requestedLimit,
         Instant deadline
     ) {
+        return discoverForTickers(tickers, requestedLimit, deadline, false);
+    }
+
+    public CareersDiscoveryResult discoverForTickers(
+        List<String> tickers,
+        Integer requestedLimit,
+        Instant deadline,
+        boolean vendorProbeOnly
+    ) {
         int limit = requestedLimit == null
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
         List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
-        return discoverForCompanies(companies, deadline);
+        return discoverForCompanies(companies, deadline, vendorProbeOnly);
     }
 
-    private CareersDiscoveryResult discoverForCompanies(List<CompanyTarget> companies, Instant deadline) {
+    private CareersDiscoveryResult discoverForCompanies(
+        List<CompanyTarget> companies,
+        Instant deadline,
+        boolean vendorProbeOnly
+    ) {
         Map<String, Integer> discoveredCountByType = new LinkedHashMap<>();
         int failedCount = 0;
         int cooldownSkips = 0;
         Map<String, Integer> topErrors = new LinkedHashMap<>();
+        VendorProbeLimiter vendorProbeLimiter = vendorProbeLimiter(properties.getCareersDiscovery().getMaxVendorProbeRequestsPerHost());
 
         for (CompanyTarget company : companies) {
             if (deadline != null && Instant.now().isAfter(deadline)) {
@@ -133,7 +152,7 @@ public class CareersDiscoveryService {
                 break;
             }
             try {
-                DiscoveryOutcome outcome = discoverForCompany(company, deadline);
+                DiscoveryOutcome outcome = discoverForCompany(company, deadline, null, vendorProbeLimiter, vendorProbeOnly);
                 cooldownSkips += outcome.cooldownSkips();
                 if (outcome.skipped()) {
                     continue;
@@ -159,21 +178,28 @@ public class CareersDiscoveryService {
     }
 
     DiscoveryOutcome discoverForCompany(CompanyTarget company, Instant deadline) {
-        return discoverForCompany(company, deadline, null, null);
+        return discoverForCompany(company, deadline, null, null, false);
     }
 
     DiscoveryOutcome discoverForCompany(
         CompanyTarget company,
         Instant deadline,
         DiscoveryMetrics metrics,
-        VendorProbeLimiter vendorProbeLimiter
+        VendorProbeLimiter vendorProbeLimiter,
+        boolean vendorProbeOnly
     ) {
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
         List<DiscoveryFailure> failures = new ArrayList<>();
         AtomicInteger cooldownSkips = new AtomicInteger(0);
 
-        if (company == null || company.domain() == null || company.domain().isBlank()) {
+        if (company == null) {
+            DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
+            return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, false);
+        }
+
+        boolean hasDomain = company.domain() != null && !company.domain().isBlank();
+        if (!hasDomain && !vendorProbeOnly) {
             DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
             return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, false);
         }
@@ -193,34 +219,36 @@ public class CareersDiscoveryService {
             return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
         }
 
-        String homepageUrl = "https://" + company.domain().trim().toLowerCase(Locale.ROOT) + "/";
-        if (!robotsTxtService.isAllowed(homepageUrl)) {
-            failures.add(new DiscoveryFailure("discovery_blocked_by_robots", homepageUrl, null));
-            if (metrics != null) {
-                metrics.incrementRobotsBlocked();
-            }
-            recordCooldownFailure(homepageUrl, ReasonCodeClassifier.ROBOTS_BLOCKED);
-        } else {
-            if (metrics != null) {
-                metrics.incrementHomepageScanned();
-            }
-            HttpFetchResult fetch = httpClient.get(homepageUrl, HTML_ACCEPT);
-            if (!fetch.isSuccessful() || fetch.body() == null) {
-                failures.add(failureFromFetch("discovery_fetch_failed", homepageUrl, fetch));
+        if (!vendorProbeOnly && hasDomain) {
+            String homepageUrl = "https://" + company.domain().trim().toLowerCase(Locale.ROOT) + "/";
+            if (!robotsTxtService.isAllowed(homepageUrl)) {
+                failures.add(new DiscoveryFailure("discovery_blocked_by_robots", homepageUrl, null));
                 if (metrics != null) {
-                    metrics.incrementFetchFailed();
+                    metrics.incrementRobotsBlocked();
                 }
-                recordCooldownFromFetch(homepageUrl, fetch);
+                recordCooldownFailure(homepageUrl, ReasonCodeClassifier.ROBOTS_BLOCKED);
             } else {
-                recordCooldownSuccess(homepageUrl);
-                List<AtsDetectionRecord> endpoints = extractHomepageEndpoints(fetch.body(), homepageUrl);
-                if (!endpoints.isEmpty()) {
-                    registerEndpoints(company, homepageUrl, endpoints, "homepage_link", 0.95, true, seen, countsByType);
+                if (metrics != null) {
+                    metrics.incrementHomepageScanned();
+                }
+                HttpFetchResult fetch = httpClient.get(homepageUrl, HTML_ACCEPT);
+                if (!fetch.isSuccessful() || fetch.body() == null) {
+                    failures.add(failureFromFetch("discovery_fetch_failed", homepageUrl, fetch));
                     if (metrics != null) {
-                        metrics.incrementHomepageFound(endpoints);
+                        metrics.incrementFetchFailed();
                     }
-                    updateDiscoveryStateSuccess(company);
-                    return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+                    recordCooldownFromFetch(homepageUrl, fetch);
+                } else {
+                    recordCooldownSuccess(homepageUrl);
+                    List<AtsDetectionRecord> endpoints = extractHomepageEndpoints(fetch.body(), homepageUrl);
+                    if (!endpoints.isEmpty()) {
+                        registerEndpoints(company, homepageUrl, endpoints, "homepage_link", 0.95, true, seen, countsByType);
+                        if (metrics != null) {
+                            metrics.incrementHomepageFound(endpoints);
+                        }
+                        updateDiscoveryStateSuccess(company);
+                        return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+                    }
                 }
             }
         }
@@ -241,7 +269,7 @@ public class CareersDiscoveryService {
                 updateDiscoveryState(company, failure);
                 return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
             }
-            AtsDetectionRecord vendorEndpoint = probeVendorSlug(slug, metrics, vendorProbeLimiter);
+            AtsDetectionRecord vendorEndpoint = probeVendorSlug(slug, metrics, vendorProbeLimiter, failures);
             if (vendorEndpoint != null) {
                 registerEndpoints(
                     company,
@@ -261,53 +289,55 @@ public class CareersDiscoveryService {
             }
         }
 
-        int pathsChecked = 0;
-        int maxPaths = properties.getCareersDiscovery().getMaxCareersPaths();
-        for (String path : COMMON_PATHS) {
-            if (pathsChecked >= maxPaths) {
-                break;
-            }
-            if (deadlineExceeded(deadline)) {
-                DiscoveryFailure failure = new DiscoveryFailure("discovery_time_budget_exceeded", path, null);
-                if (metrics != null) {
-                    metrics.incrementTimeBudgetExceeded();
+        if (!vendorProbeOnly && hasDomain) {
+            int pathsChecked = 0;
+            int maxPaths = properties.getCareersDiscovery().getMaxCareersPaths();
+            for (String path : COMMON_PATHS) {
+                if (pathsChecked >= maxPaths) {
+                    break;
                 }
-                updateDiscoveryState(company, failure);
-                return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
-            }
-
-            String candidate = "https://" + company.domain().trim().toLowerCase(Locale.ROOT) + path;
-            pathsChecked++;
-            if (metrics != null) {
-                metrics.incrementCareersPathsChecked();
-            }
-
-            if (!robotsTxtService.isAllowed(candidate)) {
-                failures.add(new DiscoveryFailure("discovery_blocked_by_robots", candidate, null));
-                if (metrics != null) {
-                    metrics.incrementRobotsBlocked();
+                if (deadlineExceeded(deadline)) {
+                    DiscoveryFailure failure = new DiscoveryFailure("discovery_time_budget_exceeded", path, null);
+                    if (metrics != null) {
+                        metrics.incrementTimeBudgetExceeded();
+                    }
+                    updateDiscoveryState(company, failure);
+                    return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
                 }
-                recordCooldownFailure(candidate, ReasonCodeClassifier.ROBOTS_BLOCKED);
-                continue;
-            }
 
-            HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
-            if (!fetch.isSuccessful() || fetch.body() == null) {
-                failures.add(failureFromFetch("discovery_fetch_failed", candidate, fetch));
+                String candidate = "https://" + company.domain().trim().toLowerCase(Locale.ROOT) + path;
+                pathsChecked++;
                 if (metrics != null) {
-                    metrics.incrementFetchFailed();
+                    metrics.incrementCareersPathsChecked();
                 }
-                recordCooldownFromFetch(candidate, fetch);
-                continue;
-            }
-            recordCooldownSuccess(candidate);
 
-            String resolved = normalizeCandidateUrl(fetch.finalUrlOrRequested());
-            List<AtsDetectionRecord> extracted = atsEndpointExtractor.extract(resolved, fetch.body());
-            if (!extracted.isEmpty()) {
-                registerEndpoints(company, candidate, extracted, "careers_path", 0.85, true, seen, countsByType);
-                updateDiscoveryStateSuccess(company);
-                return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+                if (!robotsTxtService.isAllowed(candidate)) {
+                    failures.add(new DiscoveryFailure("discovery_blocked_by_robots", candidate, null));
+                    if (metrics != null) {
+                        metrics.incrementRobotsBlocked();
+                    }
+                    recordCooldownFailure(candidate, ReasonCodeClassifier.ROBOTS_BLOCKED);
+                    continue;
+                }
+
+                HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
+                if (!fetch.isSuccessful() || fetch.body() == null) {
+                    failures.add(failureFromFetch("discovery_fetch_failed", candidate, fetch));
+                    if (metrics != null) {
+                        metrics.incrementFetchFailed();
+                    }
+                    recordCooldownFromFetch(candidate, fetch);
+                    continue;
+                }
+                recordCooldownSuccess(candidate);
+
+                String resolved = normalizeCandidateUrl(fetch.finalUrlOrRequested());
+                List<AtsDetectionRecord> extracted = atsEndpointExtractor.extract(resolved, fetch.body());
+                if (!extracted.isEmpty()) {
+                    registerEndpoints(company, candidate, extracted, "careers_path", 0.85, true, seen, countsByType);
+                    updateDiscoveryStateSuccess(company);
+                    return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+                }
             }
         }
 
@@ -463,6 +493,20 @@ public class CareersDiscoveryService {
 
     private void increment(Map<String, Integer> map, String key, int delta) {
         map.put(key, map.getOrDefault(key, 0) + delta);
+    }
+
+    private VendorProbeLimiter vendorProbeLimiter(int maxPerHost) {
+        if (maxPerHost <= 0) {
+            return null;
+        }
+        Map<String, AtomicInteger> counters = new ConcurrentHashMap<>();
+        return host -> {
+            if (host == null || host.isBlank()) {
+                return false;
+            }
+            AtomicInteger counter = counters.computeIfAbsent(host, ignored -> new AtomicInteger(0));
+            return counter.incrementAndGet() <= maxPerHost;
+        };
     }
 
     private LinkedHashSet<String> buildCandidates(CompanyTarget company, AtomicInteger cooldownSkips) {
@@ -652,7 +696,8 @@ public class CareersDiscoveryService {
     private AtsDetectionRecord probeVendorSlug(
         String slug,
         DiscoveryMetrics metrics,
-        VendorProbeLimiter vendorProbeLimiter
+        VendorProbeLimiter vendorProbeLimiter,
+        List<DiscoveryFailure> failures
     ) {
         if (slug == null || slug.isBlank()) {
             return null;
@@ -663,7 +708,8 @@ public class CareersDiscoveryService {
             "boards.greenhouse.io",
             this::isGreenhouseSignature,
             metrics,
-            vendorProbeLimiter
+            vendorProbeLimiter,
+            failures
         );
         if (greenhouse != null) {
             return greenhouse;
@@ -674,7 +720,8 @@ public class CareersDiscoveryService {
             "jobs.lever.co",
             this::isLeverSignature,
             metrics,
-            vendorProbeLimiter
+            vendorProbeLimiter,
+            failures
         );
         if (lever != null) {
             return lever;
@@ -685,7 +732,8 @@ public class CareersDiscoveryService {
             "jobs.smartrecruiters.com",
             this::isSmartRecruitersSignature,
             metrics,
-            vendorProbeLimiter
+            vendorProbeLimiter,
+            failures
         );
     }
 
@@ -695,7 +743,8 @@ public class CareersDiscoveryService {
         String host,
         Predicate<String> signatureCheck,
         DiscoveryMetrics metrics,
-        VendorProbeLimiter vendorProbeLimiter
+        VendorProbeLimiter vendorProbeLimiter,
+        List<DiscoveryFailure> failures
     ) {
         if (vendorProbeLimiter != null && !vendorProbeLimiter.tryAcquire(host)) {
             return null;
@@ -704,6 +753,9 @@ public class CareersDiscoveryService {
         if (!fetch.isSuccessful() || fetch.body() == null) {
             if (metrics != null) {
                 metrics.incrementFetchFailed();
+            }
+            if (failures != null) {
+                failures.add(failureFromFetch("discovery_fetch_failed", url, fetch));
             }
             recordCooldownFromFetch(url, fetch);
             return null;

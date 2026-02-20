@@ -47,9 +47,11 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Repository
 public class CrawlJdbcRepository {
@@ -929,6 +931,35 @@ public class CrawlJdbcRepository {
 
     public long upsertCompany(String ticker, String name, String sector) {
         return upsertCompany(ticker, name, sector, null, null);
+    }
+
+    public Set<String> findExistingCompanyTickers(List<String> tickers) {
+        if (tickers == null || tickers.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> existing = new LinkedHashSet<>();
+        int batchSize = 1000;
+        for (int i = 0; i < tickers.size(); i += batchSize) {
+            int end = Math.min(tickers.size(), i + batchSize);
+            List<String> slice = tickers.subList(i, end);
+            MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("tickers", slice);
+            jdbc.query(
+                """
+                    SELECT ticker
+                    FROM companies
+                    WHERE ticker IN (:tickers)
+                    """,
+                params,
+                rs -> {
+                    String ticker = rs.getString("ticker");
+                    if (ticker != null) {
+                        existing.add(ticker);
+                    }
+                }
+            );
+        }
+        return existing;
     }
 
     public long upsertCompany(String ticker, String name, String sector, String wikipediaTitle) {

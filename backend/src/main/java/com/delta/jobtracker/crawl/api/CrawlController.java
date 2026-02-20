@@ -29,6 +29,7 @@ import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
+import com.delta.jobtracker.crawl.model.SecUniverseIngestionSummary;
 import com.delta.jobtracker.crawl.model.WorkdayInvalidUrlCleanupResponse;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
@@ -101,11 +102,28 @@ public class CrawlController {
         return ingestionService.ingest(source);
     }
 
+    @PostMapping("/universe/ingest/sec")
+    public SecUniverseIngestionSummary ingestSecUniverse(
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        int safeLimit = limit == null ? 20000 : Math.max(1, limit);
+        return ingestionService.ingestSecUniverse(safeLimit);
+    }
+
     @PostMapping("/canary/sec")
     public CanaryRunResponse runSecCanary(
         @RequestParam(name = "limit", required = false) Integer limit
     ) {
         return secCanaryService.startSecCanary(limit);
+    }
+
+    @PostMapping("/canary/sec-full-cycle")
+    public CanaryRunResponse runSecFullCycleCanary(
+        @RequestParam(name = "companyLimit", required = false) Integer limit,
+        @RequestParam(name = "discoverVendorProbeOnly", required = false) Boolean vendorProbeOnly,
+        @RequestParam(name = "crawl", required = false) Boolean crawl
+    ) {
+        return secCanaryService.startSecFullCycleCanary(limit, vendorProbeOnly, crawl);
     }
 
     @GetMapping("/canary/{runId:\\d+}")
@@ -220,16 +238,21 @@ public class CrawlController {
     }
 
     @PostMapping("/careers/discover")
-    public CareersDiscoveryResult discoverCareers(@RequestParam(name = "limit", required = false) Integer limit) {
-        return careersDiscoveryService.discover(limit);
+    public CareersDiscoveryRunResponse discoverCareers(
+        @RequestParam(name = "limit", required = false) Integer limit,
+        @RequestParam(name = "batchSize", required = false) Integer batchSize,
+        @RequestParam(name = "vendorProbeOnly", required = false) Boolean vendorProbeOnly
+    ) {
+        return careersDiscoveryRunService.startAsync(limit, batchSize, vendorProbeOnly);
     }
 
     @PostMapping("/careers/discover/async")
     public CareersDiscoveryRunResponse discoverCareersAsync(
         @RequestParam(name = "limit", required = false) Integer limit,
-        @RequestParam(name = "batchSize", required = false) Integer batchSize
+        @RequestParam(name = "batchSize", required = false) Integer batchSize,
+        @RequestParam(name = "vendorProbeOnly", required = false) Boolean vendorProbeOnly
     ) {
-        return careersDiscoveryRunService.startAsync(limit, batchSize);
+        return careersDiscoveryRunService.startAsync(limit, batchSize, vendorProbeOnly);
     }
 
     @GetMapping("/careers/discover/run/{id:\\d+}")
@@ -237,6 +260,15 @@ public class CrawlController {
         CareersDiscoveryRunStatus status = careersDiscoveryRunService.getRunStatus(runId);
         if (status == null) {
             throw new ResponseStatusException(NOT_FOUND, "Discovery run not found: " + runId);
+        }
+        return status;
+    }
+
+    @GetMapping("/careers/discover/runs/latest")
+    public CareersDiscoveryRunStatus getLatestCareersDiscoveryRun() {
+        CareersDiscoveryRunStatus status = careersDiscoveryRunService.getLatestRunStatus();
+        if (status == null) {
+            throw new ResponseStatusException(NOT_FOUND, "No discovery runs found");
         }
         return status;
     }

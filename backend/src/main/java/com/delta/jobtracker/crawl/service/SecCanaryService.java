@@ -74,7 +74,27 @@ public class SecCanaryService {
         }
         Instant startedAt = Instant.now();
         long runId = repository.insertCanaryRun("SEC", limit, startedAt);
-        canaryExecutor.submit(() -> runAndPersistCanary(runId, limit));
+        canaryExecutor.submit(() -> runAndPersistCanary(runId, limit, false, true));
+        return new CanaryRunResponse(runId, "RUNNING");
+    }
+
+    public CanaryRunResponse startSecFullCycleCanary(
+        Integer requestedLimit,
+        Boolean vendorProbeOnly,
+        Boolean crawl
+    ) {
+        int limit = requestedLimit == null
+            ? properties.getCanary().getDefaultLimit()
+            : Math.max(1, requestedLimit);
+        boolean vendorProbeOnlyMode = vendorProbeOnly != null && vendorProbeOnly;
+        boolean doCrawl = crawl == null || crawl;
+        CanaryRunStatus existing = repository.findRunningCanaryRun("SEC_FULL_CYCLE");
+        if (existing != null) {
+            return new CanaryRunResponse(existing.runId(), existing.status());
+        }
+        Instant startedAt = Instant.now();
+        long runId = repository.insertCanaryRun("SEC_FULL_CYCLE", limit, startedAt);
+        canaryExecutor.submit(() -> runAndPersistCanary(runId, limit, vendorProbeOnlyMode, doCrawl));
         return new CanaryRunResponse(runId, "RUNNING");
     }
 
@@ -92,6 +112,14 @@ public class SecCanaryService {
     }
 
     public SecCanarySummary runSecCanary(Integer requestedLimit) {
+        return runSecCanary(requestedLimit, false, true);
+    }
+
+    public SecCanarySummary runSecCanary(
+        Integer requestedLimit,
+        boolean vendorProbeOnly,
+        boolean crawl
+    ) {
         int limit = requestedLimit == null
             ? properties.getCanary().getDefaultLimit()
             : Math.max(1, requestedLimit);
@@ -155,7 +183,12 @@ public class SecCanaryService {
                     abortReason = "time_budget_exceeded";
                 } else {
                     Instant discoveryStart = Instant.now();
-                    careersDiscovery = careersDiscoveryService.discoverForTickers(tickers, tickers.size(), deadline);
+                    careersDiscovery = careersDiscoveryService.discoverForTickers(
+                        tickers,
+                        tickers.size(),
+                        deadline,
+                        vendorProbeOnly
+                    );
                     durationDiscoveryMs = Duration.between(discoveryStart, Instant.now()).toMillis();
                     stepDurationsMs.put("discoverCareers", durationDiscoveryMs);
                     endpointsDiscoveredByAtsType = careersDiscovery.discoveredCountByAtsType();
@@ -163,17 +196,22 @@ public class SecCanaryService {
                         status = "ABORTED";
                         abortReason = "time_budget_exceeded";
                     } else {
-                        Instant crawlStart = Instant.now();
-                        CrawlOutcome crawlOutcome = runAtsCanaryCrawl(tickers, deadline);
-                        durationCrawlMs = Duration.between(crawlStart, Instant.now()).toMillis();
-                        stepDurationsMs.put("crawlAts", durationCrawlMs);
-                        crawlRunId = crawlOutcome.crawlRunId();
-                        jobsExtracted = crawlOutcome.jobsExtracted();
-                        if (crawlOutcome.aborted()) {
-                            status = "ABORTED";
-                            abortReason = crawlOutcome.abortReason();
-                        } else if (!"COMPLETED".equals(crawlOutcome.status())) {
-                            status = crawlOutcome.status();
+                        if (crawl) {
+                            Instant crawlStart = Instant.now();
+                            CrawlOutcome crawlOutcome = runAtsCanaryCrawl(tickers, deadline);
+                            durationCrawlMs = Duration.between(crawlStart, Instant.now()).toMillis();
+                            stepDurationsMs.put("crawlAts", durationCrawlMs);
+                            crawlRunId = crawlOutcome.crawlRunId();
+                            jobsExtracted = crawlOutcome.jobsExtracted();
+                            if (crawlOutcome.aborted()) {
+                                status = "ABORTED";
+                                abortReason = crawlOutcome.abortReason();
+                            } else if (!"COMPLETED".equals(crawlOutcome.status())) {
+                                status = crawlOutcome.status();
+                            }
+                        } else {
+                            durationCrawlMs = 0L;
+                            stepDurationsMs.put("crawlAts", durationCrawlMs);
                         }
                     }
                 }
@@ -230,9 +268,14 @@ public class SecCanaryService {
         );
     }
 
-    private void runAndPersistCanary(long runId, int requestedLimit) {
+    private void runAndPersistCanary(
+        long runId,
+        int requestedLimit,
+        boolean vendorProbeOnly,
+        boolean crawl
+    ) {
         try {
-            SecCanarySummary summary = runSecCanary(requestedLimit);
+            SecCanarySummary summary = runSecCanary(requestedLimit, vendorProbeOnly, crawl);
             String runStatus = mapRunStatus(summary.status());
             String summaryJson = null;
             String errorSummaryJson = null;

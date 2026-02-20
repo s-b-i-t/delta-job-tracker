@@ -64,7 +64,7 @@ class SecCanaryServiceTest {
         Map<String, Integer> discovered = new LinkedHashMap<>();
         discovered.put("WORKDAY", 2);
         CareersDiscoveryResult discoveryResult = new CareersDiscoveryResult(discovered, 0, 0, Map.of());
-        when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(2), any()))
+        when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(2), any(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(discoveryResult);
 
         CompanyTarget targetOne = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
@@ -167,7 +167,8 @@ class SecCanaryServiceTest {
             SecCanarySummary summary = service.runSecCanary(5);
             assertEquals("NO_COMPANIES", summary.status());
             verify(domainResolutionService, never()).resolveMissingDomainsForTickers(any(), any(), any());
-            verify(careersDiscoveryService, never()).discoverForTickers(any(), any(), any());
+            verify(careersDiscoveryService, never())
+                .discoverForTickers(any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
             verify(repository, never()).insertCrawlRun(any(), any(), any());
         } finally {
             executor.shutdownNow();
@@ -189,7 +190,7 @@ class SecCanaryServiceTest {
             1,
             Map.of("discovery_host_cooldown", 1)
         );
-        when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(1), any()))
+        when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(1), any(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(discoveryResult);
 
         when(repository.insertCrawlRun(any(), any(), any())).thenReturn(123L);

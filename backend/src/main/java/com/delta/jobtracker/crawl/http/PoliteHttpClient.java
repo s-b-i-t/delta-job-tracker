@@ -54,22 +54,33 @@ public class PoliteHttpClient {
     }
 
     public HttpFetchResult get(String url, String acceptHeader) {
-        return send(url, "GET", acceptHeader, null);
+        return send(url, "GET", acceptHeader, null, null, null);
+    }
+
+    public HttpFetchResult get(String url, String acceptHeader, String userAgentOverride) {
+        return send(url, "GET", acceptHeader, null, null, userAgentOverride);
     }
 
     public HttpFetchResult postJson(String url, String jsonBody, String acceptHeader) {
-        return send(url, "POST", acceptHeader, jsonBody == null ? "" : jsonBody, "application/json");
+        return send(url, "POST", acceptHeader, jsonBody == null ? "" : jsonBody, "application/json", null);
     }
 
     public HttpFetchResult postForm(String url, String formBody, String acceptHeader) {
-        return send(url, "POST", acceptHeader, formBody == null ? "" : formBody, "application/x-www-form-urlencoded");
+        return send(url, "POST", acceptHeader, formBody == null ? "" : formBody, "application/x-www-form-urlencoded", null);
     }
 
     private HttpFetchResult send(String url, String method, String acceptHeader, String body) {
-        return send(url, method, acceptHeader, body, "application/json");
+        return send(url, method, acceptHeader, body, "application/json", null);
     }
 
-    private HttpFetchResult send(String url, String method, String acceptHeader, String body, String contentType) {
+    private HttpFetchResult send(
+        String url,
+        String method,
+        String acceptHeader,
+        String body,
+        String contentType,
+        String userAgentOverride
+    ) {
         CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
         int maxAttempts = Math.max(1, 1 + properties.getRequestMaxRetries());
         if (budget != null) {
@@ -136,7 +147,10 @@ public class PoliteHttpClient {
             hostAcquired = true;
             enforcePerHostDelay(host, budget);
 
-            String safeUserAgent = CrawlerProperties.normalizeUserAgent(properties.getUserAgent());
+            String userAgent = userAgentOverride == null || userAgentOverride.isBlank()
+                ? properties.getUserAgent()
+                : userAgentOverride;
+            String safeUserAgent = CrawlerProperties.normalizeUserAgent(userAgent);
             String safeAccept = (acceptHeader == null || acceptHeader.isBlank()) ? "*/*" : acceptHeader;
             int timeoutSeconds = properties.getRequestTimeoutSeconds();
             if (budget != null) {

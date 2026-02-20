@@ -5,6 +5,7 @@ import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
 import com.delta.jobtracker.crawl.model.SecIngestionResult;
+import com.delta.jobtracker.crawl.model.SecUniverseIngestionSummary;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,12 +25,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Service
@@ -115,13 +119,46 @@ public class UniverseIngestionService {
         MutableCounts counts = new MutableCounts();
         ErrorCollector errors = new ErrorCollector();
         Map<String, Long> companyIdsByTicker = new HashMap<>();
-        List<String> tickers = ingestCompaniesFromSec(secUrl, companyIdsByTicker, counts, errors, limit);
+        List<SecCompanyRecord> records = loadSecCompanyRecords(secUrl, limit, errors);
+        List<String> tickers = new ArrayList<>();
+        if (!records.isEmpty()) {
+            upsertSecCompanies(records, companyIdsByTicker, counts);
+            for (SecCompanyRecord record : records) {
+                tickers.add(record.ticker());
+            }
+        }
         return new SecIngestionResult(
             tickers,
             counts.companiesUpserted,
             errors.totalCount(),
             errors.sampleErrors()
         );
+    }
+
+    public SecUniverseIngestionSummary ingestSecUniverse(int requestedLimit) {
+        int limit = Math.max(1, requestedLimit);
+        String secUrl = properties.getData().getSecCompanyTickersUrl();
+        ErrorCollector errors = new ErrorCollector();
+        List<SecCompanyRecord> records = loadSecCompanyRecords(secUrl, limit, errors);
+        if (records.isEmpty()) {
+            return new SecUniverseIngestionSummary(0, 0, 0, errors.totalCount(), errors.sampleErrors());
+        }
+
+        Set<String> existingTickers = repository.findExistingCompanyTickers(
+            records.stream().map(SecCompanyRecord::ticker).toList()
+        );
+        int inserted = 0;
+        int updated = 0;
+        for (SecCompanyRecord record : records) {
+            repository.upsertCompany(record.ticker(), record.name(), null, null, record.cik());
+            if (existingTickers.contains(record.ticker())) {
+                updated++;
+            } else {
+                inserted++;
+            }
+        }
+        int total = inserted + updated;
+        return new SecUniverseIngestionSummary(inserted, updated, total, errors.totalCount(), errors.sampleErrors());
     }
 
     private boolean ingestCompaniesFromWikipedia(
@@ -226,43 +263,10 @@ public class UniverseIngestionService {
         MutableCounts counts,
         ErrorCollector errors
     ) {
-        if (secUrl == null || secUrl.isBlank()) {
-            errors.add("sec company tickers URL is blank");
-            return false;
-        }
+        List<SecCompanyRecord> records = loadSecCompanyRecords(secUrl, Integer.MAX_VALUE, errors);
         int before = counts.companiesUpserted;
-        HttpFetchResult fetch = httpClient.get(secUrl, "application/json,*/*;q=0.8");
-        if (!fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
-            String status = fetch.errorCode() == null ? "http_" + fetch.statusCode() : fetch.errorCode();
-            errors.add("failed to fetch SEC tickers JSON: " + status);
-            return false;
-        }
-
-        try {
-            JsonNode root = objectMapper.readTree(fetch.body());
-            if (root == null || !root.isObject()) {
-                errors.add("SEC tickers payload was not a JSON object");
-                return false;
-            }
-            for (var entry : iterable(root.fields())) {
-                JsonNode value = entry.getValue();
-                String ticker = normalizeTicker(value.path("ticker").asText(null));
-                String name = normalizeText(value.path("title").asText(null));
-                if (ticker == null) {
-                    ticker = syntheticTickerFromName(name);
-                }
-                if (ticker == null || name == null) {
-                    errors.add("SEC record " + entry.getKey() + " missing ticker/name");
-                    continue;
-                }
-                String cik = normalizeCik(value.path("cik_str").asText(null));
-                long companyId = repository.upsertCompany(ticker, name, null, null, cik);
-                companyIdsByTicker.put(ticker, companyId);
-                counts.companiesUpserted++;
-            }
-        } catch (Exception e) {
-            errors.add("failed to parse SEC tickers JSON: " + rootMessage(e));
-            return false;
+        if (!records.isEmpty()) {
+            upsertSecCompanies(records, companyIdsByTicker, counts);
         }
         return counts.companiesUpserted > before;
     }
@@ -274,27 +278,52 @@ public class UniverseIngestionService {
         ErrorCollector errors,
         int limit
     ) {
+        List<SecCompanyRecord> records = loadSecCompanyRecords(secUrl, limit, errors);
+        int before = counts.companiesUpserted;
+        List<String> tickers = new ArrayList<>();
+        if (!records.isEmpty()) {
+            upsertSecCompanies(records, companyIdsByTicker, counts);
+            for (SecCompanyRecord record : records) {
+                tickers.add(record.ticker());
+            }
+        }
+        return counts.companiesUpserted > before ? List.copyOf(tickers) : List.of();
+    }
+
+    private void upsertSecCompanies(
+        List<SecCompanyRecord> records,
+        Map<String, Long> companyIdsByTicker,
+        MutableCounts counts
+    ) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        for (SecCompanyRecord record : records) {
+            long companyId = repository.upsertCompany(record.ticker(), record.name(), null, null, record.cik());
+            companyIdsByTicker.put(record.ticker(), companyId);
+            counts.companiesUpserted++;
+        }
+    }
+
+    private List<SecCompanyRecord> loadSecCompanyRecords(String secUrl, int limit, ErrorCollector errors) {
         if (secUrl == null || secUrl.isBlank()) {
             errors.add("sec company tickers URL is blank");
             return List.of();
         }
-        int before = counts.companiesUpserted;
-        List<String> tickers = new ArrayList<>();
-        HttpFetchResult fetch = httpClient.get(secUrl, "application/json,*/*;q=0.8");
-        if (!fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
-            String status = fetch.errorCode() == null ? "http_" + fetch.statusCode() : fetch.errorCode();
-            errors.add("failed to fetch SEC tickers JSON: " + status);
+        String payload = loadSecCompanyTickersPayload(secUrl, errors);
+        if (payload == null || payload.isBlank()) {
+            errors.add("SEC tickers payload was empty");
             return List.of();
         }
-
+        List<SecCompanyRecord> records = new ArrayList<>();
         try {
-            JsonNode root = objectMapper.readTree(fetch.body());
+            JsonNode root = objectMapper.readTree(payload);
             if (root == null || !root.isObject()) {
                 errors.add("SEC tickers payload was not a JSON object");
                 return List.of();
             }
             for (var entry : iterable(root.fields())) {
-                if (tickers.size() >= limit) {
+                if (records.size() >= limit) {
                     break;
                 }
                 JsonNode value = entry.getValue();
@@ -308,16 +337,101 @@ public class UniverseIngestionService {
                     continue;
                 }
                 String cik = normalizeCik(value.path("cik_str").asText(null));
-                long companyId = repository.upsertCompany(ticker, name, null, null, cik);
-                companyIdsByTicker.put(ticker, companyId);
-                counts.companiesUpserted++;
-                tickers.add(ticker);
+                records.add(new SecCompanyRecord(ticker, name, cik));
             }
         } catch (Exception e) {
             errors.add("failed to parse SEC tickers JSON: " + rootMessage(e));
             return List.of();
         }
-        return counts.companiesUpserted > before ? List.copyOf(tickers) : List.of();
+        return records;
+    }
+
+    private String loadSecCompanyTickersPayload(String secUrl, ErrorCollector errors) {
+        Path cachePath = resolveOptionalPath(properties.getData().getSecCompanyTickersCachePath());
+        int cacheTtlHours = properties.getData().getSecCompanyTickersCacheTtlHours();
+        boolean cacheEnabled = cachePath != null && cacheTtlHours > 0;
+
+        if (cacheEnabled) {
+            String cached = readCacheIfFresh(cachePath, cacheTtlHours, errors);
+            if (cached != null) {
+                return cached;
+            }
+        }
+
+        String secUserAgent = properties.getData().getSecUserAgent();
+        if (secUserAgent == null || secUserAgent.isBlank()) {
+            secUserAgent = properties.getUserAgent();
+        }
+
+        HttpFetchResult fetch = httpClient.get(secUrl, "application/json,*/*;q=0.8", secUserAgent);
+        if (fetch.isSuccessful() && fetch.body() != null && !fetch.body().isBlank()) {
+            String body = fetch.body();
+            if (cacheEnabled) {
+                writeCache(cachePath, body, errors);
+            }
+            return body;
+        }
+
+        String status = fetch.errorCode() == null ? "http_" + fetch.statusCode() : fetch.errorCode();
+        if (cacheEnabled) {
+            String cached = readCache(cachePath, errors);
+            if (cached != null) {
+                errors.add("failed to fetch SEC tickers JSON (" + status + "), using cached payload");
+                return cached;
+            }
+        }
+        errors.add("failed to fetch SEC tickers JSON: " + status);
+        return null;
+    }
+
+    private String readCacheIfFresh(Path cachePath, int cacheTtlHours, ErrorCollector errors) {
+        if (cachePath == null || cacheTtlHours <= 0) {
+            return null;
+        }
+        try {
+            if (!Files.exists(cachePath)) {
+                return null;
+            }
+            Instant lastModified = Files.getLastModifiedTime(cachePath).toInstant();
+            Instant cutoff = Instant.now().minus(Duration.ofHours(cacheTtlHours));
+            if (lastModified.isBefore(cutoff)) {
+                return null;
+            }
+            return Files.readString(cachePath, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            errors.add("failed to read SEC cache at " + cachePath + ": " + rootMessage(e));
+            return null;
+        }
+    }
+
+    private String readCache(Path cachePath, ErrorCollector errors) {
+        if (cachePath == null) {
+            return null;
+        }
+        try {
+            if (!Files.exists(cachePath)) {
+                return null;
+            }
+            return Files.readString(cachePath, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            errors.add("failed to read SEC cache at " + cachePath + ": " + rootMessage(e));
+            return null;
+        }
+    }
+
+    private void writeCache(Path cachePath, String payload, ErrorCollector errors) {
+        if (cachePath == null || payload == null || payload.isBlank()) {
+            return;
+        }
+        try {
+            Path parent = cachePath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(cachePath, payload, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            errors.add("failed to write SEC cache at " + cachePath + ": " + rootMessage(e));
+        }
     }
 
     private void ingestDomainSeeds(
@@ -537,6 +651,13 @@ public class UniverseIngestionService {
         return Paths.get("").toAbsolutePath().resolve(path).normalize();
     }
 
+    private Path resolveOptionalPath(String configuredPath) {
+        if (configuredPath == null || configuredPath.isBlank()) {
+            return null;
+        }
+        return resolvePath(configuredPath);
+    }
+
     private String blankToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -578,6 +699,9 @@ public class UniverseIngestionService {
     private static class MutableCounts {
         private int companiesUpserted;
         private int domainsSeeded;
+    }
+
+    private record SecCompanyRecord(String ticker, String name, String cik) {
     }
 
     private static class ErrorCollector {
