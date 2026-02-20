@@ -7,6 +7,7 @@ import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.AtsDetectionRecord;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryState;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -19,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 @Service
 public class CareersDiscoveryService {
@@ -132,6 +135,9 @@ public class CareersDiscoveryService {
             try {
                 DiscoveryOutcome outcome = discoverForCompany(company, deadline);
                 cooldownSkips += outcome.cooldownSkips();
+                if (outcome.skipped()) {
+                    continue;
+                }
                 if (!outcome.hasEndpoints()) {
                     failedCount++;
                     DiscoveryFailure failure = outcome.primaryFailure();
@@ -153,52 +159,144 @@ public class CareersDiscoveryService {
     }
 
     DiscoveryOutcome discoverForCompany(CompanyTarget company, Instant deadline) {
+        return discoverForCompany(company, deadline, null, null);
+    }
+
+    DiscoveryOutcome discoverForCompany(
+        CompanyTarget company,
+        Instant deadline,
+        DiscoveryMetrics metrics,
+        VendorProbeLimiter vendorProbeLimiter
+    ) {
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
         List<DiscoveryFailure> failures = new ArrayList<>();
         AtomicInteger cooldownSkips = new AtomicInteger(0);
 
-        scanForAtsLinks(company, seen, countsByType, cooldownSkips);
-        if (!countsByType.isEmpty()) {
-            return new DiscoveryOutcome(countsByType, null, cooldownSkips.get());
+        if (company == null || company.domain() == null || company.domain().isBlank()) {
+            DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
+            return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, false);
         }
 
-        LinkedHashSet<String> candidates = buildCandidates(company, cooldownSkips);
-        int maxCandidates = properties.getCareersDiscovery().getMaxCandidatesPerCompany();
-        int inspected = 0;
-        for (String candidate : candidates) {
-            if (deadline != null && Instant.now().isAfter(deadline)) {
-                failures.add(new DiscoveryFailure("discovery_time_budget_exceeded", candidate, null));
+        if (isCompanyCoolingDown(company.companyId())) {
+            cooldownSkips.incrementAndGet();
+            DiscoveryFailure failure = new DiscoveryFailure("discovery_company_cooldown", null, null);
+            return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), true, false);
+        }
+
+        if (deadlineExceeded(deadline)) {
+            DiscoveryFailure failure = new DiscoveryFailure("discovery_time_budget_exceeded", null, null);
+            if (metrics != null) {
+                metrics.incrementTimeBudgetExceeded();
+            }
+            updateDiscoveryState(company, failure);
+            return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
+        }
+
+        String homepageUrl = "https://" + company.domain().trim().toLowerCase(Locale.ROOT) + "/";
+        if (!robotsTxtService.isAllowed(homepageUrl)) {
+            failures.add(new DiscoveryFailure("discovery_blocked_by_robots", homepageUrl, null));
+            if (metrics != null) {
+                metrics.incrementRobotsBlocked();
+            }
+            recordCooldownFailure(homepageUrl, ReasonCodeClassifier.ROBOTS_BLOCKED);
+        } else {
+            if (metrics != null) {
+                metrics.incrementHomepageScanned();
+            }
+            HttpFetchResult fetch = httpClient.get(homepageUrl, HTML_ACCEPT);
+            if (!fetch.isSuccessful() || fetch.body() == null) {
+                failures.add(failureFromFetch("discovery_fetch_failed", homepageUrl, fetch));
+                if (metrics != null) {
+                    metrics.incrementFetchFailed();
+                }
+                recordCooldownFromFetch(homepageUrl, fetch);
+            } else {
+                recordCooldownSuccess(homepageUrl);
+                List<AtsDetectionRecord> endpoints = extractHomepageEndpoints(fetch.body(), homepageUrl);
+                if (!endpoints.isEmpty()) {
+                    registerEndpoints(company, homepageUrl, endpoints, "homepage_link", 0.95, true, seen, countsByType);
+                    if (metrics != null) {
+                        metrics.incrementHomepageFound(endpoints);
+                    }
+                    updateDiscoveryStateSuccess(company);
+                    return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+                }
+            }
+        }
+
+        List<String> slugCandidates = buildSlugCandidates(company);
+        int maxSlugs = properties.getCareersDiscovery().getMaxSlugCandidates();
+        int slugIndex = 0;
+        for (String slug : slugCandidates) {
+            if (slugIndex >= maxSlugs) {
                 break;
             }
-            if (inspected >= maxCandidates) {
+            slugIndex++;
+            if (deadlineExceeded(deadline)) {
+                DiscoveryFailure failure = new DiscoveryFailure("discovery_time_budget_exceeded", slug, null);
+                if (metrics != null) {
+                    metrics.incrementTimeBudgetExceeded();
+                }
+                updateDiscoveryState(company, failure);
+                return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
+            }
+            AtsDetectionRecord vendorEndpoint = probeVendorSlug(slug, metrics, vendorProbeLimiter);
+            if (vendorEndpoint != null) {
+                registerEndpoints(
+                    company,
+                    vendorEndpoint.atsUrl(),
+                    List.of(vendorEndpoint),
+                    "vendor_probe",
+                    0.9,
+                    true,
+                    seen,
+                    countsByType
+                );
+                if (metrics != null) {
+                    metrics.incrementVendorFound(vendorEndpoint);
+                }
+                updateDiscoveryStateSuccess(company);
+                return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+            }
+        }
+
+        int pathsChecked = 0;
+        int maxPaths = properties.getCareersDiscovery().getMaxCareersPaths();
+        for (String path : COMMON_PATHS) {
+            if (pathsChecked >= maxPaths) {
                 break;
             }
-            inspected++;
-
-            if (isHostCoolingDown(candidate)) {
-                cooldownSkips.incrementAndGet();
-                failures.add(new DiscoveryFailure("discovery_host_cooldown", candidate, null));
-                continue;
+            if (deadlineExceeded(deadline)) {
+                DiscoveryFailure failure = new DiscoveryFailure("discovery_time_budget_exceeded", path, null);
+                if (metrics != null) {
+                    metrics.incrementTimeBudgetExceeded();
+                }
+                updateDiscoveryState(company, failure);
+                return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
             }
 
-            List<AtsDetectionRecord> patternEndpoints = atsEndpointExtractor.extract(candidate, null);
-            if (!patternEndpoints.isEmpty()) {
-                registerEndpoints(company, candidate, patternEndpoints, "pattern", 0.7, false, seen, countsByType);
-                continue;
+            String candidate = "https://" + company.domain().trim().toLowerCase(Locale.ROOT) + path;
+            pathsChecked++;
+            if (metrics != null) {
+                metrics.incrementCareersPathsChecked();
             }
 
             if (!robotsTxtService.isAllowed(candidate)) {
                 failures.add(new DiscoveryFailure("discovery_blocked_by_robots", candidate, null));
+                if (metrics != null) {
+                    metrics.incrementRobotsBlocked();
+                }
                 recordCooldownFailure(candidate, ReasonCodeClassifier.ROBOTS_BLOCKED);
-                log.debug("Careers discovery blocked by robots: {}", candidate);
                 continue;
             }
 
             HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
-            if (!fetch.isSuccessful()) {
-                String status = fetch.errorCode() == null ? "http_" + fetch.statusCode() : fetch.errorCode();
-                failures.add(new DiscoveryFailure("discovery_fetch_failed", candidate, status));
+            if (!fetch.isSuccessful() || fetch.body() == null) {
+                failures.add(failureFromFetch("discovery_fetch_failed", candidate, fetch));
+                if (metrics != null) {
+                    metrics.incrementFetchFailed();
+                }
                 recordCooldownFromFetch(candidate, fetch);
                 continue;
             }
@@ -207,25 +305,14 @@ public class CareersDiscoveryService {
             String resolved = normalizeCandidateUrl(fetch.finalUrlOrRequested());
             List<AtsDetectionRecord> extracted = atsEndpointExtractor.extract(resolved, fetch.body());
             if (!extracted.isEmpty()) {
-                registerEndpoints(company, candidate, extracted, "html", 0.85, true, seen, countsByType);
-                continue;
-            }
-
-            List<AtsDetectionRecord> shortLinkEndpoints = resolveGreenhouseShortLinks(fetch.body());
-            if (!shortLinkEndpoints.isEmpty()) {
-                registerEndpoints(company, candidate, shortLinkEndpoints, "html", 0.8, true, seen, countsByType);
-                continue;
-            }
-
-            AtsType detected = atsDetector.detect(resolved, fetch.body());
-            if (detected != AtsType.UNKNOWN) {
-                failures.add(new DiscoveryFailure("discovery_ats_detected_no_endpoint", resolved, detected.name()));
-                continue;
+                registerEndpoints(company, candidate, extracted, "careers_path", 0.85, true, seen, countsByType);
+                updateDiscoveryStateSuccess(company);
+                return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
             }
         }
 
-        if (countsByType.isEmpty()) {
-            DiscoveryFailure failure = selectFailure(failures);
+        DiscoveryFailure failure = selectFailure(failures);
+        if (failure != null) {
             repository.insertCareersDiscoveryFailure(
                 company.companyId(),
                 failure.reasonCode(),
@@ -233,10 +320,9 @@ public class CareersDiscoveryService {
                 failure.detail(),
                 Instant.now()
             );
-            return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get());
+            updateDiscoveryState(company, failure);
         }
-
-        return new DiscoveryOutcome(countsByType, null, cooldownSkips.get());
+        return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, false);
     }
 
     private List<String> discoverLinksFromHomepage(List<String> homepageUrls, AtomicInteger cooldownSkips) {
@@ -528,6 +614,279 @@ public class CareersDiscoveryService {
         }
     }
 
+    private List<AtsDetectionRecord> extractHomepageEndpoints(String html, String baseUrl) {
+        if (html == null || html.isBlank()) {
+            return List.of();
+        }
+        Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
+        Document doc = Jsoup.parse(html, baseUrl);
+        for (Element anchor : doc.select("a[href]")) {
+            String href = anchor.attr("abs:href");
+            if (href == null || href.isBlank()) {
+                continue;
+            }
+            for (AtsDetectionRecord record : atsEndpointExtractor.extract(href, null)) {
+                unique.put(record.atsType().name() + "|" + record.atsUrl().toLowerCase(Locale.ROOT), record);
+            }
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private List<String> buildSlugCandidates(CompanyTarget company) {
+        LinkedHashSet<String> slugs = new LinkedHashSet<>();
+        if (company != null && company.domain() != null) {
+            String root = domainRoot(company.domain());
+            if (root != null) {
+                slugs.add(root);
+            }
+        }
+        if (company != null && company.name() != null) {
+            slugs.addAll(nameSlugCandidates(company.name()));
+        }
+        if (company != null && company.ticker() != null && !company.ticker().isBlank()) {
+            slugs.add(company.ticker().trim().toLowerCase(Locale.ROOT));
+        }
+        return new ArrayList<>(slugs);
+    }
+
+    private AtsDetectionRecord probeVendorSlug(
+        String slug,
+        DiscoveryMetrics metrics,
+        VendorProbeLimiter vendorProbeLimiter
+    ) {
+        if (slug == null || slug.isBlank()) {
+            return null;
+        }
+        AtsDetectionRecord greenhouse = probeVendor(
+            "https://boards.greenhouse.io/" + slug,
+            AtsType.GREENHOUSE,
+            "boards.greenhouse.io",
+            this::isGreenhouseSignature,
+            metrics,
+            vendorProbeLimiter
+        );
+        if (greenhouse != null) {
+            return greenhouse;
+        }
+        AtsDetectionRecord lever = probeVendor(
+            "https://jobs.lever.co/" + slug,
+            AtsType.LEVER,
+            "jobs.lever.co",
+            this::isLeverSignature,
+            metrics,
+            vendorProbeLimiter
+        );
+        if (lever != null) {
+            return lever;
+        }
+        return probeVendor(
+            "https://jobs.smartrecruiters.com/" + slug,
+            AtsType.SMARTRECRUITERS,
+            "jobs.smartrecruiters.com",
+            this::isSmartRecruitersSignature,
+            metrics,
+            vendorProbeLimiter
+        );
+    }
+
+    private AtsDetectionRecord probeVendor(
+        String url,
+        AtsType atsType,
+        String host,
+        Predicate<String> signatureCheck,
+        DiscoveryMetrics metrics,
+        VendorProbeLimiter vendorProbeLimiter
+    ) {
+        if (vendorProbeLimiter != null && !vendorProbeLimiter.tryAcquire(host)) {
+            return null;
+        }
+        HttpFetchResult fetch = httpClient.get(url, HTML_ACCEPT);
+        if (!fetch.isSuccessful() || fetch.body() == null) {
+            if (metrics != null) {
+                metrics.incrementFetchFailed();
+            }
+            recordCooldownFromFetch(url, fetch);
+            return null;
+        }
+        recordCooldownSuccess(url);
+        String body = fetch.body();
+        if (!signatureCheck.test(body)) {
+            return null;
+        }
+        for (AtsDetectionRecord record : atsEndpointExtractor.extract(fetch.finalUrlOrRequested(), body)) {
+            if (record.atsType() == atsType) {
+                return record;
+            }
+        }
+        return null;
+    }
+
+    private boolean isGreenhouseSignature(String body) {
+        String lower = body == null ? "" : body.toLowerCase(Locale.ROOT);
+        return lower.contains("greenhouse") || lower.contains("boards.greenhouse.io");
+    }
+
+    private boolean isLeverSignature(String body) {
+        String lower = body == null ? "" : body.toLowerCase(Locale.ROOT);
+        return lower.contains("lever") && lower.contains("jobs.lever.co");
+    }
+
+    private boolean isSmartRecruitersSignature(String body) {
+        String lower = body == null ? "" : body.toLowerCase(Locale.ROOT);
+        return lower.contains("smartrecruiters");
+    }
+
+    private String domainRoot(String domain) {
+        if (domain == null || domain.isBlank()) {
+            return null;
+        }
+        String host = domain.trim().toLowerCase(Locale.ROOT);
+        if (!host.startsWith("http://") && !host.startsWith("https://")) {
+            host = "https://" + host;
+        }
+        try {
+            java.net.URI uri = new java.net.URI(host);
+            String parsedHost = uri.getHost();
+            if (parsedHost == null || parsedHost.isBlank()) {
+                return null;
+            }
+            String normalized = parsedHost.toLowerCase(Locale.ROOT);
+            if (normalized.startsWith("www.")) {
+                normalized = normalized.substring(4);
+            }
+            int dot = normalized.indexOf('.');
+            String root = dot > 0 ? normalized.substring(0, dot) : normalized;
+            return normalizeSlugToken(root);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private List<String> nameSlugCandidates(String name) {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        String normalized = name.toLowerCase(Locale.ROOT).replace("&", "and");
+        normalized = normalized.replaceAll("[^a-z0-9]+", " ").trim();
+        if (normalized.isBlank()) {
+            return List.of();
+        }
+        String compact = normalized.replace(" ", "");
+        String hyphenated = normalized.replace(" ", "-");
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        if (!compact.isBlank()) {
+            candidates.add(compact);
+        }
+        if (!hyphenated.isBlank()) {
+            candidates.add(hyphenated);
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private String normalizeSlugToken(String token) {
+        if (token == null) {
+            return null;
+        }
+        String cleaned = token.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9-]", "");
+        return cleaned.isBlank() ? null : cleaned;
+    }
+
+    private DiscoveryFailure failureFromFetch(String reasonCode, String candidate, HttpFetchResult fetch) {
+        if (fetch == null) {
+            return new DiscoveryFailure(reasonCode, candidate, null);
+        }
+        String detail = fetch.errorCode() == null ? "http_" + fetch.statusCode() : fetch.errorCode();
+        String reason = detail != null && detail.contains("host_cooldown") ? "discovery_host_cooldown" : reasonCode;
+        return new DiscoveryFailure(reason, candidate, detail);
+    }
+
+    private boolean isCompanyCoolingDown(long companyId) {
+        CareersDiscoveryState state = repository.findCareersDiscoveryState(companyId);
+        if (state == null || state.nextAttemptAt() == null) {
+            return false;
+        }
+        return state.nextAttemptAt().isAfter(Instant.now());
+    }
+
+    private void updateDiscoveryStateSuccess(CompanyTarget company) {
+        if (company == null) {
+            return;
+        }
+        repository.upsertCareersDiscoveryState(
+            company.companyId(),
+            Instant.now(),
+            null,
+            null,
+            0,
+            null
+        );
+    }
+
+    private void updateDiscoveryState(CompanyTarget company, DiscoveryFailure failure) {
+        if (company == null || failure == null) {
+            return;
+        }
+        String reason = failure.reasonCode();
+        if ("discovery_company_cooldown".equals(reason) || "discovery_no_domain".equals(reason)) {
+            return;
+        }
+        CareersDiscoveryState existing = repository.findCareersDiscoveryState(company.companyId());
+        int failures = existing == null ? 0 : existing.consecutiveFailures();
+        int nextFailures = failures + 1;
+        Instant now = Instant.now();
+        Instant nextAttemptAt = null;
+        if ("discovery_blocked_by_robots".equals(reason)) {
+            int days = properties.getCareersDiscovery().getRobotsCooldownDays();
+            nextAttemptAt = now.plus(Duration.ofDays(Math.max(1, days)));
+        } else if (isTransientFailure(failure)) {
+            Duration backoff = backoffForFailures(nextFailures);
+            if (backoff != null) {
+                nextAttemptAt = now.plus(backoff);
+            }
+        }
+
+        repository.upsertCareersDiscoveryState(
+            company.companyId(),
+            now,
+            reason,
+            failure.candidateUrl(),
+            nextFailures,
+            nextAttemptAt
+        );
+    }
+
+    private boolean isTransientFailure(DiscoveryFailure failure) {
+        if (failure == null) {
+            return false;
+        }
+        String reason = failure.reasonCode();
+        if ("discovery_host_cooldown".equals(reason)) {
+            return true;
+        }
+        if (!"discovery_fetch_failed".equals(reason)) {
+            return false;
+        }
+        String detail = failure.detail() == null ? "" : failure.detail().toLowerCase(Locale.ROOT);
+        return detail.contains("timeout")
+            || detail.contains("http_5")
+            || detail.contains("http_429")
+            || detail.contains("io_error");
+    }
+
+    private Duration backoffForFailures(int failures) {
+        List<Integer> steps = properties.getCareersDiscovery().getFailureBackoffMinutes();
+        if (steps.isEmpty()) {
+            return null;
+        }
+        int index = Math.max(0, Math.min(failures, steps.size()) - 1);
+        int minutes = steps.get(index);
+        return Duration.ofMinutes(Math.max(1, minutes));
+    }
+
+    private boolean deadlineExceeded(Instant deadline) {
+        return deadline != null && Instant.now().isAfter(deadline);
+    }
+
     private List<AtsDetectionRecord> resolveGreenhouseShortLinks(String html) {
         List<String> shortLinks = atsEndpointExtractor.extractGreenhouseShortLinks(html);
         if (shortLinks.isEmpty()) {
@@ -629,7 +988,17 @@ public class CareersDiscoveryService {
             return new DiscoveryFailure("discovery_no_match", null, null);
         }
         for (DiscoveryFailure failure : failures) {
+            if ("discovery_time_budget_exceeded".equals(failure.reasonCode())) {
+                return failure;
+            }
+        }
+        for (DiscoveryFailure failure : failures) {
             if ("discovery_blocked_by_robots".equals(failure.reasonCode())) {
+                return failure;
+            }
+        }
+        for (DiscoveryFailure failure : failures) {
+            if ("discovery_host_cooldown".equals(failure.reasonCode())) {
                 return failure;
             }
         }
@@ -641,7 +1010,13 @@ public class CareersDiscoveryService {
         return failures.getFirst();
     }
 
-    record DiscoveryOutcome(Map<AtsType, Integer> countsByType, DiscoveryFailure failure, int cooldownSkips) {
+    record DiscoveryOutcome(
+        Map<AtsType, Integer> countsByType,
+        DiscoveryFailure failure,
+        int cooldownSkips,
+        boolean skipped,
+        boolean timeBudgetExceeded
+    ) {
         boolean hasEndpoints() {
             return countsByType != null && !countsByType.isEmpty();
         }
@@ -649,6 +1024,92 @@ public class CareersDiscoveryService {
         DiscoveryFailure primaryFailure() {
             return failure;
         }
+
+        boolean skipped() {
+            return skipped;
+        }
+
+        boolean timeBudgetExceeded() {
+            return timeBudgetExceeded;
+        }
+    }
+
+    static final class DiscoveryMetrics {
+        private int homepageScanned;
+        private int careersPathsChecked;
+        private int robotsBlockedCount;
+        private int fetchFailedCount;
+        private int timeBudgetExceededCount;
+        private final Map<AtsType, Integer> endpointsFoundHomepage = new LinkedHashMap<>();
+        private final Map<AtsType, Integer> endpointsFoundVendorProbe = new LinkedHashMap<>();
+
+        void incrementHomepageScanned() {
+            homepageScanned++;
+        }
+
+        void incrementCareersPathsChecked() {
+            careersPathsChecked++;
+        }
+
+        void incrementRobotsBlocked() {
+            robotsBlockedCount++;
+        }
+
+        void incrementFetchFailed() {
+            fetchFailedCount++;
+        }
+
+        void incrementTimeBudgetExceeded() {
+            timeBudgetExceededCount++;
+        }
+
+        void incrementHomepageFound(List<AtsDetectionRecord> endpoints) {
+            for (AtsDetectionRecord record : endpoints) {
+                endpointsFoundHomepage.put(record.atsType(), endpointsFoundHomepage.getOrDefault(record.atsType(), 0) + 1);
+            }
+        }
+
+        void incrementVendorFound(AtsDetectionRecord record) {
+            if (record == null) {
+                return;
+            }
+            endpointsFoundVendorProbe.put(
+                record.atsType(),
+                endpointsFoundVendorProbe.getOrDefault(record.atsType(), 0) + 1
+            );
+        }
+
+        int homepageScanned() {
+            return homepageScanned;
+        }
+
+        int careersPathsChecked() {
+            return careersPathsChecked;
+        }
+
+        int robotsBlockedCount() {
+            return robotsBlockedCount;
+        }
+
+        int fetchFailedCount() {
+            return fetchFailedCount;
+        }
+
+        int timeBudgetExceededCount() {
+            return timeBudgetExceededCount;
+        }
+
+        Map<AtsType, Integer> endpointsFoundHomepage() {
+            return endpointsFoundHomepage;
+        }
+
+        Map<AtsType, Integer> endpointsFoundVendorProbe() {
+            return endpointsFoundVendorProbe;
+        }
+    }
+
+    interface VendorProbeLimiter {
+        boolean tryAcquire(String host);
     }
 
     record DiscoveryFailure(String reasonCode, String candidateUrl, String detail) {

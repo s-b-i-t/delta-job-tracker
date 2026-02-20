@@ -1,6 +1,9 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryAbortException;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyFailureView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryFailuresResponse;
@@ -19,6 +22,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
 
 @Service

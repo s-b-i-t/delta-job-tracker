@@ -1,6 +1,7 @@
 package com.delta.jobtracker.crawl.model;
 
 import java.time.Instant;
+import java.util.Map;
 
 public record CareersDiscoveryRunStatus(
     long discoveryRunId,
@@ -12,6 +13,15 @@ public record CareersDiscoveryRunStatus(
     int succeededCount,
     int failedCount,
     int endpointsAdded,
-    String lastError
+    String lastError,
+    int companiesConsidered,
+    int homepageScanned,
+    Map<String, Integer> endpointsFoundHomepageByAtsType,
+    Map<String, Integer> endpointsFoundVendorProbeByAtsType,
+    int careersPathsChecked,
+    int robotsBlockedCount,
+    int fetchFailedCount,
+    int timeBudgetExceededCount,
+    Map<String, Long> failuresByReason
 ) {
 }

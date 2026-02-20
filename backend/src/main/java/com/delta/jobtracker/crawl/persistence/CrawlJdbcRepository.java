@@ -7,6 +7,7 @@ import com.delta.jobtracker.crawl.model.CanaryRunStatus;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyFailureView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryRunStatus;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryState;
 import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
@@ -25,6 +26,8 @@ import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.util.JobUrlUtils;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -51,6 +54,8 @@ import java.util.Map;
 @Repository
 public class CrawlJdbcRepository {
     private static final Logger log = LoggerFactory.getLogger(CrawlJdbcRepository.class);
+    private static final TypeReference<Map<String, Integer>> MAP_INT = new TypeReference<>() {};
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final NamedParameterJdbcTemplate jdbc;
     private final boolean postgres;
     private final CrawlerProperties properties;
@@ -126,7 +131,7 @@ public class CrawlJdbcRepository {
         Map<String, Long> counts = new LinkedHashMap<>();
         jdbc.query(
             """
-                SELECT reason_code, COUNT(*) AS total
+                SELECT reason_code, COUNT(DISTINCT company_id) AS total
                 FROM careers_discovery_failures
                 GROUP BY reason_code
                 ORDER BY total DESC, reason_code
@@ -198,7 +203,15 @@ public class CrawlJdbcRepository {
         int succeededCount,
         int failedCount,
         int endpointsAdded,
-        String lastError
+        String lastError,
+        int companiesConsidered,
+        int homepageScanned,
+        Map<String, Integer> endpointsFoundHomepageByAtsType,
+        Map<String, Integer> endpointsFoundVendorProbeByAtsType,
+        int careersPathsChecked,
+        int robotsBlockedCount,
+        int fetchFailedCount,
+        int timeBudgetExceededCount
     ) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("runId", runId)
@@ -206,7 +219,15 @@ public class CrawlJdbcRepository {
             .addValue("succeededCount", succeededCount)
             .addValue("failedCount", failedCount)
             .addValue("endpointsAdded", endpointsAdded)
-            .addValue("lastError", truncateErrorDetail(lastError));
+            .addValue("lastError", truncateErrorDetail(lastError))
+            .addValue("companiesConsidered", Math.max(0, companiesConsidered))
+            .addValue("homepageScanned", Math.max(0, homepageScanned))
+            .addValue("endpointsFoundHomepageJson", writeJson(endpointsFoundHomepageByAtsType))
+            .addValue("endpointsFoundVendorJson", writeJson(endpointsFoundVendorProbeByAtsType))
+            .addValue("careersPathsChecked", Math.max(0, careersPathsChecked))
+            .addValue("robotsBlockedCount", Math.max(0, robotsBlockedCount))
+            .addValue("fetchFailedCount", Math.max(0, fetchFailedCount))
+            .addValue("timeBudgetExceededCount", Math.max(0, timeBudgetExceededCount));
         jdbc.update(
             """
                 UPDATE careers_discovery_runs
@@ -214,7 +235,15 @@ public class CrawlJdbcRepository {
                     succeeded_count = :succeededCount,
                     failed_count = :failedCount,
                     endpoints_added = :endpointsAdded,
-                    last_error = COALESCE(:lastError, last_error)
+                    last_error = COALESCE(:lastError, last_error),
+                    companies_considered = :companiesConsidered,
+                    homepage_scanned = :homepageScanned,
+                    endpoints_found_homepage_json = :endpointsFoundHomepageJson,
+                    endpoints_found_vendor_json = :endpointsFoundVendorJson,
+                    careers_paths_checked = :careersPathsChecked,
+                    robots_blocked_count = :robotsBlockedCount,
+                    fetch_failed_count = :fetchFailedCount,
+                    time_budget_exceeded_count = :timeBudgetExceededCount
                 WHERE id = :runId
                 """,
             params
@@ -410,7 +439,15 @@ public class CrawlJdbcRepository {
                        succeeded_count,
                        failed_count,
                        endpoints_added,
-                       last_error
+                       last_error,
+                       companies_considered,
+                       homepage_scanned,
+                       endpoints_found_homepage_json,
+                       endpoints_found_vendor_json,
+                       careers_paths_checked,
+                       robots_blocked_count,
+                       fetch_failed_count,
+                       time_budget_exceeded_count
                 FROM careers_discovery_runs
                 WHERE id = :runId
                 """,
@@ -425,7 +462,67 @@ public class CrawlJdbcRepository {
                 rs.getInt("succeeded_count"),
                 rs.getInt("failed_count"),
                 rs.getInt("endpoints_added"),
-                rs.getString("last_error")
+                rs.getString("last_error"),
+                rs.getInt("companies_considered"),
+                rs.getInt("homepage_scanned"),
+                readJsonMap(rs.getString("endpoints_found_homepage_json")),
+                readJsonMap(rs.getString("endpoints_found_vendor_json")),
+                rs.getInt("careers_paths_checked"),
+                rs.getInt("robots_blocked_count"),
+                rs.getInt("fetch_failed_count"),
+                rs.getInt("time_budget_exceeded_count"),
+                Map.of()
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public CareersDiscoveryRunStatus findLatestCareersDiscoveryRun() {
+        List<CareersDiscoveryRunStatus> rows = jdbc.query(
+            """
+                SELECT id,
+                       started_at,
+                       finished_at,
+                       status,
+                       company_limit,
+                       processed_count,
+                       succeeded_count,
+                       failed_count,
+                       endpoints_added,
+                       last_error,
+                       companies_considered,
+                       homepage_scanned,
+                       endpoints_found_homepage_json,
+                       endpoints_found_vendor_json,
+                       careers_paths_checked,
+                       robots_blocked_count,
+                       fetch_failed_count,
+                       time_budget_exceeded_count
+                FROM careers_discovery_runs
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+            new MapSqlParameterSource(),
+            (rs, rowNum) -> new CareersDiscoveryRunStatus(
+                rs.getLong("id"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getString("status"),
+                rs.getInt("company_limit"),
+                rs.getInt("processed_count"),
+                rs.getInt("succeeded_count"),
+                rs.getInt("failed_count"),
+                rs.getInt("endpoints_added"),
+                rs.getString("last_error"),
+                rs.getInt("companies_considered"),
+                rs.getInt("homepage_scanned"),
+                readJsonMap(rs.getString("endpoints_found_homepage_json")),
+                readJsonMap(rs.getString("endpoints_found_vendor_json")),
+                rs.getInt("careers_paths_checked"),
+                rs.getInt("robots_blocked_count"),
+                rs.getInt("fetch_failed_count"),
+                rs.getInt("time_budget_exceeded_count"),
+                Map.of()
             )
         );
         return rows.isEmpty() ? null : rows.getFirst();
@@ -712,6 +809,78 @@ public class CrawlJdbcRepository {
                 toInstant(rs.getTimestamp("last_attempt_at")),
                 toInstant(rs.getTimestamp("next_allowed_at"))
             )
+        );
+    }
+
+    public CareersDiscoveryState findCareersDiscoveryState(long companyId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId);
+        List<CareersDiscoveryState> rows = jdbc.query(
+            """
+                SELECT company_id,
+                       last_attempt_at,
+                       last_reason_code,
+                       last_candidate_url,
+                       consecutive_failures,
+                       next_attempt_at
+                FROM careers_discovery_state
+                WHERE company_id = :companyId
+                """,
+            params,
+            (rs, rowNum) -> new CareersDiscoveryState(
+                rs.getLong("company_id"),
+                toInstant(rs.getTimestamp("last_attempt_at")),
+                rs.getString("last_reason_code"),
+                rs.getString("last_candidate_url"),
+                rs.getInt("consecutive_failures"),
+                toInstant(rs.getTimestamp("next_attempt_at"))
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    public void upsertCareersDiscoveryState(
+        long companyId,
+        Instant lastAttemptAt,
+        String lastReasonCode,
+        String lastCandidateUrl,
+        int consecutiveFailures,
+        Instant nextAttemptAt
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("lastAttemptAt", toTimestamp(lastAttemptAt))
+            .addValue("lastReasonCode", lastReasonCode)
+            .addValue("lastCandidateUrl", lastCandidateUrl)
+            .addValue("consecutiveFailures", Math.max(0, consecutiveFailures))
+            .addValue("nextAttemptAt", toTimestamp(nextAttemptAt));
+        jdbc.update(
+            """
+                INSERT INTO careers_discovery_state (
+                    company_id,
+                    last_attempt_at,
+                    last_reason_code,
+                    last_candidate_url,
+                    consecutive_failures,
+                    next_attempt_at
+                )
+                VALUES (
+                    :companyId,
+                    :lastAttemptAt,
+                    :lastReasonCode,
+                    :lastCandidateUrl,
+                    :consecutiveFailures,
+                    :nextAttemptAt
+                )
+                ON CONFLICT (company_id)
+                DO UPDATE SET
+                    last_attempt_at = EXCLUDED.last_attempt_at,
+                    last_reason_code = EXCLUDED.last_reason_code,
+                    last_candidate_url = EXCLUDED.last_candidate_url,
+                    consecutive_failures = EXCLUDED.consecutive_failures,
+                    next_attempt_at = EXCLUDED.next_attempt_at
+                """,
+            params
         );
     }
 
@@ -3376,6 +3545,29 @@ public class CrawlJdbcRepository {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    private Map<String, Integer> readJsonMap(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            Map<String, Integer> parsed = objectMapper.readValue(json, MAP_INT);
+            return parsed == null ? Map.of() : parsed;
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    private String writeJson(Map<String, Integer> map) {
+        if (map == null || map.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(map);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String stripTrailingPunctuation(String value) {
