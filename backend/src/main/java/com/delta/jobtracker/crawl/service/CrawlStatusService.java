@@ -90,11 +90,12 @@ public class CrawlStatusService {
             dbConnected = false;
         }
         if (!dbConnected) {
-            return new CoverageDiagnosticsResponse(new LinkedHashMap<>(), new LinkedHashMap<>());
+            return new CoverageDiagnosticsResponse(new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
         }
         Map<String, Long> counts = repository.coverageCounts();
         Map<String, Long> atsByType = repository.countAtsEndpointsByType();
-        return new CoverageDiagnosticsResponse(counts, atsByType);
+        Map<String, Long> atsByMethod = repository.countAtsEndpointsByDetectionMethod();
+        return new CoverageDiagnosticsResponse(counts, atsByType, atsByMethod);
     }
 
     public DiscoveryFailuresDiagnosticsResponse getDiscoveryFailuresDiagnostics() {

@@ -205,6 +205,9 @@ public class CareersDiscoveryRunService {
                         metrics.homepageScanned(),
                         toAtsTypeMap(metrics.endpointsFoundHomepage()),
                         toAtsTypeMap(metrics.endpointsFoundVendorProbe()),
+                        metrics.sitemapsScanned(),
+                        metrics.sitemapUrlsChecked(),
+                        toAtsTypeMap(metrics.endpointsFoundSitemap()),
                         metrics.careersPathsChecked(),
                         metrics.robotsBlockedCount(),
                         metrics.fetchFailedCount(),
@@ -231,6 +234,9 @@ public class CareersDiscoveryRunService {
                     metrics.homepageScanned(),
                     toAtsTypeMap(metrics.endpointsFoundHomepage()),
                     toAtsTypeMap(metrics.endpointsFoundVendorProbe()),
+                    metrics.sitemapsScanned(),
+                    metrics.sitemapUrlsChecked(),
+                    toAtsTypeMap(metrics.endpointsFoundSitemap()),
                     metrics.careersPathsChecked(),
                     metrics.robotsBlockedCount(),
                     metrics.fetchFailedCount(),
@@ -255,8 +261,20 @@ public class CareersDiscoveryRunService {
         }
         String reason = failure.reasonCode();
         String detail = failure.detail();
-        if ("discovery_blocked_by_robots".equals(reason)) {
+        if ("discovery_homepage_blocked_by_robots".equals(reason)) {
+            return new FailureMapping(ReasonCodeClassifier.ROBOTS_BLOCKED, "HOMEPAGE", null, detail);
+        }
+        if ("discovery_sitemap_blocked_by_robots".equals(reason)) {
+            return new FailureMapping(ReasonCodeClassifier.ROBOTS_BLOCKED, "SITEMAP", null, detail);
+        }
+        if ("discovery_careers_blocked_by_robots".equals(reason) || "discovery_blocked_by_robots".equals(reason)) {
             return new FailureMapping(ReasonCodeClassifier.ROBOTS_BLOCKED, "ROBOTS_SITEMAP", null, detail);
+        }
+        if ("discovery_sitemap_fetch_failed".equals(reason) || "discovery_sitemap_no_urls".equals(reason)) {
+            return new FailureMapping(ReasonCodeClassifier.SITEMAP_NOT_FOUND, "SITEMAP", null, detail);
+        }
+        if ("discovery_homepage_too_large".equals(reason)) {
+            return new FailureMapping(ReasonCodeClassifier.PARSING_FAILED, "HOMEPAGE", null, detail);
         }
         if ("discovery_fetch_failed".equals(reason)) {
             Integer httpStatus = ReasonCodeClassifier.parseHttpStatus(detail);
@@ -323,6 +341,9 @@ public class CareersDiscoveryRunService {
             status.homepageScanned(),
             status.endpointsFoundHomepageByAtsType(),
             status.endpointsFoundVendorProbeByAtsType(),
+            status.sitemapsScanned(),
+            status.sitemapUrlsChecked(),
+            status.endpointsFoundSitemapByAtsType(),
             status.careersPathsChecked(),
             status.robotsBlockedCount(),
             status.fetchFailedCount(),

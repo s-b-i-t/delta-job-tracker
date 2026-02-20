@@ -72,6 +72,9 @@ public final class ReasonCodeClassifier {
         if (lower.contains("blocked_by_robots")) {
             return ROBOTS_BLOCKED;
         }
+        if (lower.contains("homepage_blocked_by_robots") || lower.contains("sitemap_blocked_by_robots")) {
+            return ROBOTS_BLOCKED;
+        }
         if (lower.contains("host_cooldown")) {
             return HOST_COOLDOWN;
         }

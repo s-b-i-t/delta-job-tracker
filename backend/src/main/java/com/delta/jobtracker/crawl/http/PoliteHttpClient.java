@@ -88,7 +88,7 @@ public class PoliteHttpClient {
         }
         HttpFetchResult lastResult = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            lastResult = executeOnce(url, method, acceptHeader, body, contentType);
+            lastResult = executeOnce(url, method, acceptHeader, body, contentType, userAgentOverride);
             if (lastResult == null || !shouldRetry(lastResult) || attempt >= maxAttempts) {
                 return lastResult;
             }
@@ -99,7 +99,14 @@ public class PoliteHttpClient {
         return lastResult;
     }
 
-    private HttpFetchResult executeOnce(String url, String method, String acceptHeader, String body, String contentType) {
+    private HttpFetchResult executeOnce(
+        String url,
+        String method,
+        String acceptHeader,
+        String body,
+        String contentType,
+        String userAgentOverride
+    ) {
         Instant startedAt = Instant.now();
         URI uri = normalizeUri(url);
         if (uri == null || uri.getHost() == null) {

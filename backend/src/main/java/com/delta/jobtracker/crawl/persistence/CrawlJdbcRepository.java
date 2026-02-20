@@ -114,6 +114,27 @@ public class CrawlJdbcRepository {
         return counts;
     }
 
+    public Map<String, Long> countAtsEndpointsByDetectionMethod() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        jdbc.query(
+            """
+                SELECT detection_method, COUNT(*) AS total
+                FROM ats_endpoints
+                GROUP BY detection_method
+                ORDER BY total DESC, detection_method
+                """,
+            new MapSqlParameterSource(),
+            rs -> {
+                String method = rs.getString("detection_method");
+                long total = rs.getLong("total");
+                if (method != null) {
+                    counts.put(method, total);
+                }
+            }
+        );
+        return counts;
+    }
+
     public int countAtsEndpointsForCompany(long companyId) {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("companyId", companyId);
@@ -210,6 +231,9 @@ public class CrawlJdbcRepository {
         int homepageScanned,
         Map<String, Integer> endpointsFoundHomepageByAtsType,
         Map<String, Integer> endpointsFoundVendorProbeByAtsType,
+        int sitemapsScanned,
+        int sitemapUrlsChecked,
+        Map<String, Integer> endpointsFoundSitemapByAtsType,
         int careersPathsChecked,
         int robotsBlockedCount,
         int fetchFailedCount,
@@ -226,6 +250,9 @@ public class CrawlJdbcRepository {
             .addValue("homepageScanned", Math.max(0, homepageScanned))
             .addValue("endpointsFoundHomepageJson", writeJson(endpointsFoundHomepageByAtsType))
             .addValue("endpointsFoundVendorJson", writeJson(endpointsFoundVendorProbeByAtsType))
+            .addValue("sitemapsScanned", Math.max(0, sitemapsScanned))
+            .addValue("sitemapUrlsChecked", Math.max(0, sitemapUrlsChecked))
+            .addValue("endpointsFoundSitemapJson", writeJson(endpointsFoundSitemapByAtsType))
             .addValue("careersPathsChecked", Math.max(0, careersPathsChecked))
             .addValue("robotsBlockedCount", Math.max(0, robotsBlockedCount))
             .addValue("fetchFailedCount", Math.max(0, fetchFailedCount))
@@ -242,6 +269,9 @@ public class CrawlJdbcRepository {
                     homepage_scanned = :homepageScanned,
                     endpoints_found_homepage_json = :endpointsFoundHomepageJson,
                     endpoints_found_vendor_json = :endpointsFoundVendorJson,
+                    sitemaps_scanned = :sitemapsScanned,
+                    sitemap_urls_checked = :sitemapUrlsChecked,
+                    endpoints_found_sitemap_json = :endpointsFoundSitemapJson,
                     careers_paths_checked = :careersPathsChecked,
                     robots_blocked_count = :robotsBlockedCount,
                     fetch_failed_count = :fetchFailedCount,
@@ -446,6 +476,9 @@ public class CrawlJdbcRepository {
                        homepage_scanned,
                        endpoints_found_homepage_json,
                        endpoints_found_vendor_json,
+                       sitemaps_scanned,
+                       sitemap_urls_checked,
+                       endpoints_found_sitemap_json,
                        careers_paths_checked,
                        robots_blocked_count,
                        fetch_failed_count,
@@ -469,6 +502,9 @@ public class CrawlJdbcRepository {
                 rs.getInt("homepage_scanned"),
                 readJsonMap(rs.getString("endpoints_found_homepage_json")),
                 readJsonMap(rs.getString("endpoints_found_vendor_json")),
+                rs.getInt("sitemaps_scanned"),
+                rs.getInt("sitemap_urls_checked"),
+                readJsonMap(rs.getString("endpoints_found_sitemap_json")),
                 rs.getInt("careers_paths_checked"),
                 rs.getInt("robots_blocked_count"),
                 rs.getInt("fetch_failed_count"),
@@ -496,6 +532,9 @@ public class CrawlJdbcRepository {
                        homepage_scanned,
                        endpoints_found_homepage_json,
                        endpoints_found_vendor_json,
+                       sitemaps_scanned,
+                       sitemap_urls_checked,
+                       endpoints_found_sitemap_json,
                        careers_paths_checked,
                        robots_blocked_count,
                        fetch_failed_count,
@@ -520,6 +559,9 @@ public class CrawlJdbcRepository {
                 rs.getInt("homepage_scanned"),
                 readJsonMap(rs.getString("endpoints_found_homepage_json")),
                 readJsonMap(rs.getString("endpoints_found_vendor_json")),
+                rs.getInt("sitemaps_scanned"),
+                rs.getInt("sitemap_urls_checked"),
+                readJsonMap(rs.getString("endpoints_found_sitemap_json")),
                 rs.getInt("careers_paths_checked"),
                 rs.getInt("robots_blocked_count"),
                 rs.getInt("fetch_failed_count"),
@@ -551,9 +593,52 @@ public class CrawlJdbcRepository {
             .addValue("durationMs", durationMs)
             .addValue("httpStatus", httpStatus)
             .addValue("errorDetail", truncateErrorDetail(errorDetail));
+        if (postgres) {
+            jdbc.update(
+                """
+                    INSERT INTO careers_discovery_company_results (
+                        discovery_run_id,
+                        company_id,
+                        status,
+                        reason_code,
+                        stage,
+                        found_endpoints_count,
+                        duration_ms,
+                        http_status,
+                        error_detail,
+                        created_at
+                    )
+                    VALUES (
+                        :runId,
+                        :companyId,
+                        :status,
+                        :reasonCode,
+                        :stage,
+                        :foundEndpointsCount,
+                        :durationMs,
+                        :httpStatus,
+                        :errorDetail,
+                        NOW()
+                    )
+                    ON CONFLICT (discovery_run_id, company_id)
+                    DO UPDATE SET
+                        status = EXCLUDED.status,
+                        reason_code = EXCLUDED.reason_code,
+                        stage = EXCLUDED.stage,
+                        found_endpoints_count = EXCLUDED.found_endpoints_count,
+                        duration_ms = EXCLUDED.duration_ms,
+                        http_status = EXCLUDED.http_status,
+                        error_detail = EXCLUDED.error_detail,
+                        created_at = NOW()
+                    """,
+                params
+            );
+            return;
+        }
+
         jdbc.update(
             """
-                INSERT INTO careers_discovery_company_results (
+                MERGE INTO careers_discovery_company_results (
                     discovery_run_id,
                     company_id,
                     status,
@@ -565,6 +650,7 @@ public class CrawlJdbcRepository {
                     error_detail,
                     created_at
                 )
+                KEY(discovery_run_id, company_id)
                 VALUES (
                     :runId,
                     :companyId,
@@ -575,18 +661,8 @@ public class CrawlJdbcRepository {
                     :durationMs,
                     :httpStatus,
                     :errorDetail,
-                    NOW()
+                    CURRENT_TIMESTAMP()
                 )
-                ON CONFLICT (discovery_run_id, company_id)
-                DO UPDATE SET
-                    status = EXCLUDED.status,
-                    reason_code = EXCLUDED.reason_code,
-                    stage = EXCLUDED.stage,
-                    found_endpoints_count = EXCLUDED.found_endpoints_count,
-                    duration_ms = EXCLUDED.duration_ms,
-                    http_status = EXCLUDED.http_status,
-                    error_detail = EXCLUDED.error_detail,
-                    created_at = NOW()
                 """,
             params
         );

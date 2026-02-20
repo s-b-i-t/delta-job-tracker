@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
@@ -77,8 +78,11 @@ class CareersDiscoveryRunServiceTest {
             any(),
             anyInt(),
             anyInt(),
-            any(),
-            any(),
+            anyMap(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
             anyInt(),
             anyInt(),
             anyInt(),

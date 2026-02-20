@@ -3,12 +3,18 @@ package com.delta.jobtracker.crawl.service;
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.ats.AtsEndpointExtractor;
 import com.delta.jobtracker.crawl.ats.AtsDetector;
+import com.delta.jobtracker.crawl.ats.AtsFingerprintFromHtmlLinksDetector;
+import com.delta.jobtracker.crawl.ats.AtsFingerprintFromSitemapsDetector;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
+import com.delta.jobtracker.crawl.model.SitemapDiscoveryResult;
+import com.delta.jobtracker.crawl.model.SitemapUrlEntry;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
+import com.delta.jobtracker.crawl.robots.RobotsRules;
+import com.delta.jobtracker.crawl.sitemap.SitemapService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,11 +26,14 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,9 +50,13 @@ class CareersDiscoveryServiceTest {
     @Mock
     private AtsDetector atsDetector;
     @Mock
+    private SitemapService sitemapService;
+    @Mock
     private HostCrawlStateService hostCrawlStateService;
 
     private CareersDiscoveryService service;
+    private AtsFingerprintFromHtmlLinksDetector homepageDetector;
+    private AtsFingerprintFromSitemapsDetector sitemapDetector;
 
     @BeforeEach
     void setUp() {
@@ -52,6 +65,12 @@ class CareersDiscoveryServiceTest {
         properties.getCareersDiscovery().setMaxCareersPaths(2);
         properties.getCareersDiscovery().setRobotsCooldownDays(14);
         properties.getCareersDiscovery().setFailureBackoffMinutes(List.of(5, 15));
+        homepageDetector = new AtsFingerprintFromHtmlLinksDetector(new AtsEndpointExtractor());
+        sitemapDetector = new AtsFingerprintFromSitemapsDetector(new AtsEndpointExtractor());
+        lenient().when(robotsTxtService.getRulesForHost(anyString())).thenReturn(RobotsRules.allowAll());
+        lenient().when(robotsTxtService.isAllowed(anyString())).thenReturn(true);
+        lenient().when(sitemapService.discover(any(), anyInt(), anyInt(), anyInt()))
+            .thenReturn(new SitemapDiscoveryResult(List.of(), List.of(), Map.of()));
         service = new CareersDiscoveryService(
             properties,
             repository,
@@ -59,6 +78,9 @@ class CareersDiscoveryServiceTest {
             robotsTxtService,
             atsDetector,
             new AtsEndpointExtractor(),
+            sitemapService,
+            homepageDetector,
+            sitemapDetector,
             hostCrawlStateService
         );
     }
@@ -113,6 +135,35 @@ class CareersDiscoveryServiceTest {
     }
 
     @Test
+    void sitemapDetectionFindsAtsEndpoint() {
+        CompanyTarget company = new CompanyTarget(4L, "SITE", "Site Corp", null, "sitemapco.com", null);
+        String homepage = "https://sitemapco.com/";
+        when(repository.findCareersDiscoveryState(4L)).thenReturn(null);
+        when(httpClient.get(eq(homepage), anyString()))
+            .thenReturn(successHtml(homepage, "<html><body>No links</body></html>"));
+        SitemapDiscoveryResult sitemapResult = new SitemapDiscoveryResult(
+            List.of(),
+            List.of(new SitemapUrlEntry("https://sitemapco.wd5.myworkdayjobs.com/wday/cxs/sitemapco/External/job/123", null)),
+            Map.of()
+        );
+        when(sitemapService.discover(any(), anyInt(), anyInt(), anyInt())).thenReturn(sitemapResult);
+
+        CareersDiscoveryService.DiscoveryOutcome outcome = service.discoverForCompany(company, null, null, null, false);
+
+        assertThat(outcome.hasEndpoints()).isTrue();
+        verify(repository).upsertAtsEndpoint(
+            eq(4L),
+            eq(AtsType.WORKDAY),
+            eq("https://sitemapco.wd5.myworkdayjobs.com/External"),
+            eq("https://sitemapco.wd5.myworkdayjobs.com/wday/cxs/sitemapco/External/job/123"),
+            eq(0.92),
+            any(Instant.class),
+            eq("sitemap"),
+            eq(true)
+        );
+    }
+
+    @Test
     void robotsBlockedCareersPathsAreSkippedAndCached() {
         CompanyTarget company = new CompanyTarget(3L, "ACME", "Acme Corp", null, "acme.com", null);
         String homepage = "https://acme.com/";
@@ -129,7 +180,7 @@ class CareersDiscoveryServiceTest {
         verify(httpClient, never()).get(eq("https://acme.com/careers"), anyString());
         verify(repository).insertCareersDiscoveryFailure(
             eq(3L),
-            eq("discovery_blocked_by_robots"),
+            eq("discovery_careers_blocked_by_robots"),
             eq("https://acme.com/careers"),
             any(),
             any(Instant.class)
@@ -138,7 +189,7 @@ class CareersDiscoveryServiceTest {
         verify(repository).upsertCareersDiscoveryState(
             eq(3L),
             any(Instant.class),
-            eq("discovery_blocked_by_robots"),
+            eq("discovery_careers_blocked_by_robots"),
             eq("https://acme.com/careers"),
             eq(1),
             nextAttemptCaptor.capture()

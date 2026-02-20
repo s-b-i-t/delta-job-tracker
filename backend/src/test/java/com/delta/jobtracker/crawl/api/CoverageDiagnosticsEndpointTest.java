@@ -89,6 +89,7 @@ class CoverageDiagnosticsEndpointTest {
             .andExpect(jsonPath("$.counts.discovered_urls").value(greaterThanOrEqualTo(1)))
             .andExpect(jsonPath("$.counts.ats_endpoints").value(greaterThanOrEqualTo(1)))
             .andExpect(jsonPath("$.counts.job_postings").value(greaterThanOrEqualTo(1)))
-            .andExpect(jsonPath("$.atsEndpointsByType.GREENHOUSE").value(greaterThanOrEqualTo(1)));
+            .andExpect(jsonPath("$.atsEndpointsByType.GREENHOUSE").value(greaterThanOrEqualTo(1)))
+            .andExpect(jsonPath("$.atsEndpointsByMethod.test").value(greaterThanOrEqualTo(1)));
     }
 }

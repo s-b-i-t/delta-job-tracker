@@ -1,8 +1,12 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
-import com.delta.jobtracker.crawl.ats.AtsEndpointExtractor;
 import com.delta.jobtracker.crawl.ats.AtsDetector;
+import com.delta.jobtracker.crawl.ats.AtsEndpointExtractor;
+import com.delta.jobtracker.crawl.ats.AtsFingerprintFromHtmlLinksDetector;
+import com.delta.jobtracker.crawl.ats.AtsFingerprintFromSitemapsDetector;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.AtsDetectionRecord;
@@ -10,8 +14,12 @@ import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryState;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
+import com.delta.jobtracker.crawl.model.SitemapDiscoveryResult;
+import com.delta.jobtracker.crawl.model.SitemapUrlEntry;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import com.delta.jobtracker.crawl.robots.RobotsRules;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
+import com.delta.jobtracker.crawl.sitemap.SitemapService;
 import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -36,6 +44,9 @@ import java.util.function.Predicate;
 public class CareersDiscoveryService {
     private static final Logger log = LoggerFactory.getLogger(CareersDiscoveryService.class);
     private static final String HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+    private static final int MAX_HOMEPAGE_BYTES = 512_000;
+    private static final int HOMEPAGE_TIMEOUT_SECONDS = 10;
+    private static final int MAX_SITEMAP_URLS_DISCOVERY = 120;
 
     private static final List<String> COMMON_PATHS = List.of(
         "/careers",
@@ -73,6 +84,9 @@ public class CareersDiscoveryService {
     private final RobotsTxtService robotsTxtService;
     private final AtsDetector atsDetector;
     private final AtsEndpointExtractor atsEndpointExtractor;
+    private final SitemapService sitemapService;
+    private final AtsFingerprintFromHtmlLinksDetector homepageLinksDetector;
+    private final AtsFingerprintFromSitemapsDetector sitemapDetector;
     private final HostCrawlStateService hostCrawlStateService;
 
     public CareersDiscoveryService(
@@ -82,6 +96,9 @@ public class CareersDiscoveryService {
         RobotsTxtService robotsTxtService,
         AtsDetector atsDetector,
         AtsEndpointExtractor atsEndpointExtractor,
+        SitemapService sitemapService,
+        AtsFingerprintFromHtmlLinksDetector homepageLinksDetector,
+        AtsFingerprintFromSitemapsDetector sitemapDetector,
         HostCrawlStateService hostCrawlStateService
     ) {
         this.properties = properties;
@@ -90,6 +107,9 @@ public class CareersDiscoveryService {
         this.robotsTxtService = robotsTxtService;
         this.atsDetector = atsDetector;
         this.atsEndpointExtractor = atsEndpointExtractor;
+        this.sitemapService = sitemapService;
+        this.homepageLinksDetector = homepageLinksDetector;
+        this.sitemapDetector = sitemapDetector;
         this.hostCrawlStateService = hostCrawlStateService;
     }
 
@@ -222,7 +242,8 @@ public class CareersDiscoveryService {
         if (!vendorProbeOnly && hasDomain) {
             String homepageUrl = "https://" + company.domain().trim().toLowerCase(Locale.ROOT) + "/";
             if (!robotsTxtService.isAllowed(homepageUrl)) {
-                failures.add(new DiscoveryFailure("discovery_blocked_by_robots", homepageUrl, null));
+                DiscoveryFailure failure = new DiscoveryFailure("discovery_homepage_blocked_by_robots", homepageUrl, null);
+                failures.add(failure);
                 if (metrics != null) {
                     metrics.incrementRobotsBlocked();
                 }
@@ -231,25 +252,61 @@ public class CareersDiscoveryService {
                 if (metrics != null) {
                     metrics.incrementHomepageScanned();
                 }
-                HttpFetchResult fetch = httpClient.get(homepageUrl, HTML_ACCEPT);
+                HttpFetchResult fetch = fetchHomepage(homepageUrl);
                 if (!fetch.isSuccessful() || fetch.body() == null) {
                     failures.add(failureFromFetch("discovery_fetch_failed", homepageUrl, fetch));
                     if (metrics != null) {
                         metrics.incrementFetchFailed();
                     }
                     recordCooldownFromFetch(homepageUrl, fetch);
+                } else if (fetch.bodyBytes() != null && fetch.bodyBytes().length > MAX_HOMEPAGE_BYTES) {
+                    failures.add(new DiscoveryFailure(
+                        "discovery_homepage_too_large",
+                        homepageUrl,
+                        "bytes=" + fetch.bodyBytes().length
+                    ));
+                    recordCooldownSuccess(homepageUrl);
                 } else {
                     recordCooldownSuccess(homepageUrl);
-                    List<AtsDetectionRecord> endpoints = extractHomepageEndpoints(fetch.body(), homepageUrl);
+                    Map<AtsDetectionRecord, String> endpoints = homepageLinksDetector.detect(fetch.body(), homepageUrl);
                     if (!endpoints.isEmpty()) {
-                        registerEndpoints(company, homepageUrl, endpoints, "homepage_link", 0.95, true, seen, countsByType);
+                        registerEndpoints(
+                            company,
+                            homepageUrl,
+                            new ArrayList<>(endpoints.keySet()),
+                            "homepage_link",
+                            0.95,
+                            true,
+                            seen,
+                            countsByType
+                        );
                         if (metrics != null) {
-                            metrics.incrementHomepageFound(endpoints);
+                            metrics.incrementHomepageFound(endpoints.keySet());
                         }
                         updateDiscoveryStateSuccess(company);
                         return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
                     }
                 }
+            }
+        }
+
+        if (!vendorProbeOnly && hasDomain) {
+            if (deadlineExceeded(deadline)) {
+                DiscoveryFailure failure = new DiscoveryFailure("discovery_time_budget_exceeded", null, null);
+                if (metrics != null) {
+                    metrics.incrementTimeBudgetExceeded();
+                }
+                updateDiscoveryState(company, failure);
+                return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
+            }
+            SitemapDetectionOutcome sitemapResult = discoverAtsFromSitemaps(company, metrics, failures);
+            if (sitemapResult != null && sitemapResult.hasEndpoints()) {
+                registerEndpoints(company, sitemapResult.endpoints(), "sitemap", 0.92, true, seen, countsByType);
+                if (metrics != null) {
+                    metrics.incrementSitemapFound(sitemapResult.endpoints().keySet());
+                }
+                updateDiscoveryStateSuccess(company);
+                return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
             }
         }
 
@@ -312,12 +369,12 @@ public class CareersDiscoveryService {
                 }
 
                 if (!robotsTxtService.isAllowed(candidate)) {
-                    failures.add(new DiscoveryFailure("discovery_blocked_by_robots", candidate, null));
+                    failures.add(new DiscoveryFailure("discovery_careers_blocked_by_robots", candidate, null));
                     if (metrics != null) {
                         metrics.incrementRobotsBlocked();
                     }
                     recordCooldownFailure(candidate, ReasonCodeClassifier.ROBOTS_BLOCKED);
-                    continue;
+                    break;
                 }
 
                 HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
@@ -626,6 +683,32 @@ public class CareersDiscoveryService {
 
     private void registerEndpoints(
         CompanyTarget company,
+        Map<AtsDetectionRecord, String> endpointsWithSource,
+        String detectionMethod,
+        double confidence,
+        boolean verified,
+        LinkedHashSet<String> seen,
+        Map<AtsType, Integer> countsByType
+    ) {
+        if (endpointsWithSource == null || endpointsWithSource.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<AtsDetectionRecord, String> entry : endpointsWithSource.entrySet()) {
+            registerEndpoint(
+                company,
+                entry.getKey(),
+                entry.getValue(),
+                detectionMethod,
+                confidence,
+                verified,
+                seen,
+                countsByType
+            );
+        }
+    }
+
+    private void registerEndpoints(
+        CompanyTarget company,
         String discoveredFromUrl,
         List<AtsDetectionRecord> endpoints,
         String detectionMethod,
@@ -634,46 +717,69 @@ public class CareersDiscoveryService {
         LinkedHashSet<String> seen,
         Map<AtsType, Integer> countsByType
     ) {
+        if (endpoints == null || endpoints.isEmpty()) {
+            return;
+        }
         for (AtsDetectionRecord endpoint : endpoints) {
-            String endpointUrl = endpoint.atsUrl();
-            if (endpointUrl == null || endpointUrl.isBlank()) {
-                continue;
-            }
-            String key = endpoint.atsType().name() + "|" + endpointUrl.toLowerCase(Locale.ROOT);
-            if (seen.contains(key)) {
-                continue;
-            }
-            seen.add(key);
-            repository.upsertAtsEndpoint(
-                company.companyId(),
-                endpoint.atsType(),
-                endpointUrl,
+            registerEndpoint(
+                company,
+                endpoint,
                 discoveredFromUrl,
-                confidence,
-                Instant.now(),
                 detectionMethod,
-                verified
+                confidence,
+                verified,
+                seen,
+                countsByType
             );
-            countsByType.put(endpoint.atsType(), countsByType.getOrDefault(endpoint.atsType(), 0) + 1);
         }
     }
 
-    private List<AtsDetectionRecord> extractHomepageEndpoints(String html, String baseUrl) {
-        if (html == null || html.isBlank()) {
-            return List.of();
+    private void registerEndpoint(
+        CompanyTarget company,
+        AtsDetectionRecord endpoint,
+        String discoveredFromUrl,
+        String detectionMethod,
+        double confidence,
+        boolean verified,
+        LinkedHashSet<String> seen,
+        Map<AtsType, Integer> countsByType
+    ) {
+        String endpointUrl = endpoint.atsUrl();
+        if (endpointUrl == null || endpointUrl.isBlank()) {
+            return;
         }
-        Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
-        Document doc = Jsoup.parse(html, baseUrl);
-        for (Element anchor : doc.select("a[href]")) {
-            String href = anchor.attr("abs:href");
-            if (href == null || href.isBlank()) {
-                continue;
-            }
-            for (AtsDetectionRecord record : atsEndpointExtractor.extract(href, null)) {
-                unique.put(record.atsType().name() + "|" + record.atsUrl().toLowerCase(Locale.ROOT), record);
-            }
+        String key = endpoint.atsType().name() + "|" + endpointUrl.toLowerCase(Locale.ROOT);
+        if (seen.contains(key)) {
+            return;
         }
-        return new ArrayList<>(unique.values());
+        seen.add(key);
+        repository.upsertAtsEndpoint(
+            company.companyId(),
+            endpoint.atsType(),
+            endpointUrl,
+            discoveredFromUrl,
+            confidence,
+            Instant.now(),
+            detectionMethod,
+            verified
+        );
+        countsByType.put(endpoint.atsType(), countsByType.getOrDefault(endpoint.atsType(), 0) + 1);
+    }
+
+    private HttpFetchResult fetchHomepage(String homepageUrl) {
+        CanaryHttpBudget budget = new CanaryHttpBudget(
+            2,
+            4,
+            1.0,
+            1,
+            3,
+            1,
+            HOMEPAGE_TIMEOUT_SECONDS,
+            Duration.ofSeconds(HOMEPAGE_TIMEOUT_SECONDS * 2L)
+        );
+        try (CanaryHttpBudgetContext.Scope scope = CanaryHttpBudgetContext.activate(budget)) {
+            return httpClient.get(homepageUrl, HTML_ACCEPT);
+        }
     }
 
     private List<String> buildSlugCandidates(CompanyTarget company) {
@@ -735,6 +841,65 @@ public class CareersDiscoveryService {
             vendorProbeLimiter,
             failures
         );
+    }
+
+    private SitemapDetectionOutcome discoverAtsFromSitemaps(
+        CompanyTarget company,
+        DiscoveryMetrics metrics,
+        List<DiscoveryFailure> failures
+    ) {
+        if (company == null || company.domain() == null || company.domain().isBlank()) {
+            return null;
+        }
+        String domain = company.domain().trim().toLowerCase(Locale.ROOT);
+        RobotsRules rules = robotsTxtService.getRulesForHost(domain);
+        List<String> seeds = new ArrayList<>(rules.getSitemapUrls());
+        if (seeds.isEmpty()) {
+            seeds.add("https://" + domain + "/sitemap.xml");
+            if (!domain.startsWith("www.")) {
+                seeds.add("https://www." + domain + "/sitemap.xml");
+            }
+        }
+        int maxUrls = Math.max(1, Math.min(MAX_SITEMAP_URLS_DISCOVERY, properties.getSitemap().getMaxUrlsPerDomain()));
+        SitemapDiscoveryResult result = sitemapService.discover(
+            seeds,
+            properties.getSitemap().getMaxDepth(),
+            properties.getSitemap().getMaxSitemaps(),
+            maxUrls
+        );
+
+        if (metrics != null) {
+            metrics.incrementSitemapsScanned(result.fetchedSitemaps().size());
+            metrics.incrementSitemapUrlsChecked(result.discoveredUrls().size());
+        }
+
+        List<String> urls = result.discoveredUrls().stream().map(SitemapUrlEntry::url).toList();
+        Map<AtsDetectionRecord, String> endpoints = sitemapDetector.detect(urls);
+        if (!endpoints.isEmpty()) {
+            return new SitemapDetectionOutcome(endpoints);
+        }
+
+        if (result.errors().containsKey("blocked_by_robots")) {
+            DiscoveryFailure failure = new DiscoveryFailure(
+                "discovery_sitemap_blocked_by_robots",
+                seeds.isEmpty() ? null : seeds.get(0),
+                "blocked_by_robots"
+            );
+            failures.add(failure);
+            if (metrics != null) {
+                metrics.incrementRobotsBlocked();
+            }
+            for (String seed : seeds) {
+                recordCooldownFailure(seed, ReasonCodeClassifier.ROBOTS_BLOCKED);
+            }
+        } else if (!result.errors().isEmpty()) {
+            String detail = result.errors().keySet().iterator().next();
+            failures.add(new DiscoveryFailure("discovery_sitemap_fetch_failed", seeds.isEmpty() ? null : seeds.get(0), detail));
+        } else if (result.discoveredUrls().isEmpty()) {
+            failures.add(new DiscoveryFailure("discovery_sitemap_no_urls", seeds.isEmpty() ? null : seeds.get(0), null));
+        }
+
+        return new SitemapDetectionOutcome(Map.of());
     }
 
     private AtsDetectionRecord probeVendor(
@@ -887,7 +1052,7 @@ public class CareersDiscoveryService {
         int nextFailures = failures + 1;
         Instant now = Instant.now();
         Instant nextAttemptAt = null;
-        if ("discovery_blocked_by_robots".equals(reason)) {
+        if (isRobotsBlockedReason(reason)) {
             int days = properties.getCareersDiscovery().getRobotsCooldownDays();
             nextAttemptAt = now.plus(Duration.ofDays(Math.max(1, days)));
         } else if (isTransientFailure(failure)) {
@@ -905,6 +1070,13 @@ public class CareersDiscoveryService {
             nextFailures,
             nextAttemptAt
         );
+    }
+
+    private boolean isRobotsBlockedReason(String reason) {
+        return "discovery_blocked_by_robots".equals(reason)
+            || "discovery_homepage_blocked_by_robots".equals(reason)
+            || "discovery_sitemap_blocked_by_robots".equals(reason)
+            || "discovery_careers_blocked_by_robots".equals(reason);
     }
 
     private boolean isTransientFailure(DiscoveryFailure failure) {
@@ -1045,7 +1217,11 @@ public class CareersDiscoveryService {
             }
         }
         for (DiscoveryFailure failure : failures) {
-            if ("discovery_blocked_by_robots".equals(failure.reasonCode())) {
+            String reason = failure.reasonCode();
+            if ("discovery_homepage_blocked_by_robots".equals(reason)
+                || "discovery_sitemap_blocked_by_robots".equals(reason)
+                || "discovery_careers_blocked_by_robots".equals(reason)
+                || "discovery_blocked_by_robots".equals(reason)) {
                 return failure;
             }
         }
@@ -1062,6 +1238,12 @@ public class CareersDiscoveryService {
         return failures.getFirst();
     }
 
+    record SitemapDetectionOutcome(Map<AtsDetectionRecord, String> endpoints) {
+        boolean hasEndpoints() {
+            return endpoints != null && !endpoints.isEmpty();
+        }
+    }
+
     record DiscoveryOutcome(
         Map<AtsType, Integer> countsByType,
         DiscoveryFailure failure,
@@ -1076,14 +1258,6 @@ public class CareersDiscoveryService {
         DiscoveryFailure primaryFailure() {
             return failure;
         }
-
-        boolean skipped() {
-            return skipped;
-        }
-
-        boolean timeBudgetExceeded() {
-            return timeBudgetExceeded;
-        }
     }
 
     static final class DiscoveryMetrics {
@@ -1092,8 +1266,11 @@ public class CareersDiscoveryService {
         private int robotsBlockedCount;
         private int fetchFailedCount;
         private int timeBudgetExceededCount;
+        private int sitemapsScanned;
+        private int sitemapUrlsChecked;
         private final Map<AtsType, Integer> endpointsFoundHomepage = new LinkedHashMap<>();
         private final Map<AtsType, Integer> endpointsFoundVendorProbe = new LinkedHashMap<>();
+        private final Map<AtsType, Integer> endpointsFoundSitemap = new LinkedHashMap<>();
 
         void incrementHomepageScanned() {
             homepageScanned++;
@@ -1115,9 +1292,23 @@ public class CareersDiscoveryService {
             timeBudgetExceededCount++;
         }
 
-        void incrementHomepageFound(List<AtsDetectionRecord> endpoints) {
+        void incrementHomepageFound(Iterable<AtsDetectionRecord> endpoints) {
             for (AtsDetectionRecord record : endpoints) {
                 endpointsFoundHomepage.put(record.atsType(), endpointsFoundHomepage.getOrDefault(record.atsType(), 0) + 1);
+            }
+        }
+
+        void incrementSitemapsScanned(int delta) {
+            sitemapsScanned += Math.max(0, delta);
+        }
+
+        void incrementSitemapUrlsChecked(int delta) {
+            sitemapUrlsChecked += Math.max(0, delta);
+        }
+
+        void incrementSitemapFound(Iterable<AtsDetectionRecord> endpoints) {
+            for (AtsDetectionRecord record : endpoints) {
+                endpointsFoundSitemap.put(record.atsType(), endpointsFoundSitemap.getOrDefault(record.atsType(), 0) + 1);
             }
         }
 
@@ -1157,6 +1348,18 @@ public class CareersDiscoveryService {
 
         Map<AtsType, Integer> endpointsFoundVendorProbe() {
             return endpointsFoundVendorProbe;
+        }
+
+        int sitemapsScanned() {
+            return sitemapsScanned;
+        }
+
+        int sitemapUrlsChecked() {
+            return sitemapUrlsChecked;
+        }
+
+        Map<AtsType, Integer> endpointsFoundSitemap() {
+            return endpointsFoundSitemap;
         }
     }
 

@@ -155,11 +155,15 @@ class AtsAdapterIngestionServiceTest {
         String payload = Files.readString(Path.of("src/test/resources/fixtures/workday-cxs-response.json"));
         when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
         when(httpClient.postJson(eq(cxsUrl), anyString(), anyString())).thenReturn(successFetch(cxsUrl, payload));
+        when(httpClient.get(anyString(), anyString()))
+            .thenAnswer(invocation -> successFetch(invocation.getArgument(0), "<html></html>"));
 
         AtsAdapterResult result = service.ingestIfSupported(12L, company, List.of(endpoint), null);
 
         assertThat(result).isNotNull();
-        assertThat(result.jobsExtractedCount()).isEqualTo(2);
+        assertThat(result.jobsExtractedCount())
+            .withFailMessage("errors=%s", result.errors())
+            .isEqualTo(2);
         verify(repository, atLeastOnce()).upsertJobPostingsBatch(eq(3L), eq(12L), any(List.class), any(Instant.class));
     }
 
