@@ -130,11 +130,13 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
 - `GET /api/canary/{runId}`
   - Returns run status and the latest SEC canary summary when available.
 - `GET /api/canary/latest?type=SEC`
-  - Returns the most recent canary run (by type) and its latest summary.
+  - Returns the most recent canary run and its latest summary. `type` is optional; when omitted the latest run of any type is returned.
 - `GET /api/hosts/cooldown`
   - Lists hosts currently in cooldown with `next_allowed_at` timestamps.
 - `POST /api/domains/resolve?limit=N`
   - Resolves official websites from Wikidata (Wikipedia title first, then CIK) and upserts normalized domains with source metadata.
+- `GET /api/diagnostics/missing-domains?limit=N`
+  - Lists companies still missing domains with cached resolution reasons and a reason breakdown.
 - `POST /api/careers/discover?limit=N&vendorProbeOnly=true`
   - Starts an async discovery run and returns `{runId, status, statusUrl}`.
   - `vendorProbeOnly=true` skips homepage/careers path fetches and only probes ATS vendor hosts.
@@ -248,6 +250,12 @@ curl -X POST "http://localhost:8080/api/careers/discover?limit=600"
 curl -X POST http://localhost:8080/api/crawl/run -H "Content-Type: application/json" -d '{"companyLimit":50,"resolveLimit":600,"discoverLimit":600,"maxSitemapUrls":200,"maxJobPages":50}'
 curl http://localhost:8080/api/status
 ```
+
+## How to verify locally
+
+- Missing domains diagnostics: `curl "http://localhost:8080/api/diagnostics/missing-domains?limit=50"`
+- Resolve remaining domains only: `curl -X POST "http://localhost:8080/api/domains/resolve?limit=600"` (rerun until coverage > 98%).
+- Canary latest (type optional): `curl "http://localhost:8080/api/canary/latest"` or `curl "http://localhost:8080/api/canary/latest?type=SEC"`
 
 Postgres counts:
 

@@ -101,7 +101,7 @@ public class PoliteHttpClient {
         }
         HttpFetchResult lastResult = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            lastResult = executeOnce(url, method, acceptHeader, body, contentType, userAgentOverride, maxBytes);
+            lastResult = executeOnce(url, method, acceptHeader, body, contentType);
             if (lastResult == null || !shouldRetry(lastResult) || attempt >= maxAttempts) {
                 return lastResult;
             }
@@ -118,8 +118,7 @@ public class PoliteHttpClient {
         String acceptHeader,
         String body,
         String contentType,
-        String userAgentOverride,
-        Integer maxBytes
+        String userAgentOverride
     ) {
         Instant startedAt = Instant.now();
         URI uri = normalizeUri(url);

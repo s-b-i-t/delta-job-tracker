@@ -1,7 +1,7 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
-import com.delta.jobtracker.crawl.model.CareersDiscoveryMethodMetrics;
+import com.delta.jobtracker.crawl.model.CanaryRunStatus;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryWithMetrics;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
@@ -18,6 +18,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -281,6 +282,69 @@ class SecCanaryServiceTest {
         SecCanarySummary persisted = testObjectMapper().readValue(summaryCaptor.getValue(), SecCanarySummary.class);
         assertEquals("ABORTED", persisted.status());
         assertEquals("canary_time_budget_exceeded", persisted.abortReason());
+    }
+
+    @Test
+    void latestCanaryFallsBackToAnyTypeWhenMissing() {
+        CanaryRunStatus record = new CanaryRunStatus(
+            5L,
+            "SEC",
+            10,
+            Instant.parse("2026-02-18T10:00:00Z"),
+            Instant.parse("2026-02-18T10:05:00Z"),
+            "COMPLETED",
+            "{}",
+            null
+        );
+        when(repository.findLatestCanaryRun()).thenReturn(record);
+
+        SecCanaryService service = new SecCanaryService(
+            ingestionService,
+            domainResolutionService,
+            careersDiscoveryService,
+            companyCrawlerService,
+            repository,
+            new CrawlerProperties(),
+            new DirectExecutorService(),
+            testObjectMapper()
+        );
+
+        var response = service.getLatestCanaryRunStatus(null);
+        assertNotNull(response);
+        assertEquals(5L, response.runId());
+        verify(repository).findLatestCanaryRun();
+    }
+
+    @Test
+    void latestCanaryFiltersByTypeWhenProvided() {
+        CanaryRunStatus record = new CanaryRunStatus(
+            6L,
+            "SEC_FULL_CYCLE",
+            5,
+            Instant.parse("2026-02-19T08:00:00Z"),
+            Instant.parse("2026-02-19T08:10:00Z"),
+            "COMPLETED",
+            "{}",
+            null
+        );
+        when(repository.findLatestCanaryRun("SEC_FULL_CYCLE")).thenReturn(record);
+
+        SecCanaryService service = new SecCanaryService(
+            ingestionService,
+            domainResolutionService,
+            careersDiscoveryService,
+            companyCrawlerService,
+            repository,
+            new CrawlerProperties(),
+            new DirectExecutorService(),
+            testObjectMapper()
+        );
+
+        var response = service.getLatestCanaryRunStatus("sec_full_cycle");
+        assertNotNull(response);
+        assertEquals(6L, response.runId());
+        assertEquals("SEC_FULL_CYCLE", response.type());
+        verify(repository).findLatestCanaryRun("SEC_FULL_CYCLE");
     }
 
     private ObjectMapper testObjectMapper() {

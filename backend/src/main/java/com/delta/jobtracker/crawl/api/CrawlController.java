@@ -29,6 +29,7 @@ import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
+import com.delta.jobtracker.crawl.model.MissingDomainsDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.SecUniverseIngestionSummary;
 import com.delta.jobtracker.crawl.model.WorkdayInvalidUrlCleanupResponse;
 import com.delta.jobtracker.crawl.model.StatusResponse;
@@ -137,11 +138,14 @@ public class CrawlController {
 
     @GetMapping("/canary/latest")
     public CanaryRunStatusResponse getLatestCanaryRun(
-        @RequestParam(name = "type") String type
+        @RequestParam(name = "type", required = false) String type
     ) {
         CanaryRunStatusResponse status = secCanaryService.getLatestCanaryRunStatus(type);
-        if (status == null) {
+        if (status == null && type != null) {
             throw new ResponseStatusException(NOT_FOUND, "Canary run not found for type: " + type);
+        }
+        if (status == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Canary run not found");
         }
         return status;
     }
@@ -349,6 +353,13 @@ public class CrawlController {
     @GetMapping("/diagnostics/coverage")
     public CoverageDiagnosticsResponse getCoverageDiagnostics() {
         return crawlStatusService.getCoverageDiagnostics();
+    }
+
+    @GetMapping("/diagnostics/missing-domains")
+    public MissingDomainsDiagnosticsResponse getMissingDomainsDiagnostics(
+        @RequestParam(name = "limit", required = false) Integer limit
+    ) {
+        return crawlStatusService.getMissingDomainsDiagnostics(limit);
     }
 
     @GetMapping("/diagnostics/discovery-failures")

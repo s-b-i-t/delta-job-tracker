@@ -15,6 +15,7 @@ import com.delta.jobtracker.crawl.model.CrawlRunFailuresResponse;
 import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobDeltaResponse;
+import com.delta.jobtracker.crawl.model.MissingDomainsDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
@@ -96,6 +97,26 @@ public class CrawlStatusService {
         Map<String, Long> atsByType = repository.countAtsEndpointsByType();
         Map<String, Long> atsByMethod = repository.countAtsEndpointsByDetectionMethod();
         return new CoverageDiagnosticsResponse(counts, atsByType, atsByMethod);
+    }
+
+    public MissingDomainsDiagnosticsResponse getMissingDomainsDiagnostics(Integer limit) {
+        int safeLimit = limit == null ? 100 : Math.max(1, Math.min(limit, 500));
+        boolean dbConnected;
+        try {
+            dbConnected = repository.isDbReachable();
+        } catch (Exception ignored) {
+            dbConnected = false;
+        }
+        if (!dbConnected) {
+            return new MissingDomainsDiagnosticsResponse(0L, new LinkedHashMap<>(), List.of());
+        }
+        long totalMissing = repository.countCompaniesMissingDomain();
+        Map<String, Long> reasons = repository.countMissingDomainsByReason();
+        return new MissingDomainsDiagnosticsResponse(
+            totalMissing,
+            reasons,
+            repository.findMissingDomainEntries(safeLimit)
+        );
     }
 
     public DiscoveryFailuresDiagnosticsResponse getDiscoveryFailuresDiagnostics() {

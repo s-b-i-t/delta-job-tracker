@@ -106,10 +106,12 @@ public class SecCanaryService {
     }
 
     public CanaryRunStatusResponse getLatestCanaryRunStatus(String type) {
+        CanaryRunStatus record;
         if (type == null || type.isBlank()) {
-            return null;
+            record = repository.findLatestCanaryRun();
+        } else {
+            record = repository.findLatestCanaryRun(type.trim().toUpperCase(Locale.ROOT));
         }
-        CanaryRunStatus record = repository.findLatestCanaryRun(type.trim().toUpperCase(Locale.ROOT));
         return buildStatusResponse(record);
     }
 
