@@ -7,6 +7,4 @@ public record HostCrawlState(
     int consecutiveFailures,
     String lastErrorCategory,
     Instant lastAttemptAt,
-    Instant nextAllowedAt
-) {
-}
+    Instant nextAllowedAt) {}

@@ -21,6 +21,4 @@ public record CrawlRunCompanyResultView(
     String reasonCode,
     Integer httpStatus,
     String errorDetail,
-    boolean retryable
-) {
-}
+    boolean retryable) {}

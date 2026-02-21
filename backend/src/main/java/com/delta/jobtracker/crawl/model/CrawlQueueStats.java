@@ -4,9 +4,4 @@ import java.time.Instant;
 import java.util.List;
 
 public record CrawlQueueStats(
-    long dueCount,
-    long lockedCount,
-    Instant nextDueAt,
-    List<CrawlQueueErrorSample> lastErrors
-) {
-}
+    long dueCount, long lockedCount, Instant nextDueAt, List<CrawlQueueErrorSample> lastErrors) {}

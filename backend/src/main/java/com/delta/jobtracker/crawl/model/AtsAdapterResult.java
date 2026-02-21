@@ -6,6 +6,4 @@ public record AtsAdapterResult(
     int jobsExtractedCount,
     int jobpostingPagesFoundCount,
     Map<String, Integer> errors,
-    boolean successfulFetch
-) {
-}
+    boolean successfulFetch) {}

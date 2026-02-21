@@ -1,7 +1,6 @@
 package com.delta.jobtracker.crawl.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
 
 public record JobDeltaResponse(
@@ -13,6 +12,4 @@ public record JobDeltaResponse(
     int updatedCount,
     @JsonProperty("new") List<JobDeltaItem> newJobs,
     List<JobDeltaItem> removed,
-    List<JobDeltaItem> updated
-) {
-}
+    List<JobDeltaItem> updated) {}

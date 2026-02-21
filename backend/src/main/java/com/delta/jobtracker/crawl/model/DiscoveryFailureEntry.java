@@ -8,6 +8,4 @@ public record DiscoveryFailureEntry(
     String candidateUrl,
     String detail,
     Instant observedAt,
-    String reasonCode
-) {
-}
+    String reasonCode) {}

@@ -12,6 +12,4 @@ public record CrawlRunStatusResponse(
     int companiesFailed,
     int jobsExtractedCount,
     Instant lastHeartbeatAt,
-    Instant lastActivityAt
-) {
-}
+    Instant lastActivityAt) {}

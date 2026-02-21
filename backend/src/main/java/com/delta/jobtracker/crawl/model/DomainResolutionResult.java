@@ -9,6 +9,4 @@ public record DomainResolutionResult(
     int noP856Count,
     int wdqsErrorCount,
     int wdqsTimeoutCount,
-    List<String> sampleErrors
-) {
-}
+    List<String> sampleErrors) {}

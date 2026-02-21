@@ -12,6 +12,4 @@ public record NormalizedJobPosting(
     LocalDate datePosted,
     String descriptionText,
     String externalIdentifier,
-    String contentHash
-) {
-}
+    String contentHash) {}

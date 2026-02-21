@@ -11,6 +11,4 @@ public record CrawlRunStatus(
     int companiesSucceeded,
     int companiesFailed,
     int jobsExtractedCount,
-    Instant lastHeartbeatAt
-) {
-}
+    Instant lastHeartbeatAt) {}

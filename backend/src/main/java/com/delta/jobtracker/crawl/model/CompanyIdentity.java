@@ -12,6 +12,4 @@ public record CompanyIdentity(
     String domainResolutionMethod,
     String domainResolutionStatus,
     String domainResolutionError,
-    Instant domainResolutionAttemptedAt
-) {
-}
+    Instant domainResolutionAttemptedAt) {}

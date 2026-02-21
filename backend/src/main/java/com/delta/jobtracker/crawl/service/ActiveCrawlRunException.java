@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 @ResponseStatus(HttpStatus.CONFLICT)
 public class ActiveCrawlRunException extends RuntimeException {
-    public ActiveCrawlRunException(String message) {
-        super(message);
-    }
+  public ActiveCrawlRunException(String message) {
+    super(message);
+  }
 }

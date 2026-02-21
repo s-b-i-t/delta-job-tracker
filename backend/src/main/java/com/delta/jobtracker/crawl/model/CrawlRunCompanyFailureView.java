@@ -9,6 +9,4 @@ public record CrawlRunCompanyFailureView(
     String reasonCode,
     Integer httpStatus,
     String errorDetail,
-    Instant finishedAt
-) {
-}
+    Instant finishedAt) {}

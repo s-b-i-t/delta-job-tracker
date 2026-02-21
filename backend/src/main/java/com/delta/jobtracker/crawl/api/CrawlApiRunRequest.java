@@ -13,6 +13,4 @@ public record CrawlApiRunRequest(
     Boolean ingestBeforeCrawl,
     Boolean resolveDomains,
     Boolean discoverCareers,
-    Boolean atsOnly
-) {
-}
+    Boolean atsOnly) {}

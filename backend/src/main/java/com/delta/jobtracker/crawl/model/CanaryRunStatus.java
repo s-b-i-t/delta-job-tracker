@@ -10,6 +10,4 @@ public record CanaryRunStatus(
     Instant finishedAt,
     String status,
     String summaryJson,
-    String errorSummaryJson
-) {
-}
+    String errorSummaryJson) {}

@@ -9,6 +9,4 @@ public record CareersDiscoveryCompanyFailureView(
     String reasonCode,
     Integer httpStatus,
     String errorDetail,
-    Instant createdAt
-) {
-}
+    Instant createdAt) {}

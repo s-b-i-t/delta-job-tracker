@@ -2,6 +2,7 @@ plugins {
     java
     id("org.springframework.boot") version "4.0.2"
     id("io.spring.dependency-management") version "1.1.7"
+    id("com.diffplug.spotless") version "6.25.0"
 }
 
 group = "com.delta"
@@ -39,4 +40,22 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+spotless {
+    lineEndings = com.diffplug.spotless.LineEnding.UNIX
+
+    java {
+        googleJavaFormat("1.22.0")
+    }
+
+    format("sql") {
+        target("src/main/resources/db/migration/**/*.sql")
+        endWithNewline()
+    }
+
+    format("resources") {
+        target("src/main/resources/**/*.yml", "src/main/resources/**/*.properties")
+        endWithNewline()
+    }
 }

@@ -8,6 +8,4 @@ public record AtsEndpointRecord(
     String endpointUrl,
     String discoveredFromUrl,
     double confidence,
-    Instant detectedAt
-) {
-}
+    Instant detectedAt) {}

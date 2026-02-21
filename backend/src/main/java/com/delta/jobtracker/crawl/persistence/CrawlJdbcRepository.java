@@ -1,21 +1,22 @@
 package com.delta.jobtracker.crawl.persistence;
 
-import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
+import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.AtsAttemptSample;
+import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CanaryRunStatus;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyFailureView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryRunStatus;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryState;
-import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
+import com.delta.jobtracker.crawl.model.CompanySearchResult;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunActivityCounts;
-import com.delta.jobtracker.crawl.model.CrawlRunMeta;
-import com.delta.jobtracker.crawl.model.CrawlRunStatus;
 import com.delta.jobtracker.crawl.model.CrawlRunCompanyFailureView;
 import com.delta.jobtracker.crawl.model.CrawlRunCompanyResultView;
+import com.delta.jobtracker.crawl.model.CrawlRunMeta;
+import com.delta.jobtracker.crawl.model.CrawlRunStatus;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.DiscoveryFailureEntry;
 import com.delta.jobtracker.crawl.model.HostCrawlState;
@@ -23,22 +24,10 @@ import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingUrlRef;
 import com.delta.jobtracker.crawl.model.JobPostingView;
-import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.util.JobUrlUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.jsoup.Jsoup;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
-import org.springframework.stereotype.Repository;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.Connection;
@@ -52,130 +41,135 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.jsoup.Jsoup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.stereotype.Repository;
 
 @Repository
 public class CrawlJdbcRepository {
-    private static final Logger log = LoggerFactory.getLogger(CrawlJdbcRepository.class);
-    private static final TypeReference<Map<String, Integer>> MAP_INT = new TypeReference<>() {};
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final NamedParameterJdbcTemplate jdbc;
-    private final boolean postgres;
-    private final CrawlerProperties properties;
+  private static final Logger log = LoggerFactory.getLogger(CrawlJdbcRepository.class);
+  private static final TypeReference<Map<String, Integer>> MAP_INT = new TypeReference<>() {};
+  private final ObjectMapper objectMapper = new ObjectMapper();
+  private final NamedParameterJdbcTemplate jdbc;
+  private final boolean postgres;
+  private final CrawlerProperties properties;
 
-    public CrawlJdbcRepository(NamedParameterJdbcTemplate jdbc, CrawlerProperties properties) {
-        this.jdbc = jdbc;
-        this.postgres = detectPostgres(jdbc);
-        this.properties = properties;
-    }
+  public CrawlJdbcRepository(NamedParameterJdbcTemplate jdbc, CrawlerProperties properties) {
+    this.jdbc = jdbc;
+    this.postgres = detectPostgres(jdbc);
+    this.properties = properties;
+  }
 
-    public boolean isDbReachable() {
-        Integer value = jdbc.getJdbcTemplate().queryForObject("SELECT 1", Integer.class);
-        return value != null && value == 1;
-    }
+  public boolean isDbReachable() {
+    Integer value = jdbc.getJdbcTemplate().queryForObject("SELECT 1", Integer.class);
+    return value != null && value == 1;
+  }
 
-    public Map<String, Long> tableCounts() {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        counts.put("companies", countTable("companies"));
-        counts.put("company_domains", countTable("company_domains"));
-        counts.put("ats_endpoints", countTable("ats_endpoints"));
-        counts.put("crawl_runs", countTable("crawl_runs"));
-        counts.put("discovered_urls", countTable("discovered_urls"));
-        counts.put("job_postings", countTable("job_postings"));
-        return counts;
-    }
+  public Map<String, Long> tableCounts() {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    counts.put("companies", countTable("companies"));
+    counts.put("company_domains", countTable("company_domains"));
+    counts.put("ats_endpoints", countTable("ats_endpoints"));
+    counts.put("crawl_runs", countTable("crawl_runs"));
+    counts.put("discovered_urls", countTable("discovered_urls"));
+    counts.put("job_postings", countTable("job_postings"));
+    return counts;
+  }
 
-    public Map<String, Long> coverageCounts() {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        counts.put("company_domains", countTable("company_domains"));
-        counts.put("discovered_urls", countTable("discovered_urls"));
-        counts.put("ats_endpoints", countTable("ats_endpoints"));
-        counts.put("job_postings", countTable("job_postings"));
-        return counts;
-    }
+  public Map<String, Long> coverageCounts() {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    counts.put("company_domains", countTable("company_domains"));
+    counts.put("discovered_urls", countTable("discovered_urls"));
+    counts.put("ats_endpoints", countTable("ats_endpoints"));
+    counts.put("job_postings", countTable("job_postings"));
+    return counts;
+  }
 
-    public Map<String, Long> countAtsEndpointsByType() {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        jdbc.query(
-            """
+  public Map<String, Long> countAtsEndpointsByType() {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    jdbc.query(
+        """
                 SELECT ats_type, COUNT(*) AS total
                 FROM ats_endpoints
                 GROUP BY ats_type
                 ORDER BY total DESC, ats_type
                 """,
-            new MapSqlParameterSource(),
-            rs -> {
-                String type = rs.getString("ats_type");
-                long total = rs.getLong("total");
-                if (type != null) {
-                    counts.put(type, total);
-                }
-            }
-        );
-        return counts;
-    }
+        new MapSqlParameterSource(),
+        rs -> {
+          String type = rs.getString("ats_type");
+          long total = rs.getLong("total");
+          if (type != null) {
+            counts.put(type, total);
+          }
+        });
+    return counts;
+  }
 
-    public Map<String, Long> countAtsEndpointsByDetectionMethod() {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        jdbc.query(
-            """
+  public Map<String, Long> countAtsEndpointsByDetectionMethod() {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    jdbc.query(
+        """
                 SELECT detection_method, COUNT(*) AS total
                 FROM ats_endpoints
                 GROUP BY detection_method
                 ORDER BY total DESC, detection_method
                 """,
-            new MapSqlParameterSource(),
-            rs -> {
-                String method = rs.getString("detection_method");
-                long total = rs.getLong("total");
-                if (method != null) {
-                    counts.put(method, total);
-                }
-            }
-        );
-        return counts;
-    }
+        new MapSqlParameterSource(),
+        rs -> {
+          String method = rs.getString("detection_method");
+          long total = rs.getLong("total");
+          if (method != null) {
+            counts.put(method, total);
+          }
+        });
+    return counts;
+  }
 
-    public int countAtsEndpointsForCompany(long companyId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("companyId", companyId);
-        Integer count = jdbc.queryForObject(
+  public int countAtsEndpointsForCompany(long companyId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("companyId", companyId);
+    Integer count =
+        jdbc.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM ats_endpoints
                 WHERE company_id = :companyId
                 """,
             params,
-            Integer.class
-        );
-        return count == null ? 0 : count;
-    }
+            Integer.class);
+    return count == null ? 0 : count;
+  }
 
-    public Map<String, Long> countDiscoveryFailuresByReason() {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        jdbc.query(
-            """
+  public Map<String, Long> countDiscoveryFailuresByReason() {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    jdbc.query(
+        """
                 SELECT reason_code, COUNT(DISTINCT company_id) AS total
                 FROM careers_discovery_failures
                 GROUP BY reason_code
                 ORDER BY total DESC, reason_code
                 """,
-            new MapSqlParameterSource(),
-            rs -> {
-                String reason = rs.getString("reason_code");
-                long total = rs.getLong("total");
-                if (reason != null) {
-                    counts.put(reason, total);
-                }
-            }
-        );
-        return counts;
-    }
+        new MapSqlParameterSource(),
+        rs -> {
+          String reason = rs.getString("reason_code");
+          long total = rs.getLong("total");
+          if (reason != null) {
+            counts.put(reason, total);
+          }
+        });
+    return counts;
+  }
 
-    public List<DiscoveryFailureEntry> findRecentDiscoveryFailures(int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("limit", limit);
-        return jdbc.query(
-            """
+  public List<DiscoveryFailureEntry> findRecentDiscoveryFailures(int limit) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", limit);
+    return jdbc.query(
+        """
                 SELECT c.ticker,
                        c.name AS company_name,
                        f.candidate_url,
@@ -187,24 +181,23 @@ public class CrawlJdbcRepository {
                 ORDER BY f.observed_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new DiscoveryFailureEntry(
+        params,
+        (rs, rowNum) ->
+            new DiscoveryFailureEntry(
                 rs.getString("ticker"),
                 rs.getString("company_name"),
                 rs.getString("candidate_url"),
                 rs.getString("detail"),
                 toInstant(rs.getTimestamp("observed_at")),
-                rs.getString("reason_code")
-            )
-        );
-    }
+                rs.getString("reason_code")));
+  }
 
-    public long insertCareersDiscoveryRun(int companyLimit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("companyLimit", companyLimit);
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbc.update(
-            """
+  public long insertCareersDiscoveryRun(int companyLimit) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("companyLimit", companyLimit);
+    KeyHolder keyHolder = new GeneratedKeyHolder();
+    jdbc.update(
+        """
                 INSERT INTO careers_discovery_runs (
                     status, company_limit
                 )
@@ -212,34 +205,33 @@ public class CrawlJdbcRepository {
                     'RUNNING', :companyLimit
                 )
                 """,
-            params,
-            keyHolder,
-            new String[] {"id"}
-        );
-        Number key = keyHolder.getKey();
-        return key == null ? 0L : key.longValue();
-    }
+        params,
+        keyHolder,
+        new String[] {"id"});
+    Number key = keyHolder.getKey();
+    return key == null ? 0L : key.longValue();
+  }
 
-    public void updateCareersDiscoveryRunProgress(
-        long runId,
-        int processedCount,
-        int succeededCount,
-        int failedCount,
-        int endpointsAdded,
-        String lastError,
-        int companiesConsidered,
-        int homepageScanned,
-        Map<String, Integer> endpointsFoundHomepageByAtsType,
-        Map<String, Integer> endpointsFoundVendorProbeByAtsType,
-        int sitemapsScanned,
-        int sitemapUrlsChecked,
-        Map<String, Integer> endpointsFoundSitemapByAtsType,
-        int careersPathsChecked,
-        int robotsBlockedCount,
-        int fetchFailedCount,
-        int timeBudgetExceededCount
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void updateCareersDiscoveryRunProgress(
+      long runId,
+      int processedCount,
+      int succeededCount,
+      int failedCount,
+      int endpointsAdded,
+      String lastError,
+      int companiesConsidered,
+      int homepageScanned,
+      Map<String, Integer> endpointsFoundHomepageByAtsType,
+      Map<String, Integer> endpointsFoundVendorProbeByAtsType,
+      int sitemapsScanned,
+      int sitemapUrlsChecked,
+      Map<String, Integer> endpointsFoundSitemapByAtsType,
+      int careersPathsChecked,
+      int robotsBlockedCount,
+      int fetchFailedCount,
+      int timeBudgetExceededCount) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("runId", runId)
             .addValue("processedCount", processedCount)
             .addValue("succeededCount", succeededCount)
@@ -257,8 +249,8 @@ public class CrawlJdbcRepository {
             .addValue("robotsBlockedCount", Math.max(0, robotsBlockedCount))
             .addValue("fetchFailedCount", Math.max(0, fetchFailedCount))
             .addValue("timeBudgetExceededCount", Math.max(0, timeBudgetExceededCount));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE careers_discovery_runs
                 SET processed_count = :processedCount,
                     succeeded_count = :succeededCount,
@@ -278,37 +270,38 @@ public class CrawlJdbcRepository {
                     time_budget_exceeded_count = :timeBudgetExceededCount
                 WHERE id = :runId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void completeCareersDiscoveryRun(long runId, Instant finishedAt, String status, String lastError) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void completeCareersDiscoveryRun(
+      long runId, Instant finishedAt, String status, String lastError) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("runId", runId)
             .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("status", status)
             .addValue("lastError", truncateErrorDetail(lastError));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE careers_discovery_runs
                 SET finished_at = :finishedAt,
                     status = :status,
                     last_error = COALESCE(:lastError, last_error)
                 WHERE id = :runId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public long insertCanaryRun(String type, Integer requestedLimit, Instant startedAt) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public long insertCanaryRun(String type, Integer requestedLimit, Instant startedAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("type", type)
             .addValue("requestedLimit", requestedLimit)
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("status", "RUNNING");
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbc.update(
-            """
+    KeyHolder keyHolder = new GeneratedKeyHolder();
+    jdbc.update(
+        """
                 INSERT INTO canary_runs (
                     type,
                     requested_limit,
@@ -322,18 +315,17 @@ public class CrawlJdbcRepository {
                     :status
                 )
                 """,
-            params,
-            keyHolder,
-            new String[] {"id"}
-        );
-        Number key = keyHolder.getKey();
-        return key == null ? 0L : key.longValue();
-    }
+        params,
+        keyHolder,
+        new String[] {"id"});
+    Number key = keyHolder.getKey();
+    return key == null ? 0L : key.longValue();
+  }
 
-    public CanaryRunStatus findCanaryRun(long runId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("runId", runId);
-        List<CanaryRunStatus> rows = jdbc.query(
+  public CanaryRunStatus findCanaryRun(long runId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId);
+    List<CanaryRunStatus> rows =
+        jdbc.query(
             """
                 SELECT id,
                        type,
@@ -347,24 +339,23 @@ public class CrawlJdbcRepository {
                 WHERE id = :runId
                 """,
             params,
-            (rs, rowNum) -> new CanaryRunStatus(
-                rs.getLong("id"),
-                rs.getString("type"),
-                (Integer) rs.getObject("requested_limit"),
-                toInstant(rs.getTimestamp("started_at")),
-                toInstant(rs.getTimestamp("finished_at")),
-                rs.getString("status"),
-                rs.getString("summary_json"),
-                rs.getString("error_summary_json")
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new CanaryRunStatus(
+                    rs.getLong("id"),
+                    rs.getString("type"),
+                    (Integer) rs.getObject("requested_limit"),
+                    toInstant(rs.getTimestamp("started_at")),
+                    toInstant(rs.getTimestamp("finished_at")),
+                    rs.getString("status"),
+                    rs.getString("summary_json"),
+                    rs.getString("error_summary_json")));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public CanaryRunStatus findRunningCanaryRun(String type) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("type", type);
-        List<CanaryRunStatus> rows = jdbc.query(
+  public CanaryRunStatus findRunningCanaryRun(String type) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("type", type);
+    List<CanaryRunStatus> rows =
+        jdbc.query(
             """
                 SELECT id,
                        type,
@@ -381,27 +372,26 @@ public class CrawlJdbcRepository {
                 LIMIT 1
                 """,
             params,
-            (rs, rowNum) -> new CanaryRunStatus(
-                rs.getLong("id"),
-                rs.getString("type"),
-                (Integer) rs.getObject("requested_limit"),
-                toInstant(rs.getTimestamp("started_at")),
-                toInstant(rs.getTimestamp("finished_at")),
-                rs.getString("status"),
-                rs.getString("summary_json"),
-                rs.getString("error_summary_json")
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new CanaryRunStatus(
+                    rs.getLong("id"),
+                    rs.getString("type"),
+                    (Integer) rs.getObject("requested_limit"),
+                    toInstant(rs.getTimestamp("started_at")),
+                    toInstant(rs.getTimestamp("finished_at")),
+                    rs.getString("status"),
+                    rs.getString("summary_json"),
+                    rs.getString("error_summary_json")));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public CanaryRunStatus findLatestCanaryRun(String type) {
-        if (type == null || type.isBlank()) {
-            return null;
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("type", type);
-        List<CanaryRunStatus> rows = jdbc.query(
+  public CanaryRunStatus findLatestCanaryRun(String type) {
+    if (type == null || type.isBlank()) {
+      return null;
+    }
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("type", type);
+    List<CanaryRunStatus> rows =
+        jdbc.query(
             """
                 SELECT id,
                        type,
@@ -417,35 +407,30 @@ public class CrawlJdbcRepository {
                 LIMIT 1
                 """,
             params,
-            (rs, rowNum) -> new CanaryRunStatus(
-                rs.getLong("id"),
-                rs.getString("type"),
-                (Integer) rs.getObject("requested_limit"),
-                toInstant(rs.getTimestamp("started_at")),
-                toInstant(rs.getTimestamp("finished_at")),
-                rs.getString("status"),
-                rs.getString("summary_json"),
-                rs.getString("error_summary_json")
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new CanaryRunStatus(
+                    rs.getLong("id"),
+                    rs.getString("type"),
+                    (Integer) rs.getObject("requested_limit"),
+                    toInstant(rs.getTimestamp("started_at")),
+                    toInstant(rs.getTimestamp("finished_at")),
+                    rs.getString("status"),
+                    rs.getString("summary_json"),
+                    rs.getString("error_summary_json")));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public void updateCanaryRun(
-        long runId,
-        Instant finishedAt,
-        String status,
-        String summaryJson,
-        String errorSummaryJson
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void updateCanaryRun(
+      long runId, Instant finishedAt, String status, String summaryJson, String errorSummaryJson) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("runId", runId)
             .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("status", status)
             .addValue("summaryJson", summaryJson)
             .addValue("errorSummaryJson", errorSummaryJson);
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE canary_runs
                 SET finished_at = :finishedAt,
                     status = :status,
@@ -453,14 +438,13 @@ public class CrawlJdbcRepository {
                     error_summary_json = :errorSummaryJson
                 WHERE id = :runId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public CareersDiscoveryRunStatus findCareersDiscoveryRun(long runId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("runId", runId);
-        List<CareersDiscoveryRunStatus> rows = jdbc.query(
+  public CareersDiscoveryRunStatus findCareersDiscoveryRun(long runId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId);
+    List<CareersDiscoveryRunStatus> rows =
+        jdbc.query(
             """
                 SELECT id,
                        started_at,
@@ -487,36 +471,36 @@ public class CrawlJdbcRepository {
                 WHERE id = :runId
                 """,
             params,
-            (rs, rowNum) -> new CareersDiscoveryRunStatus(
-                rs.getLong("id"),
-                toInstant(rs.getTimestamp("started_at")),
-                toInstant(rs.getTimestamp("finished_at")),
-                rs.getString("status"),
-                rs.getInt("company_limit"),
-                rs.getInt("processed_count"),
-                rs.getInt("succeeded_count"),
-                rs.getInt("failed_count"),
-                rs.getInt("endpoints_added"),
-                rs.getString("last_error"),
-                rs.getInt("companies_considered"),
-                rs.getInt("homepage_scanned"),
-                readJsonMap(rs.getString("endpoints_found_homepage_json")),
-                readJsonMap(rs.getString("endpoints_found_vendor_json")),
-                rs.getInt("sitemaps_scanned"),
-                rs.getInt("sitemap_urls_checked"),
-                readJsonMap(rs.getString("endpoints_found_sitemap_json")),
-                rs.getInt("careers_paths_checked"),
-                rs.getInt("robots_blocked_count"),
-                rs.getInt("fetch_failed_count"),
-                rs.getInt("time_budget_exceeded_count"),
-                Map.of()
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new CareersDiscoveryRunStatus(
+                    rs.getLong("id"),
+                    toInstant(rs.getTimestamp("started_at")),
+                    toInstant(rs.getTimestamp("finished_at")),
+                    rs.getString("status"),
+                    rs.getInt("company_limit"),
+                    rs.getInt("processed_count"),
+                    rs.getInt("succeeded_count"),
+                    rs.getInt("failed_count"),
+                    rs.getInt("endpoints_added"),
+                    rs.getString("last_error"),
+                    rs.getInt("companies_considered"),
+                    rs.getInt("homepage_scanned"),
+                    readJsonMap(rs.getString("endpoints_found_homepage_json")),
+                    readJsonMap(rs.getString("endpoints_found_vendor_json")),
+                    rs.getInt("sitemaps_scanned"),
+                    rs.getInt("sitemap_urls_checked"),
+                    readJsonMap(rs.getString("endpoints_found_sitemap_json")),
+                    rs.getInt("careers_paths_checked"),
+                    rs.getInt("robots_blocked_count"),
+                    rs.getInt("fetch_failed_count"),
+                    rs.getInt("time_budget_exceeded_count"),
+                    Map.of()));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public CareersDiscoveryRunStatus findLatestCareersDiscoveryRun() {
-        List<CareersDiscoveryRunStatus> rows = jdbc.query(
+  public CareersDiscoveryRunStatus findLatestCareersDiscoveryRun() {
+    List<CareersDiscoveryRunStatus> rows =
+        jdbc.query(
             """
                 SELECT id,
                        started_at,
@@ -544,46 +528,45 @@ public class CrawlJdbcRepository {
                 LIMIT 1
                 """,
             new MapSqlParameterSource(),
-            (rs, rowNum) -> new CareersDiscoveryRunStatus(
-                rs.getLong("id"),
-                toInstant(rs.getTimestamp("started_at")),
-                toInstant(rs.getTimestamp("finished_at")),
-                rs.getString("status"),
-                rs.getInt("company_limit"),
-                rs.getInt("processed_count"),
-                rs.getInt("succeeded_count"),
-                rs.getInt("failed_count"),
-                rs.getInt("endpoints_added"),
-                rs.getString("last_error"),
-                rs.getInt("companies_considered"),
-                rs.getInt("homepage_scanned"),
-                readJsonMap(rs.getString("endpoints_found_homepage_json")),
-                readJsonMap(rs.getString("endpoints_found_vendor_json")),
-                rs.getInt("sitemaps_scanned"),
-                rs.getInt("sitemap_urls_checked"),
-                readJsonMap(rs.getString("endpoints_found_sitemap_json")),
-                rs.getInt("careers_paths_checked"),
-                rs.getInt("robots_blocked_count"),
-                rs.getInt("fetch_failed_count"),
-                rs.getInt("time_budget_exceeded_count"),
-                Map.of()
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new CareersDiscoveryRunStatus(
+                    rs.getLong("id"),
+                    toInstant(rs.getTimestamp("started_at")),
+                    toInstant(rs.getTimestamp("finished_at")),
+                    rs.getString("status"),
+                    rs.getInt("company_limit"),
+                    rs.getInt("processed_count"),
+                    rs.getInt("succeeded_count"),
+                    rs.getInt("failed_count"),
+                    rs.getInt("endpoints_added"),
+                    rs.getString("last_error"),
+                    rs.getInt("companies_considered"),
+                    rs.getInt("homepage_scanned"),
+                    readJsonMap(rs.getString("endpoints_found_homepage_json")),
+                    readJsonMap(rs.getString("endpoints_found_vendor_json")),
+                    rs.getInt("sitemaps_scanned"),
+                    rs.getInt("sitemap_urls_checked"),
+                    readJsonMap(rs.getString("endpoints_found_sitemap_json")),
+                    rs.getInt("careers_paths_checked"),
+                    rs.getInt("robots_blocked_count"),
+                    rs.getInt("fetch_failed_count"),
+                    rs.getInt("time_budget_exceeded_count"),
+                    Map.of()));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public void upsertCareersDiscoveryCompanyResult(
-        long runId,
-        long companyId,
-        String status,
-        String reasonCode,
-        String stage,
-        int foundEndpointsCount,
-        Long durationMs,
-        Integer httpStatus,
-        String errorDetail
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertCareersDiscoveryCompanyResult(
+      long runId,
+      long companyId,
+      String status,
+      String reasonCode,
+      String stage,
+      int foundEndpointsCount,
+      Long durationMs,
+      Integer httpStatus,
+      String errorDetail) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("runId", runId)
             .addValue("companyId", companyId)
             .addValue("status", status)
@@ -593,9 +576,9 @@ public class CrawlJdbcRepository {
             .addValue("durationMs", durationMs)
             .addValue("httpStatus", httpStatus)
             .addValue("errorDetail", truncateErrorDetail(errorDetail));
-        if (postgres) {
-            jdbc.update(
-                """
+    if (postgres) {
+      jdbc.update(
+          """
                     INSERT INTO careers_discovery_company_results (
                         discovery_run_id,
                         company_id,
@@ -631,13 +614,12 @@ public class CrawlJdbcRepository {
                         error_detail = EXCLUDED.error_detail,
                         created_at = NOW()
                     """,
-                params
-            );
-            return;
-        }
+          params);
+      return;
+    }
 
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 MERGE INTO careers_discovery_company_results (
                     discovery_run_id,
                     company_id,
@@ -664,22 +646,19 @@ public class CrawlJdbcRepository {
                     CURRENT_TIMESTAMP()
                 )
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public List<CareersDiscoveryCompanyResultView> findCareersDiscoveryCompanyResults(
-        long runId,
-        String status,
-        int limit
-    ) {
-        int safeLimit = Math.max(1, Math.min(limit, 500));
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<CareersDiscoveryCompanyResultView> findCareersDiscoveryCompanyResults(
+      long runId, String status, int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, 500));
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("runId", runId)
             .addValue("status", status)
             .addValue("limit", safeLimit);
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT r.company_id,
                        c.ticker,
                        c.name AS company_name,
@@ -698,8 +677,9 @@ public class CrawlJdbcRepository {
                 ORDER BY r.created_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new CareersDiscoveryCompanyResultView(
+        params,
+        (rs, rowNum) ->
+            new CareersDiscoveryCompanyResultView(
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
                 rs.getString("company_name"),
@@ -710,17 +690,14 @@ public class CrawlJdbcRepository {
                 rs.getObject("duration_ms", Long.class),
                 rs.getObject("http_status", Integer.class),
                 rs.getString("error_detail"),
-                toInstant(rs.getTimestamp("created_at"))
-            )
-        );
-    }
+                toInstant(rs.getTimestamp("created_at"))));
+  }
 
-    public Map<String, Long> countCareersDiscoveryCompanyFailures(long runId) {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("runId", runId);
-        jdbc.query(
-            """
+  public Map<String, Long> countCareersDiscoveryCompanyFailures(long runId) {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId);
+    jdbc.query(
+        """
                 SELECT reason_code, COUNT(*) AS total
                 FROM careers_discovery_company_results
                 WHERE discovery_run_id = :runId
@@ -728,25 +705,24 @@ public class CrawlJdbcRepository {
                 GROUP BY reason_code
                 ORDER BY total DESC, reason_code
                 """,
-            params,
-            rs -> {
-                String reason = rs.getString("reason_code");
-                long total = rs.getLong("total");
-                if (reason != null) {
-                    counts.put(reason, total);
-                }
-            }
-        );
-        return counts;
-    }
+        params,
+        rs -> {
+          String reason = rs.getString("reason_code");
+          long total = rs.getLong("total");
+          if (reason != null) {
+            counts.put(reason, total);
+          }
+        });
+    return counts;
+  }
 
-    public List<CareersDiscoveryCompanyFailureView> findRecentCareersDiscoveryCompanyFailures(long runId, int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 200));
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("runId", runId)
-            .addValue("limit", safeLimit);
-        return jdbc.query(
-            """
+  public List<CareersDiscoveryCompanyFailureView> findRecentCareersDiscoveryCompanyFailures(
+      long runId, int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, 200));
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("runId", runId).addValue("limit", safeLimit);
+    return jdbc.query(
+        """
                 SELECT c.ticker,
                        c.name AS company_name,
                        r.stage,
@@ -761,49 +737,47 @@ public class CrawlJdbcRepository {
                 ORDER BY r.created_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new CareersDiscoveryCompanyFailureView(
+        params,
+        (rs, rowNum) ->
+            new CareersDiscoveryCompanyFailureView(
                 rs.getString("ticker"),
                 rs.getString("company_name"),
                 rs.getString("stage"),
                 rs.getString("reason_code"),
                 rs.getObject("http_status", Integer.class),
                 rs.getString("error_detail"),
-                toInstant(rs.getTimestamp("created_at"))
-            )
-        );
-    }
+                toInstant(rs.getTimestamp("created_at"))));
+  }
 
-    public Map<String, Long> countAtsApiAttemptsByStatus() {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        jdbc.query(
-            """
+  public Map<String, Long> countAtsApiAttemptsByStatus() {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    jdbc.query(
+        """
                 SELECT fetch_status, COUNT(*) AS total
                 FROM discovered_urls
                 WHERE url_type = :urlType
                 GROUP BY fetch_status
                 ORDER BY total DESC, fetch_status
                 """,
-            new MapSqlParameterSource()
-                .addValue("urlType", DiscoveredUrlType.ATS_API.name()),
-            rs -> {
-                String status = rs.getString("fetch_status");
-                long total = rs.getLong("total");
-                if (status != null) {
-                    counts.put(status, total);
-                }
-            }
-        );
-        return counts;
-    }
+        new MapSqlParameterSource().addValue("urlType", DiscoveredUrlType.ATS_API.name()),
+        rs -> {
+          String status = rs.getString("fetch_status");
+          long total = rs.getLong("total");
+          if (status != null) {
+            counts.put(status, total);
+          }
+        });
+    return counts;
+  }
 
-    public List<AtsAttemptSample> findRecentAtsApiFailures(int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<AtsAttemptSample> findRecentAtsApiFailures(int limit) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("limit", limit)
             .addValue("urlType", DiscoveredUrlType.ATS_API.name())
             .addValue("success", "ats_fetch_success");
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT c.ticker,
                        du.adapter AS ats_type,
                        du.url,
@@ -817,29 +791,30 @@ public class CrawlJdbcRepository {
                 ORDER BY du.last_fetched_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new AtsAttemptSample(
+        params,
+        (rs, rowNum) ->
+            new AtsAttemptSample(
                 rs.getString("ticker"),
                 rs.getString("ats_type"),
                 rs.getString("url"),
                 rs.getString("fetch_status"),
-                toInstant(rs.getTimestamp("last_fetched_at"))
-            )
-        );
-    }
+                toInstant(rs.getTimestamp("last_fetched_at"))));
+  }
 
-    public long countTable(String tableName) {
-        Long count = jdbc.getJdbcTemplate().queryForObject("SELECT COUNT(*) FROM " + tableName, Long.class);
-        return count == null ? 0L : count;
-    }
+  public long countTable(String tableName) {
+    Long count =
+        jdbc.getJdbcTemplate().queryForObject("SELECT COUNT(*) FROM " + tableName, Long.class);
+    return count == null ? 0L : count;
+  }
 
-    public HostCrawlState findHostCrawlState(String host) {
-        if (host == null || host.isBlank()) {
-            return null;
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("host", host.toLowerCase(Locale.ROOT));
-        List<HostCrawlState> rows = jdbc.query(
+  public HostCrawlState findHostCrawlState(String host) {
+    if (host == null || host.isBlank()) {
+      return null;
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("host", host.toLowerCase(Locale.ROOT));
+    List<HostCrawlState> rows =
+        jdbc.query(
             """
                 SELECT host,
                        consecutive_failures,
@@ -850,24 +825,24 @@ public class CrawlJdbcRepository {
                 WHERE host = :host
                 """,
             params,
-            (rs, rowNum) -> new HostCrawlState(
-                rs.getString("host"),
-                rs.getInt("consecutive_failures"),
-                rs.getString("last_error_category"),
-                toInstant(rs.getTimestamp("last_attempt_at")),
-                toInstant(rs.getTimestamp("next_allowed_at"))
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new HostCrawlState(
+                    rs.getString("host"),
+                    rs.getInt("consecutive_failures"),
+                    rs.getString("last_error_category"),
+                    toInstant(rs.getTimestamp("last_attempt_at")),
+                    toInstant(rs.getTimestamp("next_allowed_at"))));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public List<HostCrawlState> findHostsInCooldown(Instant now, int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 500));
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<HostCrawlState> findHostsInCooldown(Instant now, int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, 500));
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("now", toTimestamp(now == null ? Instant.now() : now))
             .addValue("limit", safeLimit);
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT host,
                        consecutive_failures,
                        last_error_category,
@@ -879,21 +854,20 @@ public class CrawlJdbcRepository {
                 ORDER BY next_allowed_at ASC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new HostCrawlState(
+        params,
+        (rs, rowNum) ->
+            new HostCrawlState(
                 rs.getString("host"),
                 rs.getInt("consecutive_failures"),
                 rs.getString("last_error_category"),
                 toInstant(rs.getTimestamp("last_attempt_at")),
-                toInstant(rs.getTimestamp("next_allowed_at"))
-            )
-        );
-    }
+                toInstant(rs.getTimestamp("next_allowed_at"))));
+  }
 
-    public CareersDiscoveryState findCareersDiscoveryState(long companyId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("companyId", companyId);
-        List<CareersDiscoveryState> rows = jdbc.query(
+  public CareersDiscoveryState findCareersDiscoveryState(long companyId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("companyId", companyId);
+    List<CareersDiscoveryState> rows =
+        jdbc.query(
             """
                 SELECT company_id,
                        last_attempt_at,
@@ -905,35 +879,34 @@ public class CrawlJdbcRepository {
                 WHERE company_id = :companyId
                 """,
             params,
-            (rs, rowNum) -> new CareersDiscoveryState(
-                rs.getLong("company_id"),
-                toInstant(rs.getTimestamp("last_attempt_at")),
-                rs.getString("last_reason_code"),
-                rs.getString("last_candidate_url"),
-                rs.getInt("consecutive_failures"),
-                toInstant(rs.getTimestamp("next_attempt_at"))
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new CareersDiscoveryState(
+                    rs.getLong("company_id"),
+                    toInstant(rs.getTimestamp("last_attempt_at")),
+                    rs.getString("last_reason_code"),
+                    rs.getString("last_candidate_url"),
+                    rs.getInt("consecutive_failures"),
+                    toInstant(rs.getTimestamp("next_attempt_at"))));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public void upsertCareersDiscoveryState(
-        long companyId,
-        Instant lastAttemptAt,
-        String lastReasonCode,
-        String lastCandidateUrl,
-        int consecutiveFailures,
-        Instant nextAttemptAt
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertCareersDiscoveryState(
+      long companyId,
+      Instant lastAttemptAt,
+      String lastReasonCode,
+      String lastCandidateUrl,
+      int consecutiveFailures,
+      Instant nextAttemptAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("lastAttemptAt", toTimestamp(lastAttemptAt))
             .addValue("lastReasonCode", lastReasonCode)
             .addValue("lastCandidateUrl", lastCandidateUrl)
             .addValue("consecutiveFailures", Math.max(0, consecutiveFailures))
             .addValue("nextAttemptAt", toTimestamp(nextAttemptAt));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 INSERT INTO careers_discovery_state (
                     company_id,
                     last_attempt_at,
@@ -958,28 +931,27 @@ public class CrawlJdbcRepository {
                     consecutive_failures = EXCLUDED.consecutive_failures,
                     next_attempt_at = EXCLUDED.next_attempt_at
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void upsertHostCrawlState(
-        String host,
-        int consecutiveFailures,
-        String lastErrorCategory,
-        Instant lastAttemptAt,
-        Instant nextAllowedAt
-    ) {
-        if (host == null || host.isBlank()) {
-            return;
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertHostCrawlState(
+      String host,
+      int consecutiveFailures,
+      String lastErrorCategory,
+      Instant lastAttemptAt,
+      Instant nextAllowedAt) {
+    if (host == null || host.isBlank()) {
+      return;
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("host", host.toLowerCase(Locale.ROOT))
             .addValue("consecutiveFailures", Math.max(0, consecutiveFailures))
             .addValue("lastErrorCategory", lastErrorCategory)
             .addValue("lastAttemptAt", toTimestamp(lastAttemptAt))
             .addValue("nextAllowedAt", toTimestamp(nextAllowedAt));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 INSERT INTO host_crawl_state (
                     host,
                     consecutive_failures,
@@ -1001,56 +973,56 @@ public class CrawlJdbcRepository {
                     last_attempt_at = EXCLUDED.last_attempt_at,
                     next_allowed_at = EXCLUDED.next_allowed_at
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public long upsertCompany(String ticker, String name, String sector) {
-        return upsertCompany(ticker, name, sector, null, null);
-    }
+  public long upsertCompany(String ticker, String name, String sector) {
+    return upsertCompany(ticker, name, sector, null, null);
+  }
 
-    public Set<String> findExistingCompanyTickers(List<String> tickers) {
-        if (tickers == null || tickers.isEmpty()) {
-            return Set.of();
-        }
-        Set<String> existing = new LinkedHashSet<>();
-        int batchSize = 1000;
-        for (int i = 0; i < tickers.size(); i += batchSize) {
-            int end = Math.min(tickers.size(), i + batchSize);
-            List<String> slice = tickers.subList(i, end);
-            MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("tickers", slice);
-            jdbc.query(
-                """
+  public Set<String> findExistingCompanyTickers(List<String> tickers) {
+    if (tickers == null || tickers.isEmpty()) {
+      return Set.of();
+    }
+    Set<String> existing = new LinkedHashSet<>();
+    int batchSize = 1000;
+    for (int i = 0; i < tickers.size(); i += batchSize) {
+      int end = Math.min(tickers.size(), i + batchSize);
+      List<String> slice = tickers.subList(i, end);
+      MapSqlParameterSource params = new MapSqlParameterSource().addValue("tickers", slice);
+      jdbc.query(
+          """
                     SELECT ticker
                     FROM companies
                     WHERE ticker IN (:tickers)
                     """,
-                params,
-                rs -> {
-                    String ticker = rs.getString("ticker");
-                    if (ticker != null) {
-                        existing.add(ticker);
-                    }
-                }
-            );
-        }
-        return existing;
+          params,
+          rs -> {
+            String ticker = rs.getString("ticker");
+            if (ticker != null) {
+              existing.add(ticker);
+            }
+          });
     }
+    return existing;
+  }
 
-    public long upsertCompany(String ticker, String name, String sector, String wikipediaTitle) {
-        return upsertCompany(ticker, name, sector, wikipediaTitle, null);
-    }
+  public long upsertCompany(String ticker, String name, String sector, String wikipediaTitle) {
+    return upsertCompany(ticker, name, sector, wikipediaTitle, null);
+  }
 
-    public long upsertCompany(String ticker, String name, String sector, String wikipediaTitle, String cik) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public long upsertCompany(
+      String ticker, String name, String sector, String wikipediaTitle, String cik) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("ticker", ticker)
             .addValue("name", name)
             .addValue("sector", sector)
             .addValue("wikipediaTitle", wikipediaTitle)
             .addValue("cik", cik);
 
-        int updated = jdbc.update(
+    int updated =
+        jdbc.update(
             """
                 UPDATE companies
                 SET name = :name,
@@ -1059,20 +1031,18 @@ public class CrawlJdbcRepository {
                     cik = COALESCE(:cik, cik)
                 WHERE ticker = :ticker
                 """,
-            params
-        );
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                    """
+            params);
+    if (updated == 0) {
+      try {
+        jdbc.update(
+            """
                         INSERT INTO companies (ticker, name, sector, wikipedia_title, cik)
                         VALUES (:ticker, :name, :sector, :wikipediaTitle, :cik)
                         """,
-                    params
-                );
-            } catch (DataIntegrityViolationException ignored) {
-                jdbc.update(
-                    """
+            params);
+      } catch (DataIntegrityViolationException ignored) {
+        jdbc.update(
+            """
                         UPDATE companies
                         SET name = :name,
                             sector = COALESCE(:sector, sector),
@@ -1080,41 +1050,36 @@ public class CrawlJdbcRepository {
                             cik = COALESCE(:cik, cik)
                         WHERE ticker = :ticker
                         """,
-                    params
-                );
-            }
-        }
+            params);
+      }
+    }
 
-        Long id = jdbc.queryForObject(
+    Long id =
+        jdbc.queryForObject(
             """
                 SELECT id
                 FROM companies
                 WHERE ticker = :ticker
                 """,
             params,
-            Long.class
-        );
-        if (id == null) {
-            throw new IllegalStateException("Failed to upsert company for ticker " + ticker);
-        }
-        return id;
+            Long.class);
+    if (id == null) {
+      throw new IllegalStateException("Failed to upsert company for ticker " + ticker);
     }
+    return id;
+  }
 
-    public void updateCompanyDomainResolutionCache(
-        long companyId,
-        String method,
-        String status,
-        String errorCategory,
-        Instant attemptedAt
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void updateCompanyDomainResolutionCache(
+      long companyId, String method, String status, String errorCategory, Instant attemptedAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("method", method)
             .addValue("status", status)
             .addValue("errorCategory", errorCategory)
             .addValue("attemptedAt", toTimestamp(attemptedAt));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE companies
                 SET domain_resolution_method = :method,
                     domain_resolution_status = :status,
@@ -1122,36 +1087,35 @@ public class CrawlJdbcRepository {
                     domain_resolution_attempted_at = :attemptedAt
                 WHERE id = :companyId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void upsertCompanyDomain(long companyId, String domain, String careersHintUrl) {
-        upsertCompanyDomain(companyId, domain, careersHintUrl, "MANUAL", 1.0, Instant.now());
-    }
+  public void upsertCompanyDomain(long companyId, String domain, String careersHintUrl) {
+    upsertCompanyDomain(companyId, domain, careersHintUrl, "MANUAL", 1.0, Instant.now());
+  }
 
-    public void upsertCompanyDomain(
-        long companyId,
-        String domain,
-        String careersHintUrl,
-        String source,
-        double confidence,
-        Instant resolvedAt
-    ) {
-        upsertCompanyDomain(companyId, domain, careersHintUrl, source, confidence, resolvedAt, null, null);
-    }
+  public void upsertCompanyDomain(
+      long companyId,
+      String domain,
+      String careersHintUrl,
+      String source,
+      double confidence,
+      Instant resolvedAt) {
+    upsertCompanyDomain(
+        companyId, domain, careersHintUrl, source, confidence, resolvedAt, null, null);
+  }
 
-    public void upsertCompanyDomain(
-        long companyId,
-        String domain,
-        String careersHintUrl,
-        String source,
-        double confidence,
-        Instant resolvedAt,
-        String resolutionMethod,
-        String wikidataQid
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertCompanyDomain(
+      long companyId,
+      String domain,
+      String careersHintUrl,
+      String source,
+      double confidence,
+      Instant resolvedAt,
+      String resolutionMethod,
+      String wikidataQid) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("domain", domain)
             .addValue("careersHintUrl", careersHintUrl)
@@ -1161,7 +1125,8 @@ public class CrawlJdbcRepository {
             .addValue("resolutionMethod", resolutionMethod)
             .addValue("wikidataQid", wikidataQid);
 
-        int updated = jdbc.update(
+    int updated =
+        jdbc.update(
             """
                 UPDATE company_domains
                 SET careers_hint_url = COALESCE(:careersHintUrl, careers_hint_url),
@@ -1173,12 +1138,11 @@ public class CrawlJdbcRepository {
                 WHERE company_id = :companyId
                   AND domain = :domain
                 """,
-            params
-        );
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                    """
+            params);
+    if (updated == 0) {
+      try {
+        jdbc.update(
+            """
                         INSERT INTO company_domains (
                             company_id, domain, careers_hint_url, source, confidence, resolved_at,
                             resolution_method, wikidata_qid
@@ -1188,11 +1152,10 @@ public class CrawlJdbcRepository {
                             :resolutionMethod, :wikidataQid
                         )
                         """,
-                    params
-                );
-            } catch (DataIntegrityViolationException ignored) {
-                jdbc.update(
-                    """
+            params);
+      } catch (DataIntegrityViolationException ignored) {
+        jdbc.update(
+            """
                         UPDATE company_domains
                         SET careers_hint_url = COALESCE(:careersHintUrl, careers_hint_url),
                             source = :source,
@@ -1203,14 +1166,14 @@ public class CrawlJdbcRepository {
                         WHERE company_id = :companyId
                           AND domain = :domain
                         """,
-                    params
-                );
-            }
-        }
+            params);
+      }
     }
+  }
 
-    public long insertCrawlRun(Instant startedAt, String status, String notes) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public long insertCrawlRun(Instant startedAt, String status, String notes) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("status", status)
             .addValue("notes", notes)
@@ -1220,9 +1183,9 @@ public class CrawlJdbcRepository {
             .addValue("jobsExtractedCount", 0)
             .addValue("lastHeartbeatAt", toTimestamp(startedAt));
 
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbc.update(
-            """
+    KeyHolder keyHolder = new GeneratedKeyHolder();
+    jdbc.update(
+        """
                 INSERT INTO crawl_runs (
                     started_at,
                     status,
@@ -1244,15 +1207,15 @@ public class CrawlJdbcRepository {
                     :lastHeartbeatAt
                 )
                 """,
-            params,
-            keyHolder,
-            new String[]{"id"}
-        );
-        Number key = keyHolder.getKey();
-        Long id = key == null ? null : key.longValue();
-        if (id == null) {
-            id = jdbc.queryForObject(
-                """
+        params,
+        keyHolder,
+        new String[] {"id"});
+    Number key = keyHolder.getKey();
+    Long id = key == null ? null : key.longValue();
+    if (id == null) {
+      id =
+          jdbc.queryForObject(
+              """
                     SELECT id
                     FROM crawl_runs
                     WHERE started_at = :startedAt
@@ -1260,25 +1223,25 @@ public class CrawlJdbcRepository {
                     ORDER BY id DESC
                     LIMIT 1
                     """,
-                params,
-                Long.class
-            );
-            if (id == null) {
-                throw new IllegalStateException("Failed to insert crawl run");
-            }
-        }
-        return id;
+              params,
+              Long.class);
+      if (id == null) {
+        throw new IllegalStateException("Failed to insert crawl run");
+      }
     }
+    return id;
+  }
 
-    public void completeCrawlRun(long crawlRunId, Instant finishedAt, String status, String notes) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void completeCrawlRun(long crawlRunId, Instant finishedAt, String status, String notes) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("status", status)
             .addValue("notes", notes)
             .addValue("lastHeartbeatAt", toTimestamp(finishedAt));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE crawl_runs
                 SET finished_at = :finishedAt,
                     status = :status,
@@ -1286,27 +1249,26 @@ public class CrawlJdbcRepository {
                     last_heartbeat_at = COALESCE(:lastHeartbeatAt, last_heartbeat_at)
                 WHERE id = :crawlRunId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void updateCrawlRunProgress(
-        long crawlRunId,
-        int companiesAttempted,
-        int companiesSucceeded,
-        int companiesFailed,
-        int jobsExtractedCount,
-        Instant heartbeatAt
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void updateCrawlRunProgress(
+      long crawlRunId,
+      int companiesAttempted,
+      int companiesSucceeded,
+      int companiesFailed,
+      int jobsExtractedCount,
+      Instant heartbeatAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companiesAttempted", companiesAttempted)
             .addValue("companiesSucceeded", companiesSucceeded)
             .addValue("companiesFailed", companiesFailed)
             .addValue("jobsExtractedCount", jobsExtractedCount)
             .addValue("lastHeartbeatAt", toTimestamp(heartbeatAt));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE crawl_runs
                 SET companies_attempted = :companiesAttempted,
                     companies_succeeded = :companiesSucceeded,
@@ -1315,29 +1277,27 @@ public class CrawlJdbcRepository {
                     last_heartbeat_at = COALESCE(:lastHeartbeatAt, last_heartbeat_at)
                 WHERE id = :crawlRunId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void updateCrawlRunHeartbeat(long crawlRunId, Instant heartbeatAt) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void updateCrawlRunHeartbeat(long crawlRunId, Instant heartbeatAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("lastHeartbeatAt", toTimestamp(heartbeatAt));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE crawl_runs
                 SET last_heartbeat_at = COALESCE(:lastHeartbeatAt, last_heartbeat_at)
                 WHERE id = :crawlRunId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public List<CompanyIdentity> findCompaniesMissingDomain(int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("limit", limit);
-        return jdbc.query(
-            """
+  public List<CompanyIdentity> findCompaniesMissingDomain(int limit) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", limit);
+    return jdbc.query(
+        """
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,
@@ -1357,20 +1317,19 @@ public class CrawlJdbcRepository {
                 ORDER BY c.ticker
                 LIMIT :limit
                 """,
-            params,
-            companyIdentityRowMapper()
-        );
-    }
+        params,
+        companyIdentityRowMapper());
+  }
 
-    public List<CompanyIdentity> findCompaniesMissingDomainByTickers(List<String> tickers, int limit) {
-        if (tickers == null || tickers.isEmpty()) {
-            return List.of();
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("tickers", tickers)
-            .addValue("limit", limit);
-        return jdbc.query(
-            """
+  public List<CompanyIdentity> findCompaniesMissingDomainByTickers(
+      List<String> tickers, int limit) {
+    if (tickers == null || tickers.isEmpty()) {
+      return List.of();
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("tickers", tickers).addValue("limit", limit);
+    return jdbc.query(
+        """
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,
@@ -1391,17 +1350,15 @@ public class CrawlJdbcRepository {
                 ORDER BY c.ticker
                 LIMIT :limit
                 """,
-            params,
-            companyIdentityRowMapper()
-        );
-    }
+        params,
+        companyIdentityRowMapper());
+  }
 
-    public List<CompanyTarget> findCompaniesWithDomainWithoutAts(int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("limit", limit);
+  public List<CompanyTarget> findCompaniesWithDomainWithoutAts(int limit) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", limit);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,
@@ -1427,20 +1384,19 @@ public class CrawlJdbcRepository {
                 ORDER BY c.ticker
                 LIMIT :limit
                 """,
-            params,
-            companyTargetRowMapper()
-        );
-    }
+        params,
+        companyTargetRowMapper());
+  }
 
-    public List<CompanyTarget> findCompaniesWithDomainWithoutAtsByTickers(List<String> tickers, int limit) {
-        if (tickers == null || tickers.isEmpty()) {
-            return List.of();
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("tickers", tickers)
-            .addValue("limit", limit);
-        return jdbc.query(
-            """
+  public List<CompanyTarget> findCompaniesWithDomainWithoutAtsByTickers(
+      List<String> tickers, int limit) {
+    if (tickers == null || tickers.isEmpty()) {
+      return List.of();
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("tickers", tickers).addValue("limit", limit);
+    return jdbc.query(
+        """
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,
@@ -1467,15 +1423,14 @@ public class CrawlJdbcRepository {
                 ORDER BY c.ticker
                 LIMIT :limit
                 """,
-            params,
-            companyTargetRowMapper()
-        );
-    }
+        params,
+        companyTargetRowMapper());
+  }
 
-    public List<CompanyTarget> findCompanyTargets(List<String> tickers, int limit) {
-        boolean tickerFilter = tickers != null && !tickers.isEmpty();
-        String sql =
-            """
+  public List<CompanyTarget> findCompanyTargets(List<String> tickers, int limit) {
+    boolean tickerFilter = tickers != null && !tickers.isEmpty();
+    String sql =
+        """
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,
@@ -1493,26 +1448,26 @@ public class CrawlJdbcRepository {
                              cd2.id DESC
                     LIMIT 1
                 )
-                """ +
-                (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ") +
-                " ORDER BY c.ticker " +
-                (limit > 0 ? " LIMIT :limit" : "");
+                """
+            + (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ")
+            + " ORDER BY c.ticker "
+            + (limit > 0 ? " LIMIT :limit" : "");
 
-        MapSqlParameterSource params = new MapSqlParameterSource();
-        if (tickerFilter) {
-            params.addValue("tickers", tickers);
-        }
-        if (limit > 0) {
-            params.addValue("limit", limit);
-        }
-
-        return jdbc.query(sql, params, companyTargetRowMapper());
+    MapSqlParameterSource params = new MapSqlParameterSource();
+    if (tickerFilter) {
+      params.addValue("tickers", tickers);
+    }
+    if (limit > 0) {
+      params.addValue("limit", limit);
     }
 
-    public List<CompanyTarget> findCompanyTargetsWithAts(List<String> tickers, int limit) {
-        boolean tickerFilter = tickers != null && !tickers.isEmpty();
-        String sql =
-            """
+    return jdbc.query(sql, params, companyTargetRowMapper());
+  }
+
+  public List<CompanyTarget> findCompanyTargetsWithAts(List<String> tickers, int limit) {
+    boolean tickerFilter = tickers != null && !tickers.isEmpty();
+    String sql =
+        """
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,
@@ -1535,29 +1490,30 @@ public class CrawlJdbcRepository {
                     FROM ats_endpoints
                     GROUP BY company_id
                 ) latest_ats ON latest_ats.company_id = c.id
-                """ +
-                (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ") +
-                " ORDER BY latest_ats.max_detected_at DESC, c.ticker " +
-                (limit > 0 ? " LIMIT :limit" : "");
+                """
+            + (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ")
+            + " ORDER BY latest_ats.max_detected_at DESC, c.ticker "
+            + (limit > 0 ? " LIMIT :limit" : "");
 
-        MapSqlParameterSource params = new MapSqlParameterSource();
-        if (tickerFilter) {
-            params.addValue("tickers", tickers);
-        }
-        if (limit > 0) {
-            params.addValue("limit", limit);
-        }
-
-        return jdbc.query(sql, params, companyTargetRowMapper());
+    MapSqlParameterSource params = new MapSqlParameterSource();
+    if (tickerFilter) {
+      params.addValue("tickers", tickers);
+    }
+    if (limit > 0) {
+      params.addValue("limit", limit);
     }
 
-    public List<CompanyTarget> findCompanyTargetsWithAtsDetectedSince(List<String> tickers, int limit, Instant detectedSince) {
-        if (detectedSince == null) {
-            return List.of();
-        }
-        boolean tickerFilter = tickers != null && !tickers.isEmpty();
-        String sql =
-            """
+    return jdbc.query(sql, params, companyTargetRowMapper());
+  }
+
+  public List<CompanyTarget> findCompanyTargetsWithAtsDetectedSince(
+      List<String> tickers, int limit, Instant detectedSince) {
+    if (detectedSince == null) {
+      return List.of();
+    }
+    boolean tickerFilter = tickers != null && !tickers.isEmpty();
+    String sql =
+        """
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,
@@ -1581,27 +1537,27 @@ public class CrawlJdbcRepository {
                     WHERE detected_at >= :detectedSince
                     GROUP BY company_id
                 ) latest_ats ON latest_ats.company_id = c.id
-                """ +
-                (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ") +
-                " ORDER BY latest_ats.max_detected_at DESC, c.ticker " +
-                (limit > 0 ? " LIMIT :limit" : "");
+                """
+            + (tickerFilter ? " WHERE c.ticker IN (:tickers) " : " ")
+            + " ORDER BY latest_ats.max_detected_at DESC, c.ticker "
+            + (limit > 0 ? " LIMIT :limit" : "");
 
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("detectedSince", toTimestamp(detectedSince));
-        if (tickerFilter) {
-            params.addValue("tickers", tickers);
-        }
-        if (limit > 0) {
-            params.addValue("limit", limit);
-        }
-
-        return jdbc.query(sql, params, companyTargetRowMapper());
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("detectedSince", toTimestamp(detectedSince));
+    if (tickerFilter) {
+      params.addValue("tickers", tickers);
+    }
+    if (limit > 0) {
+      params.addValue("limit", limit);
     }
 
-    public CompanyTarget findCompanyTargetById(long companyId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("companyId", companyId);
-        List<CompanyTarget> targets = jdbc.query(
+    return jdbc.query(sql, params, companyTargetRowMapper());
+  }
+
+  public CompanyTarget findCompanyTargetById(long companyId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("companyId", companyId);
+    List<CompanyTarget> targets =
+        jdbc.query(
             """
                 SELECT c.id AS company_id,
                        c.ticker,
@@ -1623,16 +1579,14 @@ public class CrawlJdbcRepository {
                 WHERE c.id = :companyId
                 """,
             params,
-            companyTargetRowMapper()
-        );
-        return targets.isEmpty() ? null : targets.getFirst();
-    }
+            companyTargetRowMapper());
+    return targets.isEmpty() ? null : targets.getFirst();
+  }
 
-    public List<AtsEndpointRecord> findAtsEndpoints(long companyId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("companyId", companyId);
-        return jdbc.query(
-            """
+  public List<AtsEndpointRecord> findAtsEndpoints(long companyId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("companyId", companyId);
+    return jdbc.query(
+        """
                 SELECT company_id,
                        ats_type,
                        ats_url,
@@ -1643,67 +1597,57 @@ public class CrawlJdbcRepository {
                 WHERE company_id = :companyId
                 ORDER BY detected_at DESC
                 """,
-            params,
-            (rs, rowNum) -> new AtsEndpointRecord(
+        params,
+        (rs, rowNum) ->
+            new AtsEndpointRecord(
                 rs.getLong("company_id"),
                 AtsType.valueOf(rs.getString("ats_type")),
                 rs.getString("ats_url"),
                 rs.getString("discovered_from_url"),
                 rs.getDouble("confidence"),
-                rs.getTimestamp("detected_at").toInstant()
-            )
-        );
-    }
+                rs.getTimestamp("detected_at").toInstant()));
+  }
 
-    public void insertDiscoveredSitemap(long crawlRunId, long companyId, String sitemapUrl, Instant fetchedAt, int urlCount) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void insertDiscoveredSitemap(
+      long crawlRunId, long companyId, String sitemapUrl, Instant fetchedAt, int urlCount) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("sitemapUrl", sitemapUrl)
             .addValue("fetchedAt", toTimestamp(fetchedAt))
             .addValue("urlCount", urlCount);
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 INSERT INTO discovered_sitemaps (crawl_run_id, company_id, sitemap_url, fetched_at, url_count)
                 VALUES (:crawlRunId, :companyId, :sitemapUrl, :fetchedAt, :urlCount)
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void upsertDiscoveredUrl(
-        long crawlRunId,
-        long companyId,
-        String url,
-        DiscoveredUrlType urlType,
-        String fetchStatus,
-        Instant lastFetchedAt
-    ) {
-        upsertDiscoveredUrl(
-            crawlRunId,
-            companyId,
-            url,
-            urlType,
-            fetchStatus,
-            lastFetchedAt,
-            null,
-            null,
-            null
-        );
-    }
+  public void upsertDiscoveredUrl(
+      long crawlRunId,
+      long companyId,
+      String url,
+      DiscoveredUrlType urlType,
+      String fetchStatus,
+      Instant lastFetchedAt) {
+    upsertDiscoveredUrl(
+        crawlRunId, companyId, url, urlType, fetchStatus, lastFetchedAt, null, null, null);
+  }
 
-    public void upsertDiscoveredUrl(
-        long crawlRunId,
-        long companyId,
-        String url,
-        DiscoveredUrlType urlType,
-        String fetchStatus,
-        Instant lastFetchedAt,
-        Integer httpStatus,
-        String errorCode,
-        String adapter
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertDiscoveredUrl(
+      long crawlRunId,
+      long companyId,
+      String url,
+      DiscoveredUrlType urlType,
+      String fetchStatus,
+      Instant lastFetchedAt,
+      Integer httpStatus,
+      String errorCode,
+      String adapter) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("url", url)
@@ -1714,7 +1658,8 @@ public class CrawlJdbcRepository {
             .addValue("errorCode", errorCode)
             .addValue("adapter", adapter);
 
-        int updated = jdbc.update(
+    int updated =
+        jdbc.update(
             """
                 UPDATE discovered_urls
                 SET url_type = :urlType,
@@ -1727,12 +1672,11 @@ public class CrawlJdbcRepository {
                   AND company_id = :companyId
                   AND url = :url
                 """,
-            params
-        );
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                    """
+            params);
+    if (updated == 0) {
+      try {
+        jdbc.update(
+            """
                         INSERT INTO discovered_urls (
                             crawl_run_id, company_id, url, url_type, fetch_status, last_fetched_at,
                             http_status, error_code, adapter
@@ -1742,11 +1686,10 @@ public class CrawlJdbcRepository {
                             :httpStatus, :errorCode, :adapter
                         )
                         """,
-                    params
-                );
-            } catch (DataIntegrityViolationException ignored) {
-                jdbc.update(
-                    """
+            params);
+      } catch (DataIntegrityViolationException ignored) {
+        jdbc.update(
+            """
                         UPDATE discovered_urls
                         SET url_type = :urlType,
                             fetch_status = COALESCE(:fetchStatus, fetch_status),
@@ -1758,46 +1701,42 @@ public class CrawlJdbcRepository {
                           AND company_id = :companyId
                           AND url = :url
                         """,
-                    params
-                );
-            }
-        }
+            params);
+      }
     }
+  }
 
-    public void insertCareersDiscoveryFailure(
-        long companyId,
-        String reasonCode,
-        String candidateUrl,
-        String detail,
-        Instant observedAt
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void insertCareersDiscoveryFailure(
+      long companyId, String reasonCode, String candidateUrl, String detail, Instant observedAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("reasonCode", reasonCode)
             .addValue("candidateUrl", candidateUrl)
             .addValue("detail", detail)
             .addValue("observedAt", toTimestamp(observedAt));
 
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 INSERT INTO careers_discovery_failures (
                     company_id, reason_code, candidate_url, detail, observed_at
                 )
                 VALUES (:companyId, :reasonCode, :candidateUrl, :detail, :observedAt)
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void updateDiscoveredUrlStatus(long crawlRunId, long companyId, String url, String fetchStatus, Instant lastFetchedAt) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void updateDiscoveredUrlStatus(
+      long crawlRunId, long companyId, String url, String fetchStatus, Instant lastFetchedAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("url", url)
             .addValue("fetchStatus", fetchStatus)
             .addValue("lastFetchedAt", toTimestamp(lastFetchedAt));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE discovered_urls
                 SET fetch_status = :fetchStatus,
                     last_fetched_at = :lastFetchedAt
@@ -1805,15 +1744,14 @@ public class CrawlJdbcRepository {
                   AND company_id = :companyId
                   AND url = :url
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public boolean seenNoStructuredData(long companyId, String url) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("companyId", companyId)
-            .addValue("url", url);
-        Boolean found = jdbc.queryForObject(
+  public boolean seenNoStructuredData(long companyId, String url) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("companyId", companyId).addValue("url", url);
+    Boolean found =
+        jdbc.queryForObject(
             """
                 SELECT EXISTS(
                     SELECT 1
@@ -1824,37 +1762,36 @@ public class CrawlJdbcRepository {
                 )
                 """,
             params,
-            Boolean.class
-        );
-        return Boolean.TRUE.equals(found);
-    }
+            Boolean.class);
+    return Boolean.TRUE.equals(found);
+  }
 
-    public void upsertAtsEndpoint(
-        long companyId,
-        AtsType atsType,
-        String atsUrl,
-        String discoveredFromUrl,
-        double confidence,
-        Instant detectedAt
-    ) {
-        upsertAtsEndpoint(companyId, atsType, atsUrl, discoveredFromUrl, confidence, detectedAt, "legacy", true);
-    }
+  public void upsertAtsEndpoint(
+      long companyId,
+      AtsType atsType,
+      String atsUrl,
+      String discoveredFromUrl,
+      double confidence,
+      Instant detectedAt) {
+    upsertAtsEndpoint(
+        companyId, atsType, atsUrl, discoveredFromUrl, confidence, detectedAt, "legacy", true);
+  }
 
-    public void upsertAtsEndpoint(
-        long companyId,
-        AtsType atsType,
-        String atsUrl,
-        String discoveredFromUrl,
-        double confidence,
-        Instant detectedAt,
-        String detectionMethod,
-        boolean verified
-    ) {
-        String normalizedUrl = normalizeAtsEndpointUrl(atsType, atsUrl);
-        if (normalizedUrl == null) {
-            return;
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertAtsEndpoint(
+      long companyId,
+      AtsType atsType,
+      String atsUrl,
+      String discoveredFromUrl,
+      double confidence,
+      Instant detectedAt,
+      String detectionMethod,
+      boolean verified) {
+    String normalizedUrl = normalizeAtsEndpointUrl(atsType, atsUrl);
+    if (normalizedUrl == null) {
+      return;
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("atsType", atsType.name())
             .addValue("atsUrl", normalizedUrl)
@@ -1863,7 +1800,8 @@ public class CrawlJdbcRepository {
             .addValue("detectedAt", toTimestamp(detectedAt))
             .addValue("detectionMethod", detectionMethod)
             .addValue("verified", verified);
-        int updated = jdbc.update(
+    int updated =
+        jdbc.update(
             """
                 UPDATE ats_endpoints
                 SET detected_at = :detectedAt,
@@ -1875,12 +1813,11 @@ public class CrawlJdbcRepository {
                   AND ats_type = :atsType
                   AND ats_url = :atsUrl
                 """,
-            params
-        );
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                    """
+            params);
+    if (updated == 0) {
+      try {
+        jdbc.update(
+            """
                         INSERT INTO ats_endpoints (
                             company_id, ats_type, ats_url, detected_at, discovered_from_url, confidence,
                             detection_method, verified
@@ -1890,11 +1827,10 @@ public class CrawlJdbcRepository {
                             :detectionMethod, :verified
                         )
                         """,
-                    params
-                );
-            } catch (DataIntegrityViolationException ignored) {
-                jdbc.update(
-                    """
+            params);
+      } catch (DataIntegrityViolationException ignored) {
+        jdbc.update(
+            """
                         UPDATE ats_endpoints
                         SET detected_at = :detectedAt,
                             discovered_from_url = COALESCE(:discoveredFromUrl, discovered_from_url),
@@ -1905,49 +1841,53 @@ public class CrawlJdbcRepository {
                           AND ats_type = :atsType
                           AND ats_url = :atsUrl
                         """,
-                    params
-                );
-            }
-        }
+            params);
+      }
+    }
+  }
+
+  public void upsertJobPosting(
+      long companyId, Long crawlRunId, NormalizedJobPosting posting, Instant fetchedAt) {
+    upsertJobPostingsBatch(companyId, crawlRunId, List.of(posting), fetchedAt);
+  }
+
+  public void upsertJobPostingsBatch(
+      long companyId, Long crawlRunId, List<NormalizedJobPosting> postings, Instant fetchedAt) {
+    if (postings == null || postings.isEmpty()) {
+      return;
     }
 
-    public void upsertJobPosting(long companyId, Long crawlRunId, NormalizedJobPosting posting, Instant fetchedAt) {
-        upsertJobPostingsBatch(companyId, crawlRunId, List.of(posting), fetchedAt);
+    int batchSize = properties.getJobPostingBatchSize();
+    List<MapSqlParameterSource> paramsList =
+        buildJobPostingParams(companyId, crawlRunId, postings, fetchedAt);
+    if (!postgres) {
+      for (MapSqlParameterSource params : paramsList) {
+        upsertJobPostingLegacy(params);
+      }
+      return;
     }
-
-    public void upsertJobPostingsBatch(long companyId, Long crawlRunId, List<NormalizedJobPosting> postings, Instant fetchedAt) {
-        if (postings == null || postings.isEmpty()) {
-            return;
-        }
-
-        int batchSize = properties.getJobPostingBatchSize();
-        List<MapSqlParameterSource> paramsList = buildJobPostingParams(companyId, crawlRunId, postings, fetchedAt);
-        if (!postgres) {
-            for (MapSqlParameterSource params : paramsList) {
-                upsertJobPostingLegacy(params);
-            }
-            return;
-        }
-        for (int i = 0; i < paramsList.size(); i += batchSize) {
-            int end = Math.min(paramsList.size(), i + batchSize);
-            List<MapSqlParameterSource> chunk = paramsList.subList(i, end);
-            batchUpdateJobPostings(chunk);
-        }
+    for (int i = 0; i < paramsList.size(); i += batchSize) {
+      int end = Math.min(paramsList.size(), i + batchSize);
+      List<MapSqlParameterSource> chunk = paramsList.subList(i, end);
+      batchUpdateJobPostings(chunk);
     }
+  }
 
-    private void batchUpdateJobPostings(List<MapSqlParameterSource> paramsList) {
-        if (paramsList == null || paramsList.isEmpty()) {
-            return;
-        }
-        List<MapSqlParameterSource> byIdentifier = paramsList.stream()
-            .filter(params -> {
-                Object value = params.getValue("externalIdentifier");
-                return value != null && !value.toString().isBlank();
-            })
+  private void batchUpdateJobPostings(List<MapSqlParameterSource> paramsList) {
+    if (paramsList == null || paramsList.isEmpty()) {
+      return;
+    }
+    List<MapSqlParameterSource> byIdentifier =
+        paramsList.stream()
+            .filter(
+                params -> {
+                  Object value = params.getValue("externalIdentifier");
+                  return value != null && !value.toString().isBlank();
+                })
             .toList();
-        if (!byIdentifier.isEmpty()) {
-            jdbc.batchUpdate(
-                """
+    if (!byIdentifier.isEmpty()) {
+      jdbc.batchUpdate(
+          """
                     UPDATE job_postings
                     SET source_url = :sourceUrl,
                         canonical_url = COALESCE(:canonicalUrl, canonical_url),
@@ -1966,12 +1906,11 @@ public class CrawlJdbcRepository {
                     WHERE company_id = :companyId
                       AND external_identifier = :externalIdentifier
                     """,
-                byIdentifier.toArray(new MapSqlParameterSource[0])
-            );
-        }
+          byIdentifier.toArray(new MapSqlParameterSource[0]));
+    }
 
-        jdbc.batchUpdate(
-            """
+    jdbc.batchUpdate(
+        """
                 INSERT INTO job_postings (
                     company_id, crawl_run_id, source_url, canonical_url, title, org_name, location_text,
                     employment_type, date_posted, description_text, description_plain, external_identifier,
@@ -1998,12 +1937,12 @@ public class CrawlJdbcRepository {
                     last_seen_at = EXCLUDED.last_seen_at,
                     is_active = EXCLUDED.is_active
                 """,
-            paramsList.toArray(new MapSqlParameterSource[0])
-        );
-    }
+        paramsList.toArray(new MapSqlParameterSource[0]));
+  }
 
-    private void upsertJobPostingLegacy(MapSqlParameterSource params) {
-        int updated = jdbc.update(
+  private void upsertJobPostingLegacy(MapSqlParameterSource params) {
+    int updated =
+        jdbc.update(
             """
                 UPDATE job_postings
                 SET source_url = :sourceUrl,
@@ -2022,12 +1961,12 @@ public class CrawlJdbcRepository {
                 WHERE company_id = :companyId
                   AND content_hash = :contentHash
                 """,
-            params
-        );
-        Object identifier = params.getValue("externalIdentifier");
-        if (updated == 0 && identifier != null && !identifier.toString().isBlank()) {
-            updated = jdbc.update(
-                """
+            params);
+    Object identifier = params.getValue("externalIdentifier");
+    if (updated == 0 && identifier != null && !identifier.toString().isBlank()) {
+      updated =
+          jdbc.update(
+              """
                     UPDATE job_postings
                     SET source_url = :sourceUrl,
                         canonical_url = COALESCE(:canonicalUrl, canonical_url),
@@ -2046,14 +1985,13 @@ public class CrawlJdbcRepository {
                     WHERE company_id = :companyId
                       AND external_identifier = :externalIdentifier
                     """,
-                params
-            );
-        }
+              params);
+    }
 
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                    """
+    if (updated == 0) {
+      try {
+        jdbc.update(
+            """
                         INSERT INTO job_postings (
                             company_id, crawl_run_id, source_url, canonical_url, title, org_name, location_text,
                             employment_type, date_posted, description_text, description_plain, external_identifier,
@@ -2065,11 +2003,10 @@ public class CrawlJdbcRepository {
                             :contentHash, :fetchedAt, :fetchedAt, :isActive
                         )
                         """,
-                    params
-                );
-            } catch (DataIntegrityViolationException ignored) {
-                jdbc.update(
-                    """
+            params);
+      } catch (DataIntegrityViolationException ignored) {
+        jdbc.update(
+            """
                         UPDATE job_postings
                         SET source_url = :sourceUrl,
                             canonical_url = COALESCE(:canonicalUrl, canonical_url),
@@ -2087,62 +2024,59 @@ public class CrawlJdbcRepository {
                         WHERE company_id = :companyId
                           AND content_hash = :contentHash
                         """,
-                    params
-                );
-            }
-        }
+            params);
+      }
     }
+  }
 
-    private List<MapSqlParameterSource> buildJobPostingParams(
-        long companyId,
-        Long crawlRunId,
-        List<NormalizedJobPosting> postings,
-        Instant fetchedAt
-    ) {
-        List<MapSqlParameterSource> paramsList = new java.util.ArrayList<>(postings.size());
-        for (NormalizedJobPosting posting : postings) {
-            if (posting == null) {
-                continue;
-            }
-            String descriptionPlain = null;
-            if (posting.descriptionText() != null && !posting.descriptionText().isBlank()) {
-                descriptionPlain = Jsoup.parse(posting.descriptionText()).text();
-            }
-            String canonicalUrl = JobUrlUtils.sanitizeCanonicalUrl(posting.canonicalUrl());
-            if (canonicalUrl == null || canonicalUrl.isBlank()) {
-                continue;
-            }
-            if (JobUrlUtils.isInvalidWorkdayUrl(posting.sourceUrl())) {
-                continue;
-            }
-            String externalIdentifier = posting.externalIdentifier();
-            MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("companyId", companyId)
-                .addValue("crawlRunId", crawlRunId)
-                .addValue("sourceUrl", posting.sourceUrl())
-                .addValue("canonicalUrl", canonicalUrl)
-                .addValue("title", posting.title())
-                .addValue("orgName", posting.orgName())
-                .addValue("locationText", posting.locationText())
-                .addValue("employmentType", posting.employmentType())
-                .addValue("datePosted", posting.datePosted())
-                .addValue("descriptionText", posting.descriptionText())
-                .addValue("descriptionPlain", descriptionPlain)
-                .addValue("externalIdentifier", externalIdentifier)
-                .addValue("contentHash", posting.contentHash())
-                .addValue("fetchedAt", toTimestamp(fetchedAt))
-                .addValue("isActive", true);
-            paramsList.add(params);
-        }
-        return paramsList;
+  private List<MapSqlParameterSource> buildJobPostingParams(
+      long companyId, Long crawlRunId, List<NormalizedJobPosting> postings, Instant fetchedAt) {
+    List<MapSqlParameterSource> paramsList = new java.util.ArrayList<>(postings.size());
+    for (NormalizedJobPosting posting : postings) {
+      if (posting == null) {
+        continue;
+      }
+      String descriptionPlain = null;
+      if (posting.descriptionText() != null && !posting.descriptionText().isBlank()) {
+        descriptionPlain = Jsoup.parse(posting.descriptionText()).text();
+      }
+      String canonicalUrl = JobUrlUtils.sanitizeCanonicalUrl(posting.canonicalUrl());
+      if (canonicalUrl == null || canonicalUrl.isBlank()) {
+        continue;
+      }
+      if (JobUrlUtils.isInvalidWorkdayUrl(posting.sourceUrl())) {
+        continue;
+      }
+      String externalIdentifier = posting.externalIdentifier();
+      MapSqlParameterSource params =
+          new MapSqlParameterSource()
+              .addValue("companyId", companyId)
+              .addValue("crawlRunId", crawlRunId)
+              .addValue("sourceUrl", posting.sourceUrl())
+              .addValue("canonicalUrl", canonicalUrl)
+              .addValue("title", posting.title())
+              .addValue("orgName", posting.orgName())
+              .addValue("locationText", posting.locationText())
+              .addValue("employmentType", posting.employmentType())
+              .addValue("datePosted", posting.datePosted())
+              .addValue("descriptionText", posting.descriptionText())
+              .addValue("descriptionPlain", descriptionPlain)
+              .addValue("externalIdentifier", externalIdentifier)
+              .addValue("contentHash", posting.contentHash())
+              .addValue("fetchedAt", toTimestamp(fetchedAt))
+              .addValue("isActive", true);
+      paramsList.add(params);
     }
+    return paramsList;
+  }
 
-    public void upsertJobPosting(long companyId, NormalizedJobPosting posting, Instant fetchedAt) {
-        upsertJobPosting(companyId, null, posting, fetchedAt);
-    }
+  public void upsertJobPosting(long companyId, NormalizedJobPosting posting, Instant fetchedAt) {
+    upsertJobPosting(companyId, null, posting, fetchedAt);
+  }
 
-    public CrawlRunMeta findMostRecentCrawlRun() {
-        List<CrawlRunMeta> runs = jdbc.query(
+  public CrawlRunMeta findMostRecentCrawlRun() {
+    List<CrawlRunMeta> runs =
+        jdbc.query(
             """
                 SELECT id, started_at, finished_at, status
                 FROM crawl_runs
@@ -2150,78 +2084,78 @@ public class CrawlJdbcRepository {
                 LIMIT 1
                 """,
             new MapSqlParameterSource(),
-            (rs, rowNum) -> new CrawlRunMeta(
-                rs.getLong("id"),
-                rs.getTimestamp("started_at").toInstant(),
-                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
-                rs.getString("status")
-            )
-        );
-        return runs.isEmpty() ? null : runs.getFirst();
-    }
+            (rs, rowNum) ->
+                new CrawlRunMeta(
+                    rs.getLong("id"),
+                    rs.getTimestamp("started_at").toInstant(),
+                    rs.getTimestamp("finished_at") == null
+                        ? null
+                        : rs.getTimestamp("finished_at").toInstant(),
+                    rs.getString("status")));
+    return runs.isEmpty() ? null : runs.getFirst();
+  }
 
-    public List<CrawlRunMeta> findRecentCrawlRuns(int limit) {
-        int safeLimit = limit <= 0 ? 10 : limit;
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("limit", safeLimit);
-        return jdbc.query(
-            """
+  public List<CrawlRunMeta> findRecentCrawlRuns(int limit) {
+    int safeLimit = limit <= 0 ? 10 : limit;
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", safeLimit);
+    return jdbc.query(
+        """
                 SELECT id, started_at, finished_at, status
                 FROM crawl_runs
                 ORDER BY started_at DESC, id DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new CrawlRunMeta(
+        params,
+        (rs, rowNum) ->
+            new CrawlRunMeta(
                 rs.getLong("id"),
                 rs.getTimestamp("started_at").toInstant(),
-                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
-                rs.getString("status")
-            )
-        );
-    }
+                rs.getTimestamp("finished_at") == null
+                    ? null
+                    : rs.getTimestamp("finished_at").toInstant(),
+                rs.getString("status")));
+  }
 
-    public List<CrawlRunMeta> findRunningCrawlRuns() {
-        return jdbc.query(
-            """
+  public List<CrawlRunMeta> findRunningCrawlRuns() {
+    return jdbc.query(
+        """
                 SELECT id, started_at, finished_at, status
                 FROM crawl_runs
                 WHERE status = 'RUNNING'
                 ORDER BY started_at ASC, id ASC
                 """,
-            new MapSqlParameterSource(),
-            (rs, rowNum) -> new CrawlRunMeta(
+        new MapSqlParameterSource(),
+        (rs, rowNum) ->
+            new CrawlRunMeta(
                 rs.getLong("id"),
                 rs.getTimestamp("started_at").toInstant(),
-                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
-                rs.getString("status")
-            )
-        );
-    }
+                rs.getTimestamp("finished_at") == null
+                    ? null
+                    : rs.getTimestamp("finished_at").toInstant(),
+                rs.getString("status")));
+  }
 
-    public CrawlRunActivityCounts findRunActivityCounts(long crawlRunId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId);
-        return jdbc.queryForObject(
-            """
+  public CrawlRunActivityCounts findRunActivityCounts(long crawlRunId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("crawlRunId", crawlRunId);
+    return jdbc.queryForObject(
+        """
                 SELECT
                     (SELECT COUNT(*) FROM discovered_urls WHERE crawl_run_id = :crawlRunId) AS discovered_urls,
                     (SELECT COUNT(*) FROM discovered_sitemaps WHERE crawl_run_id = :crawlRunId) AS discovered_sitemaps,
                     (SELECT COUNT(*) FROM job_postings WHERE crawl_run_id = :crawlRunId) AS job_postings
                 """,
-            params,
-            (rs, rowNum) -> new CrawlRunActivityCounts(
+        params,
+        (rs, rowNum) ->
+            new CrawlRunActivityCounts(
                 rs.getLong("discovered_urls"),
                 rs.getLong("discovered_sitemaps"),
-                rs.getLong("job_postings")
-            )
-        );
-    }
+                rs.getLong("job_postings")));
+  }
 
-    public Instant findLastActivityAtForRun(long crawlRunId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId);
-        Timestamp lastActivity = jdbc.queryForObject(
+  public Instant findLastActivityAtForRun(long crawlRunId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("crawlRunId", crawlRunId);
+    Timestamp lastActivity =
+        jdbc.queryForObject(
             """
                 SELECT MAX(activity_at) AS last_activity
                 FROM (
@@ -2239,35 +2173,35 @@ public class CrawlJdbcRepository {
                 ) activity
                 """,
             params,
-            Timestamp.class
-        );
-        return toInstant(lastActivity);
-    }
+            Timestamp.class);
+    return toInstant(lastActivity);
+  }
 
-    public CrawlRunMeta findCrawlRunById(long crawlRunId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId);
-        List<CrawlRunMeta> runs = jdbc.query(
+  public CrawlRunMeta findCrawlRunById(long crawlRunId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("crawlRunId", crawlRunId);
+    List<CrawlRunMeta> runs =
+        jdbc.query(
             """
                 SELECT id, started_at, finished_at, status
                 FROM crawl_runs
                 WHERE id = :crawlRunId
                 """,
             params,
-            (rs, rowNum) -> new CrawlRunMeta(
-                rs.getLong("id"),
-                rs.getTimestamp("started_at").toInstant(),
-                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
-                rs.getString("status")
-            )
-        );
-        return runs.isEmpty() ? null : runs.getFirst();
-    }
+            (rs, rowNum) ->
+                new CrawlRunMeta(
+                    rs.getLong("id"),
+                    rs.getTimestamp("started_at").toInstant(),
+                    rs.getTimestamp("finished_at") == null
+                        ? null
+                        : rs.getTimestamp("finished_at").toInstant(),
+                    rs.getString("status")));
+    return runs.isEmpty() ? null : runs.getFirst();
+  }
 
-    public CrawlRunStatus findCrawlRunStatus(long crawlRunId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId);
-        List<CrawlRunStatus> runs = jdbc.query(
+  public CrawlRunStatus findCrawlRunStatus(long crawlRunId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("crawlRunId", crawlRunId);
+    List<CrawlRunStatus> runs =
+        jdbc.query(
             """
                 SELECT id,
                        started_at,
@@ -2282,33 +2216,36 @@ public class CrawlJdbcRepository {
                 WHERE id = :crawlRunId
                 """,
             params,
-            (rs, rowNum) -> new CrawlRunStatus(
-                rs.getLong("id"),
-                rs.getTimestamp("started_at").toInstant(),
-                rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toInstant(),
-                rs.getString("status"),
-                rs.getInt("companies_attempted"),
-                rs.getInt("companies_succeeded"),
-                rs.getInt("companies_failed"),
-                rs.getInt("jobs_extracted_count"),
-                rs.getTimestamp("last_heartbeat_at") == null ? null : rs.getTimestamp("last_heartbeat_at").toInstant()
-            )
-        );
-        return runs.isEmpty() ? null : runs.getFirst();
-    }
+            (rs, rowNum) ->
+                new CrawlRunStatus(
+                    rs.getLong("id"),
+                    rs.getTimestamp("started_at").toInstant(),
+                    rs.getTimestamp("finished_at") == null
+                        ? null
+                        : rs.getTimestamp("finished_at").toInstant(),
+                    rs.getString("status"),
+                    rs.getInt("companies_attempted"),
+                    rs.getInt("companies_succeeded"),
+                    rs.getInt("companies_failed"),
+                    rs.getInt("jobs_extracted_count"),
+                    rs.getTimestamp("last_heartbeat_at") == null
+                        ? null
+                        : rs.getTimestamp("last_heartbeat_at").toInstant()));
+    return runs.isEmpty() ? null : runs.getFirst();
+  }
 
-    public void upsertCrawlRunCompanyResultStart(
-        long crawlRunId,
-        long companyId,
-        String status,
-        String stage,
-        String atsType,
-        String endpointUrl,
-        Instant startedAt,
-        boolean retryable
-    ) {
-        String atsTypeKey = normalizeAtsTypeKey(atsType);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertCrawlRunCompanyResultStart(
+      long crawlRunId,
+      long companyId,
+      String status,
+      String stage,
+      String atsType,
+      String endpointUrl,
+      Instant startedAt,
+      boolean retryable) {
+    String atsTypeKey = normalizeAtsTypeKey(atsType);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("status", status)
@@ -2318,9 +2255,9 @@ public class CrawlJdbcRepository {
             .addValue("endpointUrl", endpointUrl)
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("retryable", retryable);
-        if (postgres) {
-            jdbc.update(
-                """
+    if (postgres) {
+      jdbc.update(
+          """
                     INSERT INTO crawl_run_company_results (
                         crawl_run_id,
                         company_id,
@@ -2352,12 +2289,12 @@ public class CrawlJdbcRepository {
                         started_at = COALESCE(crawl_run_company_results.started_at, EXCLUDED.started_at),
                         retryable = EXCLUDED.retryable
                     """,
-                params
-            );
-            return;
-        }
+          params);
+      return;
+    }
 
-        int updated = jdbc.update(
+    int updated =
+        jdbc.update(
             """
                 UPDATE crawl_run_company_results
                 SET status = :status,
@@ -2371,11 +2308,10 @@ public class CrawlJdbcRepository {
                   AND stage = :stage
                   AND ats_type_key = :atsTypeKey
                 """,
-            params
-        );
-        if (updated == 0) {
-            jdbc.update(
-                """
+            params);
+    if (updated == 0) {
+      jdbc.update(
+          """
                     INSERT INTO crawl_run_company_results (
                         crawl_run_id,
                         company_id,
@@ -2399,32 +2335,31 @@ public class CrawlJdbcRepository {
                         :retryable
                     )
                     """,
-                params
-            );
-        }
+          params);
     }
+  }
 
-    public void upsertCrawlRunCompanyResultFinish(
-        long crawlRunId,
-        long companyId,
-        String status,
-        String stage,
-        String atsType,
-        String endpointUrl,
-        Instant startedAt,
-        Instant finishedAt,
-        Long durationMs,
-        int jobsExtracted,
-        boolean truncated,
-        Integer totalJobsAvailable,
-        String stopReason,
-        String reasonCode,
-        Integer httpStatus,
-        String errorDetail,
-        boolean retryable
-    ) {
-        String atsTypeKey = normalizeAtsTypeKey(atsType);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void upsertCrawlRunCompanyResultFinish(
+      long crawlRunId,
+      long companyId,
+      String status,
+      String stage,
+      String atsType,
+      String endpointUrl,
+      Instant startedAt,
+      Instant finishedAt,
+      Long durationMs,
+      int jobsExtracted,
+      boolean truncated,
+      Integer totalJobsAvailable,
+      String stopReason,
+      String reasonCode,
+      Integer httpStatus,
+      String errorDetail,
+      boolean retryable) {
+    String atsTypeKey = normalizeAtsTypeKey(atsType);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("companyId", companyId)
             .addValue("status", status)
@@ -2443,9 +2378,9 @@ public class CrawlJdbcRepository {
             .addValue("httpStatus", httpStatus)
             .addValue("errorDetail", truncateErrorDetail(errorDetail))
             .addValue("retryable", retryable);
-        if (postgres) {
-            jdbc.update(
-                """
+    if (postgres) {
+      jdbc.update(
+          """
                     INSERT INTO crawl_run_company_results (
                         crawl_run_id,
                         company_id,
@@ -2503,12 +2438,12 @@ public class CrawlJdbcRepository {
                         error_detail = EXCLUDED.error_detail,
                         retryable = EXCLUDED.retryable
                     """,
-                params
-            );
-            return;
-        }
+          params);
+      return;
+    }
 
-        int updated = jdbc.update(
+    int updated =
+        jdbc.update(
             """
                 UPDATE crawl_run_company_results
                 SET status = :status,
@@ -2530,11 +2465,10 @@ public class CrawlJdbcRepository {
                   AND stage = :stage
                   AND ats_type_key = :atsTypeKey
                 """,
-            params
-        );
-        if (updated == 0) {
-            jdbc.update(
-                """
+            params);
+    if (updated == 0) {
+      jdbc.update(
+          """
                     INSERT INTO crawl_run_company_results (
                         crawl_run_id,
                         company_id,
@@ -2576,19 +2510,20 @@ public class CrawlJdbcRepository {
                         :retryable
                     )
                     """,
-                params
-            );
-        }
+          params);
     }
+  }
 
-    public List<CrawlRunCompanyResultView> findCrawlRunCompanyResults(long crawlRunId, String status, int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 500));
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<CrawlRunCompanyResultView> findCrawlRunCompanyResults(
+      long crawlRunId, String status, int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, 500));
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("status", status)
             .addValue("limit", safeLimit);
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT r.company_id,
                        c.ticker,
                        c.name AS company_name,
@@ -2615,8 +2550,9 @@ public class CrawlJdbcRepository {
                 ORDER BY r.started_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new CrawlRunCompanyResultView(
+        params,
+        (rs, rowNum) ->
+            new CrawlRunCompanyResultView(
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
                 rs.getString("company_name"),
@@ -2635,17 +2571,14 @@ public class CrawlJdbcRepository {
                 rs.getString("reason_code"),
                 rs.getObject("http_status", Integer.class),
                 rs.getString("error_detail"),
-                rs.getBoolean("retryable")
-            )
-        );
-    }
+                rs.getBoolean("retryable")));
+  }
 
-    public Map<String, Integer> countCrawlRunCompaniesByAtsType(long crawlRunId) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId);
-        jdbc.query(
-            """
+  public Map<String, Integer> countCrawlRunCompaniesByAtsType(long crawlRunId) {
+    Map<String, Integer> counts = new LinkedHashMap<>();
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("crawlRunId", crawlRunId);
+    jdbc.query(
+        """
                 SELECT COALESCE(r.ats_type, 'UNKNOWN') AS ats_type,
                        COUNT(DISTINCT r.company_id) AS total
                 FROM crawl_run_company_results r
@@ -2654,24 +2587,22 @@ public class CrawlJdbcRepository {
                 GROUP BY COALESCE(r.ats_type, 'UNKNOWN')
                 ORDER BY total DESC, ats_type
                 """,
-            params,
-            rs -> {
-                String atsType = rs.getString("ats_type");
-                int total = rs.getInt("total");
-                if (atsType != null) {
-                    counts.put(atsType, total);
-                }
-            }
-        );
-        return counts;
-    }
+        params,
+        rs -> {
+          String atsType = rs.getString("ats_type");
+          int total = rs.getInt("total");
+          if (atsType != null) {
+            counts.put(atsType, total);
+          }
+        });
+    return counts;
+  }
 
-    public Map<String, Integer> countCrawlRunJobsExtractedByAtsType(long crawlRunId) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId);
-        jdbc.query(
-            """
+  public Map<String, Integer> countCrawlRunJobsExtractedByAtsType(long crawlRunId) {
+    Map<String, Integer> counts = new LinkedHashMap<>();
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("crawlRunId", crawlRunId);
+    jdbc.query(
+        """
                 SELECT COALESCE(r.ats_type, 'UNKNOWN') AS ats_type,
                        SUM(COALESCE(r.jobs_extracted, 0)) AS total_jobs
                 FROM crawl_run_company_results r
@@ -2680,26 +2611,27 @@ public class CrawlJdbcRepository {
                 GROUP BY COALESCE(r.ats_type, 'UNKNOWN')
                 ORDER BY total_jobs DESC, ats_type
                 """,
-            params,
-            rs -> {
-                String atsType = rs.getString("ats_type");
-                Integer total = rs.getObject("total_jobs", Integer.class);
-                if (atsType != null && total != null) {
-                    counts.put(atsType, Math.max(0, total));
-                }
-            }
-        );
-        return counts;
-    }
+        params,
+        rs -> {
+          String atsType = rs.getString("ats_type");
+          Integer total = rs.getObject("total_jobs", Integer.class);
+          if (atsType != null && total != null) {
+            counts.put(atsType, Math.max(0, total));
+          }
+        });
+    return counts;
+  }
 
-    public List<CrawlRunCompanyResultView> findCrawlRunCompanyOverallResults(long crawlRunId, String status, int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 500));
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<CrawlRunCompanyResultView> findCrawlRunCompanyOverallResults(
+      long crawlRunId, String status, int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, 500));
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", crawlRunId)
             .addValue("status", status)
             .addValue("limit", safeLimit);
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 WITH ranked AS (
                     SELECT r.*,
                            ROW_NUMBER() OVER (
@@ -2751,8 +2683,9 @@ public class CrawlJdbcRepository {
                 ORDER BY r.started_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new CrawlRunCompanyResultView(
+        params,
+        (rs, rowNum) ->
+            new CrawlRunCompanyResultView(
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
                 rs.getString("company_name"),
@@ -2771,17 +2704,14 @@ public class CrawlJdbcRepository {
                 rs.getString("reason_code"),
                 rs.getObject("http_status", Integer.class),
                 rs.getString("error_detail"),
-                rs.getBoolean("retryable")
-            )
-        );
-    }
+                rs.getBoolean("retryable")));
+  }
 
-    public Map<String, Long> countCrawlRunCompanyFailures(long crawlRunId) {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId);
-        jdbc.query(
-            """
+  public Map<String, Long> countCrawlRunCompanyFailures(long crawlRunId) {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("crawlRunId", crawlRunId);
+    jdbc.query(
+        """
                 SELECT reason_code, COUNT(*) AS total
                 FROM crawl_run_company_results
                 WHERE crawl_run_id = :crawlRunId
@@ -2789,25 +2719,24 @@ public class CrawlJdbcRepository {
                 GROUP BY reason_code
                 ORDER BY total DESC, reason_code
                 """,
-            params,
-            rs -> {
-                String reason = rs.getString("reason_code");
-                long total = rs.getLong("total");
-                if (reason != null) {
-                    counts.put(reason, total);
-                }
-            }
-        );
-        return counts;
-    }
+        params,
+        rs -> {
+          String reason = rs.getString("reason_code");
+          long total = rs.getLong("total");
+          if (reason != null) {
+            counts.put(reason, total);
+          }
+        });
+    return counts;
+  }
 
-    public List<CrawlRunCompanyFailureView> findRecentCrawlRunCompanyFailures(long crawlRunId, int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 200));
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId)
-            .addValue("limit", safeLimit);
-        return jdbc.query(
-            """
+  public List<CrawlRunCompanyFailureView> findRecentCrawlRunCompanyFailures(
+      long crawlRunId, int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, 200));
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("crawlRunId", crawlRunId).addValue("limit", safeLimit);
+    return jdbc.query(
+        """
                 SELECT c.ticker,
                        c.name AS company_name,
                        r.stage,
@@ -2822,44 +2751,49 @@ public class CrawlJdbcRepository {
                 ORDER BY r.finished_at DESC NULLS LAST
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new CrawlRunCompanyFailureView(
+        params,
+        (rs, rowNum) ->
+            new CrawlRunCompanyFailureView(
                 rs.getString("ticker"),
                 rs.getString("company_name"),
                 rs.getString("stage"),
                 rs.getString("reason_code"),
                 rs.getObject("http_status", Integer.class),
                 rs.getString("error_detail"),
-                toInstant(rs.getTimestamp("finished_at"))
-            )
-        );
-    }
+                toInstant(rs.getTimestamp("finished_at"))));
+  }
 
-    public void markPostingsInactiveNotSeenInRun(long companyId, long crawlRunId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void markPostingsInactiveNotSeenInRun(long companyId, long crawlRunId) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("crawlRunId", crawlRunId);
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE job_postings
                 SET is_active = FALSE
                 WHERE company_id = :companyId
                   AND is_active = TRUE
                   AND (crawl_run_id IS NULL OR crawl_run_id <> :crawlRunId)
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public long countJobsForRun(CrawlRunMeta runMeta) {
-        if (runMeta == null) {
-            return 0L;
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public long countJobsForRun(CrawlRunMeta runMeta) {
+    if (runMeta == null) {
+      return 0L;
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("crawlRunId", runMeta.crawlRunId())
             .addValue("startedAt", Timestamp.from(runMeta.startedAt()))
-            .addValue("finishedAt", runMeta.finishedAt() == null ? Timestamp.from(Instant.now()) : Timestamp.from(runMeta.finishedAt()));
-        Long count = jdbc.queryForObject(
+            .addValue(
+                "finishedAt",
+                runMeta.finishedAt() == null
+                    ? Timestamp.from(Instant.now())
+                    : Timestamp.from(runMeta.finishedAt()));
+    Long count =
+        jdbc.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM job_postings
@@ -2871,16 +2805,15 @@ public class CrawlJdbcRepository {
                    )
                 """,
             params,
-            Long.class
-        );
-        return count == null ? 0L : count;
-    }
+            Long.class);
+    return count == null ? 0L : count;
+  }
 
-    public Map<String, Integer> findTopErrorsForRun(long crawlRunId, int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("crawlRunId", crawlRunId)
-            .addValue("limit", limit);
-        List<Map.Entry<String, Integer>> rows = jdbc.query(
+  public Map<String, Integer> findTopErrorsForRun(long crawlRunId, int limit) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("crawlRunId", crawlRunId).addValue("limit", limit);
+    List<Map.Entry<String, Integer>> rows =
+        jdbc.query(
             """
                 SELECT fetch_status, COUNT(*) AS cnt
                 FROM discovered_urls
@@ -2901,22 +2834,24 @@ public class CrawlJdbcRepository {
                 LIMIT :limit
                 """,
             params,
-            (rs, rowNum) -> Map.entry(rs.getString("fetch_status"), rs.getInt("cnt"))
-        );
-        Map<String, Integer> out = new LinkedHashMap<>();
-        for (Map.Entry<String, Integer> row : rows) {
-            out.put(row.getKey(), row.getValue());
-        }
-        return out;
+            (rs, rowNum) -> Map.entry(rs.getString("fetch_status"), rs.getInt("cnt")));
+    Map<String, Integer> out = new LinkedHashMap<>();
+    for (Map.Entry<String, Integer> row : rows) {
+      out.put(row.getKey(), row.getValue());
     }
+    return out;
+  }
 
-    public int countNewJobsForRun(long companyId, long toRunId, Instant startedAt, Instant finishedAt) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public int countNewJobsForRun(
+      long companyId, long toRunId, Instant startedAt, Instant finishedAt) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("toRunId", toRunId)
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("finishedAt", toTimestamp(finishedAt));
-        Integer count = jdbc.queryForObject(
+    Integer count =
+        jdbc.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM job_postings
@@ -2926,16 +2861,17 @@ public class CrawlJdbcRepository {
                   AND first_seen_at <= :finishedAt
                 """,
             params,
-            Integer.class
-        );
-        return count == null ? 0 : count;
-    }
+            Integer.class);
+    return count == null ? 0 : count;
+  }
 
-    public int countRemovedJobsForRun(long companyId, long fromRunId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public int countRemovedJobsForRun(long companyId, long fromRunId) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("fromRunId", fromRunId);
-        Integer count = jdbc.queryForObject(
+    Integer count =
+        jdbc.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM job_postings
@@ -2944,21 +2880,22 @@ public class CrawlJdbcRepository {
                   AND crawl_run_id = :fromRunId
                 """,
             params,
-            Integer.class
-        );
-        return count == null ? 0 : count;
-    }
+            Integer.class);
+    return count == null ? 0 : count;
+  }
 
-    public List<JobDeltaItem> findNewJobsForRun(long companyId, long toRunId, Instant startedAt, Instant finishedAt, int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<JobDeltaItem> findNewJobsForRun(
+      long companyId, long toRunId, Instant startedAt, Instant finishedAt, int limit) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("toRunId", toRunId)
             .addValue("startedAt", toTimestamp(startedAt))
             .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("limit", limit);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT jp.id,
                        jp.title,
                        jp.location_text,
@@ -2986,27 +2923,27 @@ public class CrawlJdbcRepository {
                 ORDER BY jp.first_seen_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new JobDeltaItem(
+        params,
+        (rs, rowNum) ->
+            new JobDeltaItem(
                 rs.getLong("id"),
                 rs.getString("title"),
                 rs.getString("location_text"),
                 rs.getString("source_url"),
                 parseAtsType(rs.getString("latest_ats_type")),
                 toInstant(rs.getTimestamp("first_seen_at")),
-                toInstant(rs.getTimestamp("last_seen_at"))
-            )
-        );
-    }
+                toInstant(rs.getTimestamp("last_seen_at"))));
+  }
 
-    public List<JobDeltaItem> findRemovedJobsForRun(long companyId, long fromRunId, int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<JobDeltaItem> findRemovedJobsForRun(long companyId, long fromRunId, int limit) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("fromRunId", fromRunId)
             .addValue("limit", limit);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT jp.id,
                        jp.title,
                        jp.location_text,
@@ -3033,30 +2970,31 @@ public class CrawlJdbcRepository {
                 ORDER BY jp.last_seen_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new JobDeltaItem(
+        params,
+        (rs, rowNum) ->
+            new JobDeltaItem(
                 rs.getLong("id"),
                 rs.getString("title"),
                 rs.getString("location_text"),
                 rs.getString("source_url"),
                 parseAtsType(rs.getString("latest_ats_type")),
                 toInstant(rs.getTimestamp("first_seen_at")),
-                toInstant(rs.getTimestamp("last_seen_at"))
-            )
-        );
-    }
+                toInstant(rs.getTimestamp("last_seen_at"))));
+  }
 
-    public List<JobPostingListView> findNewestJobs(int limit, Long companyId, AtsType atsType, Boolean active, String query) {
-        String normalizedQuery = normalizeQuery(query);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<JobPostingListView> findNewestJobs(
+      int limit, Long companyId, AtsType atsType, Boolean active, String query) {
+    String normalizedQuery = normalizeQuery(query);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("limit", limit)
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR)
             .addValue("active", active, Types.BOOLEAN);
-        addSearchParams(params, normalizedQuery);
+    addSearchParams(params, normalizedQuery);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT jp.id,
                        jp.company_id,
                        c.ticker,
@@ -3097,12 +3035,15 @@ public class CrawlJdbcRepository {
                           AND ae2.ats_type = :atsType
                     )
                   )
-                """ + searchClause("jp", normalizedQuery) + """
+                """
+            + searchClause("jp", normalizedQuery)
+            + """
                 ORDER BY jp.last_seen_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new JobPostingListView(
+        params,
+        (rs, rowNum) ->
+            new JobPostingListView(
                 rs.getLong("id"),
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
@@ -3117,52 +3058,49 @@ public class CrawlJdbcRepository {
                 rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
                 toInstant(rs.getTimestamp("first_seen_at")),
                 toInstant(rs.getTimestamp("last_seen_at")),
-                rs.getBoolean("is_active")
-            )
-        );
-    }
+                rs.getBoolean("is_active")));
+  }
 
-    public long countJobPostingsFiltered(Long companyId, AtsType atsType, Boolean active, String query) {
-        String normalizedQuery = normalizeQuery(query);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public long countJobPostingsFiltered(
+      Long companyId, AtsType atsType, Boolean active, String query) {
+    String normalizedQuery = normalizeQuery(query);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR)
             .addValue("active", active, Types.BOOLEAN);
-        addSearchParams(params, normalizedQuery);
+    addSearchParams(params, normalizedQuery);
 
-        String filterClause = jobPostingsFilterClause("jp", normalizedQuery);
-        Long count = jdbc.queryForObject(
+    String filterClause = jobPostingsFilterClause("jp", normalizedQuery);
+    Long count =
+        jdbc.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM job_postings jp
-                """ + filterClause + """
+                """
+                + filterClause
+                + """
                 """,
             params,
-            Long.class
-        );
-        return count == null ? 0L : count;
-    }
+            Long.class);
+    return count == null ? 0L : count;
+  }
 
-    public List<JobPostingListView> findJobPostingsPage(
-        int pageSize,
-        int offset,
-        Long companyId,
-        AtsType atsType,
-        Boolean active,
-        String query
-    ) {
-        String normalizedQuery = normalizeQuery(query);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<JobPostingListView> findJobPostingsPage(
+      int pageSize, int offset, Long companyId, AtsType atsType, Boolean active, String query) {
+    String normalizedQuery = normalizeQuery(query);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("limit", pageSize)
             .addValue("offset", offset)
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("atsType", atsType == null ? null : atsType.name(), Types.VARCHAR)
             .addValue("active", active, Types.BOOLEAN);
-        addSearchParams(params, normalizedQuery);
+    addSearchParams(params, normalizedQuery);
 
-        String filterClause = jobPostingsFilterClause("jp", normalizedQuery);
-        return jdbc.query(
-            """
+    String filterClause = jobPostingsFilterClause("jp", normalizedQuery);
+    return jdbc.query(
+        """
                 SELECT jp.id,
                        jp.company_id,
                        c.ticker,
@@ -3192,13 +3130,16 @@ public class CrawlJdbcRepository {
                       ON ranked.company_id = ae.company_id
                      AND ranked.max_detected_at = ae.detected_at
                 ) latest_ats ON latest_ats.company_id = jp.company_id
-                """ + filterClause + """
+                """
+            + filterClause
+            + """
                 ORDER BY jp.first_seen_at DESC, jp.id DESC
                 LIMIT :limit
                 OFFSET :offset
                 """,
-            params,
-            (rs, rowNum) -> new JobPostingListView(
+        params,
+        (rs, rowNum) ->
+            new JobPostingListView(
                 rs.getLong("id"),
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
@@ -3213,21 +3154,21 @@ public class CrawlJdbcRepository {
                 rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
                 toInstant(rs.getTimestamp("first_seen_at")),
                 toInstant(rs.getTimestamp("last_seen_at")),
-                rs.getBoolean("is_active")
-            )
-        );
-    }
+                rs.getBoolean("is_active")));
+  }
 
-    public List<JobPostingListView> findNewJobsSince(Instant since, Long companyId, int limit, String query) {
-        String normalizedQuery = normalizeQuery(query);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<JobPostingListView> findNewJobsSince(
+      Instant since, Long companyId, int limit, String query) {
+    String normalizedQuery = normalizeQuery(query);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("since", toTimestamp(since))
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("limit", limit);
-        addSearchParams(params, normalizedQuery);
+    addSearchParams(params, normalizedQuery);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT jp.id,
                        jp.company_id,
                        c.ticker,
@@ -3259,12 +3200,15 @@ public class CrawlJdbcRepository {
                 ) latest_ats ON latest_ats.company_id = jp.company_id
                 WHERE jp.first_seen_at > :since
                   AND (:companyId IS NULL OR jp.company_id = :companyId)
-                """ + searchClause("jp", normalizedQuery) + """
+                """
+            + searchClause("jp", normalizedQuery)
+            + """
                 ORDER BY jp.first_seen_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new JobPostingListView(
+        params,
+        (rs, rowNum) ->
+            new JobPostingListView(
                 rs.getLong("id"),
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
@@ -3279,21 +3223,21 @@ public class CrawlJdbcRepository {
                 rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
                 toInstant(rs.getTimestamp("first_seen_at")),
                 toInstant(rs.getTimestamp("last_seen_at")),
-                rs.getBoolean("is_active")
-            )
-        );
-    }
+                rs.getBoolean("is_active")));
+  }
 
-    public List<JobPostingListView> findClosedJobsSince(Instant since, Long companyId, int limit, String query) {
-        String normalizedQuery = normalizeQuery(query);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<JobPostingListView> findClosedJobsSince(
+      Instant since, Long companyId, int limit, String query) {
+    String normalizedQuery = normalizeQuery(query);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("since", toTimestamp(since))
             .addValue("companyId", companyId, Types.BIGINT)
             .addValue("limit", limit);
-        addSearchParams(params, normalizedQuery);
+    addSearchParams(params, normalizedQuery);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT jp.id,
                        jp.company_id,
                        c.ticker,
@@ -3326,12 +3270,15 @@ public class CrawlJdbcRepository {
                 WHERE jp.is_active = FALSE
                   AND jp.last_seen_at > :since
                   AND (:companyId IS NULL OR jp.company_id = :companyId)
-                """ + searchClause("jp", normalizedQuery) + """
+                """
+            + searchClause("jp", normalizedQuery)
+            + """
                 ORDER BY jp.last_seen_at DESC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new JobPostingListView(
+        params,
+        (rs, rowNum) ->
+            new JobPostingListView(
                 rs.getLong("id"),
                 rs.getLong("company_id"),
                 rs.getString("ticker"),
@@ -3346,16 +3293,14 @@ public class CrawlJdbcRepository {
                 rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
                 toInstant(rs.getTimestamp("first_seen_at")),
                 toInstant(rs.getTimestamp("last_seen_at")),
-                rs.getBoolean("is_active")
-            )
-        );
-    }
+                rs.getBoolean("is_active")));
+  }
 
-    public JobPostingView findJobPostingById(long jobId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("jobId", jobId);
+  public JobPostingView findJobPostingById(long jobId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("jobId", jobId);
 
-        List<JobPostingView> rows = jdbc.query(
+    List<JobPostingView> rows =
+        jdbc.query(
             """
                 SELECT jp.id,
                        jp.company_id,
@@ -3393,38 +3338,38 @@ public class CrawlJdbcRepository {
                   AND jp.canonical_url NOT LIKE 'https://community.workday.com/invalid-url%'
                 """,
             params,
-            (rs, rowNum) -> new JobPostingView(
-                rs.getLong("id"),
-                rs.getLong("company_id"),
-                rs.getString("ticker"),
-                rs.getString("company_name"),
-                parseAtsType(rs.getString("latest_ats_type")),
-                rs.getString("source_url"),
-                rs.getString("canonical_url"),
-                rs.getString("title"),
-                rs.getString("org_name"),
-                rs.getString("location_text"),
-                rs.getString("employment_type"),
-                rs.getDate("date_posted") == null ? null : rs.getDate("date_posted").toLocalDate(),
-                rs.getString("description_text"),
-                rs.getString("content_hash"),
-                toInstant(rs.getTimestamp("first_seen_at")),
-                toInstant(rs.getTimestamp("last_seen_at")),
-                rs.getBoolean("is_active")
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
+            (rs, rowNum) ->
+                new JobPostingView(
+                    rs.getLong("id"),
+                    rs.getLong("company_id"),
+                    rs.getString("ticker"),
+                    rs.getString("company_name"),
+                    parseAtsType(rs.getString("latest_ats_type")),
+                    rs.getString("source_url"),
+                    rs.getString("canonical_url"),
+                    rs.getString("title"),
+                    rs.getString("org_name"),
+                    rs.getString("location_text"),
+                    rs.getString("employment_type"),
+                    rs.getDate("date_posted") == null
+                        ? null
+                        : rs.getDate("date_posted").toLocalDate(),
+                    rs.getString("description_text"),
+                    rs.getString("content_hash"),
+                    toInstant(rs.getTimestamp("first_seen_at")),
+                    toInstant(rs.getTimestamp("last_seen_at")),
+                    rs.getBoolean("is_active")));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
 
-    public List<JobPostingUrlRef> findWorkdayJobPostingUrls(long afterId, int limit) {
-        long safeAfterId = Math.max(0L, afterId);
-        int safeLimit = Math.max(1, limit);
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("afterId", safeAfterId)
-            .addValue("limit", safeLimit);
+  public List<JobPostingUrlRef> findWorkdayJobPostingUrls(long afterId, int limit) {
+    long safeAfterId = Math.max(0L, afterId);
+    int safeLimit = Math.max(1, limit);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("afterId", safeAfterId).addValue("limit", safeLimit);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT id,
                        canonical_url
                 FROM job_postings
@@ -3434,39 +3379,34 @@ public class CrawlJdbcRepository {
                 ORDER BY id ASC
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new JobPostingUrlRef(
-                rs.getLong("id"),
-                rs.getString("canonical_url")
-            )
-        );
-    }
+        params,
+        (rs, rowNum) -> new JobPostingUrlRef(rs.getLong("id"), rs.getString("canonical_url")));
+  }
 
-    public int deleteJobPostingsByIds(List<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return 0;
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("ids", ids);
-        return jdbc.update(
-            """
+  public int deleteJobPostingsByIds(List<Long> ids) {
+    if (ids == null || ids.isEmpty()) {
+      return 0;
+    }
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("ids", ids);
+    return jdbc.update(
+        """
                 DELETE FROM job_postings
                 WHERE id IN (:ids)
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public List<CompanySearchResult> searchCompanies(String search, int limit) {
-        String normalized = search == null ? null : search.trim();
-        String lowered = normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public List<CompanySearchResult> searchCompanies(String search, int limit) {
+    String normalized = search == null ? null : search.trim();
+    String lowered = normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("search", lowered, Types.VARCHAR)
             .addValue("searchLike", lowered == null ? null : "%" + lowered + "%", Types.VARCHAR)
             .addValue("limit", limit);
 
-        return jdbc.query(
-            """
+    return jdbc.query(
+        """
                 SELECT c.id,
                        c.ticker,
                        c.name,
@@ -3491,18 +3431,18 @@ public class CrawlJdbcRepository {
                   c.ticker
                 LIMIT :limit
                 """,
-            params,
-            (rs, rowNum) -> new CompanySearchResult(
+        params,
+        (rs, rowNum) ->
+            new CompanySearchResult(
                 rs.getLong("id"),
                 rs.getString("ticker"),
                 rs.getString("name"),
-                rs.getString("domain")
-            )
-        );
-    }
+                rs.getString("domain")));
+  }
 
-    private RowMapper<CompanyIdentity> companyIdentityRowMapper() {
-        return (rs, rowNum) -> new CompanyIdentity(
+  private RowMapper<CompanyIdentity> companyIdentityRowMapper() {
+    return (rs, rowNum) ->
+        new CompanyIdentity(
             rs.getLong("company_id"),
             rs.getString("ticker"),
             rs.getString("name"),
@@ -3512,112 +3452,119 @@ public class CrawlJdbcRepository {
             rs.getString("domain_resolution_method"),
             rs.getString("domain_resolution_status"),
             rs.getString("domain_resolution_error"),
-            toInstant(rs.getTimestamp("domain_resolution_attempted_at"))
-        );
-    }
+            toInstant(rs.getTimestamp("domain_resolution_attempted_at")));
+  }
 
-    private RowMapper<CompanyTarget> companyTargetRowMapper() {
-        return (rs, rowNum) -> new CompanyTarget(
+  private RowMapper<CompanyTarget> companyTargetRowMapper() {
+    return (rs, rowNum) ->
+        new CompanyTarget(
             rs.getLong("company_id"),
             rs.getString("ticker"),
             rs.getString("name"),
             rs.getString("sector"),
             rs.getString("domain"),
-            rs.getString("careers_hint_url")
-        );
-    }
+            rs.getString("careers_hint_url"));
+  }
 
-    private Timestamp toTimestamp(Instant value) {
-        return value == null ? null : Timestamp.from(value);
-    }
+  private Timestamp toTimestamp(Instant value) {
+    return value == null ? null : Timestamp.from(value);
+  }
 
-    private Instant toInstant(Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toInstant();
-    }
+  private Instant toInstant(Timestamp timestamp) {
+    return timestamp == null ? null : timestamp.toInstant();
+  }
 
-    private AtsType parseAtsType(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        try {
-            return AtsType.valueOf(raw);
-        } catch (IllegalArgumentException e) {
-            log.warn("Unknown ats_type value in job view: {}", raw);
-            return null;
-        }
+  private AtsType parseAtsType(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return null;
     }
-
-    private String normalizeAtsTypeKey(String atsType) {
-        if (atsType == null || atsType.isBlank()) {
-            return "NONE";
-        }
-        return atsType.trim().toUpperCase(Locale.ROOT);
+    try {
+      return AtsType.valueOf(raw);
+    } catch (IllegalArgumentException e) {
+      log.warn("Unknown ats_type value in job view: {}", raw);
+      return null;
     }
+  }
 
-    private boolean detectPostgres(NamedParameterJdbcTemplate jdbcTemplate) {
-        if (jdbcTemplate.getJdbcTemplate().getDataSource() == null) {
-            return false;
-        }
-        try (Connection connection = jdbcTemplate.getJdbcTemplate().getDataSource().getConnection()) {
-            DatabaseMetaData metaData = connection.getMetaData();
-            String productName = metaData == null ? null : metaData.getDatabaseProductName();
-            String url = metaData == null ? null : metaData.getURL();
-            if (url != null && url.toLowerCase(Locale.ROOT).startsWith("jdbc:h2:")) {
-                return false;
-            }
-            return productName != null && productName.toLowerCase(Locale.ROOT).contains("postgres");
-        } catch (Exception e) {
-            log.warn("Unable to detect database product; defaulting to non-Postgres search", e);
-            return false;
-        }
+  private String normalizeAtsTypeKey(String atsType) {
+    if (atsType == null || atsType.isBlank()) {
+      return "NONE";
     }
+    return atsType.trim().toUpperCase(Locale.ROOT);
+  }
 
-    private String normalizeQuery(String query) {
-        if (query == null || query.isBlank()) {
-            return null;
-        }
-        return query.trim();
+  private boolean detectPostgres(NamedParameterJdbcTemplate jdbcTemplate) {
+    if (jdbcTemplate.getJdbcTemplate().getDataSource() == null) {
+      return false;
     }
-
-    private String truncateErrorDetail(String detail) {
-        if (detail == null) {
-            return null;
-        }
-        String trimmed = detail.trim();
-        if (trimmed.length() <= 1000) {
-            return trimmed;
-        }
-        return trimmed.substring(0, 1000);
+    try (Connection connection = jdbcTemplate.getJdbcTemplate().getDataSource().getConnection()) {
+      DatabaseMetaData metaData = connection.getMetaData();
+      String productName = metaData == null ? null : metaData.getDatabaseProductName();
+      String url = metaData == null ? null : metaData.getURL();
+      if (url != null && url.toLowerCase(Locale.ROOT).startsWith("jdbc:h2:")) {
+        return false;
+      }
+      return productName != null && productName.toLowerCase(Locale.ROOT).contains("postgres");
+    } catch (Exception e) {
+      log.warn("Unable to detect database product; defaulting to non-Postgres search", e);
+      return false;
     }
+  }
 
-    private void addSearchParams(MapSqlParameterSource params, String query) {
-        params.addValue("q", query, Types.VARCHAR);
-        params.addValue(
-            "qLike",
-            query == null ? null : "%" + query.toLowerCase(Locale.ROOT) + "%",
-            Types.VARCHAR
-        );
+  private String normalizeQuery(String query) {
+    if (query == null || query.isBlank()) {
+      return null;
     }
+    return query.trim();
+  }
 
-    private String searchClause(String alias, String query) {
-        if (query == null) {
-            return "";
-        }
-        if (postgres) {
-            return " AND " + alias + ".search_tsv @@ websearch_to_tsquery('english', :q)";
-        }
-        return " AND (" +
-            "LOWER(CAST(" + alias + ".title AS VARCHAR)) LIKE :qLike OR " +
-            "LOWER(CAST(" + alias + ".org_name AS VARCHAR)) LIKE :qLike OR " +
-            "LOWER(CAST(" + alias + ".location_text AS VARCHAR)) LIKE :qLike OR " +
-            "LOWER(CAST(" + alias + ".employment_type AS VARCHAR)) LIKE :qLike OR " +
-            "LOWER(CAST(" + alias + ".description_plain AS VARCHAR)) LIKE :qLike" +
-            ")";
+  private String truncateErrorDetail(String detail) {
+    if (detail == null) {
+      return null;
     }
+    String trimmed = detail.trim();
+    if (trimmed.length() <= 1000) {
+      return trimmed;
+    }
+    return trimmed.substring(0, 1000);
+  }
 
-    private String jobPostingsFilterClause(String alias, String normalizedQuery) {
-        String safeAlias = alias == null || alias.isBlank() ? "jp" : alias;
-        String clause = """
+  private void addSearchParams(MapSqlParameterSource params, String query) {
+    params.addValue("q", query, Types.VARCHAR);
+    params.addValue(
+        "qLike", query == null ? null : "%" + query.toLowerCase(Locale.ROOT) + "%", Types.VARCHAR);
+  }
+
+  private String searchClause(String alias, String query) {
+    if (query == null) {
+      return "";
+    }
+    if (postgres) {
+      return " AND " + alias + ".search_tsv @@ websearch_to_tsquery('english', :q)";
+    }
+    return " AND ("
+        + "LOWER(CAST("
+        + alias
+        + ".title AS VARCHAR)) LIKE :qLike OR "
+        + "LOWER(CAST("
+        + alias
+        + ".org_name AS VARCHAR)) LIKE :qLike OR "
+        + "LOWER(CAST("
+        + alias
+        + ".location_text AS VARCHAR)) LIKE :qLike OR "
+        + "LOWER(CAST("
+        + alias
+        + ".employment_type AS VARCHAR)) LIKE :qLike OR "
+        + "LOWER(CAST("
+        + alias
+        + ".description_plain AS VARCHAR)) LIKE :qLike"
+        + ")";
+  }
+
+  private String jobPostingsFilterClause(String alias, String normalizedQuery) {
+    String safeAlias = alias == null || alias.isBlank() ? "jp" : alias;
+    String clause =
+        """
             WHERE (:companyId IS NULL OR %s.company_id = :companyId)
               AND (:active IS NULL OR %s.is_active = :active)
               AND (
@@ -3629,93 +3576,109 @@ public class CrawlJdbcRepository {
                       AND ae2.ats_type = :atsType
                 )
               )
-            """.formatted(safeAlias, safeAlias, safeAlias);
-        clause = clause
-            + "  AND " + safeAlias + ".canonical_url IS NOT NULL\n"
-            + "  AND " + safeAlias + ".canonical_url NOT LIKE '" + JobUrlUtils.WORKDAY_INVALID_URL_PREFIX + "%'\n";
-        return clause + searchClause(safeAlias, normalizedQuery);
-    }
+            """
+            .formatted(safeAlias, safeAlias, safeAlias);
+    clause =
+        clause
+            + "  AND "
+            + safeAlias
+            + ".canonical_url IS NOT NULL\n"
+            + "  AND "
+            + safeAlias
+            + ".canonical_url NOT LIKE '"
+            + JobUrlUtils.WORKDAY_INVALID_URL_PREFIX
+            + "%'\n";
+    return clause + searchClause(safeAlias, normalizedQuery);
+  }
 
-    private String normalizeAtsEndpointUrl(AtsType atsType, String raw) {
-        if (raw == null || raw.isBlank() || atsType == null) {
-            return null;
-        }
-        String value = raw.trim();
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            value = "https://" + value;
-        }
-        URI uri;
-        try {
-            uri = new URI(value);
-        } catch (URISyntaxException e) {
-            return raw.trim();
-        }
-        if (uri.getHost() == null) {
-            return raw.trim();
-        }
-        String host = uri.getHost().toLowerCase(Locale.ROOT);
-        boolean greenhouseApi = false;
-        if (atsType == AtsType.GREENHOUSE) {
-            if (host.equals("api.greenhouse.io") || host.equals("boards-api.greenhouse.io")) {
-                host = "boards-api.greenhouse.io";
-                greenhouseApi = true;
-            } else if (host.equals("job-boards.greenhouse.io")) {
-                host = "boards.greenhouse.io";
-            }
-        }
-        String path = uri.getPath() == null ? "" : uri.getPath();
-        if (atsType == AtsType.WORKDAY) {
-            path = stripTrailingPunctuation(path);
-        }
-        String normalized = "https://" + host + path;
-        if (greenhouseApi) {
-            String query = uri.getRawQuery();
-            if (query != null && !query.isBlank()) {
-                normalized = normalized + "?" + query;
-            }
-        }
-        if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
+  private String normalizeAtsEndpointUrl(AtsType atsType, String raw) {
+    if (raw == null || raw.isBlank() || atsType == null) {
+      return null;
     }
+    String value = raw.trim();
+    if (!value.startsWith("http://") && !value.startsWith("https://")) {
+      value = "https://" + value;
+    }
+    URI uri;
+    try {
+      uri = new URI(value);
+    } catch (URISyntaxException e) {
+      return raw.trim();
+    }
+    if (uri.getHost() == null) {
+      return raw.trim();
+    }
+    String host = uri.getHost().toLowerCase(Locale.ROOT);
+    boolean greenhouseApi = false;
+    if (atsType == AtsType.GREENHOUSE) {
+      if (host.equals("api.greenhouse.io") || host.equals("boards-api.greenhouse.io")) {
+        host = "boards-api.greenhouse.io";
+        greenhouseApi = true;
+      } else if (host.equals("job-boards.greenhouse.io")) {
+        host = "boards.greenhouse.io";
+      }
+    }
+    String path = uri.getPath() == null ? "" : uri.getPath();
+    if (atsType == AtsType.WORKDAY) {
+      path = stripTrailingPunctuation(path);
+    }
+    String normalized = "https://" + host + path;
+    if (greenhouseApi) {
+      String query = uri.getRawQuery();
+      if (query != null && !query.isBlank()) {
+        normalized = normalized + "?" + query;
+      }
+    }
+    if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
+      normalized = normalized.substring(0, normalized.length() - 1);
+    }
+    return normalized;
+  }
 
-    private Map<String, Integer> readJsonMap(String json) {
-        if (json == null || json.isBlank()) {
-            return Map.of();
-        }
-        try {
-            Map<String, Integer> parsed = objectMapper.readValue(json, MAP_INT);
-            return parsed == null ? Map.of() : parsed;
-        } catch (Exception e) {
-            return Map.of();
-        }
+  private Map<String, Integer> readJsonMap(String json) {
+    if (json == null || json.isBlank()) {
+      return Map.of();
     }
+    try {
+      Map<String, Integer> parsed = objectMapper.readValue(json, MAP_INT);
+      return parsed == null ? Map.of() : parsed;
+    } catch (Exception e) {
+      return Map.of();
+    }
+  }
 
-    private String writeJson(Map<String, Integer> map) {
-        if (map == null || map.isEmpty()) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(map);
-        } catch (Exception e) {
-            return null;
-        }
+  private String writeJson(Map<String, Integer> map) {
+    if (map == null || map.isEmpty()) {
+      return null;
     }
+    try {
+      return objectMapper.writeValueAsString(map);
+    } catch (Exception e) {
+      return null;
+    }
+  }
 
-    private String stripTrailingPunctuation(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        while (!trimmed.isEmpty()) {
-            char last = trimmed.charAt(trimmed.length() - 1);
-            if (last == '.' || last == ',' || last == ';' || last == ')' || last == ']' || last == '}' || last == '"' || last == '&' || last == '?') {
-                trimmed = trimmed.substring(0, trimmed.length() - 1);
-                continue;
-            }
-            break;
-        }
-        return trimmed;
+  private String stripTrailingPunctuation(String value) {
+    if (value == null) {
+      return null;
     }
+    String trimmed = value.trim();
+    while (!trimmed.isEmpty()) {
+      char last = trimmed.charAt(trimmed.length() - 1);
+      if (last == '.'
+          || last == ','
+          || last == ';'
+          || last == ')'
+          || last == ']'
+          || last == '}'
+          || last == '"'
+          || last == '&'
+          || last == '?') {
+        trimmed = trimmed.substring(0, trimmed.length() - 1);
+        continue;
+      }
+      break;
+    }
+    return trimmed;
+  }
 }

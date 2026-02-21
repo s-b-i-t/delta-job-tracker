@@ -8,6 +8,4 @@ public record CrawlRunSummary(
     Instant startedAt,
     Instant finishedAt,
     String status,
-    List<CompanyCrawlSummary> companies
-) {
-}
+    List<CompanyCrawlSummary> companies) {}

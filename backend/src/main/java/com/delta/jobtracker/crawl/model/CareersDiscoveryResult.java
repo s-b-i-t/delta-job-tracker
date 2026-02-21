@@ -6,6 +6,4 @@ public record CareersDiscoveryResult(
     Map<String, Integer> discoveredCountByAtsType,
     int failedCount,
     int cooldownSkips,
-    Map<String, Integer> topErrors
-) {
-}
+    Map<String, Integer> topErrors) {}
