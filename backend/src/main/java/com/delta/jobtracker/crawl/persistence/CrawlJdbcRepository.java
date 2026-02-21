@@ -23,6 +23,7 @@ import com.delta.jobtracker.crawl.model.JobDeltaItem;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingUrlRef;
 import com.delta.jobtracker.crawl.model.JobPostingView;
+import com.delta.jobtracker.crawl.model.MissingDomainEntry;
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.util.JobUrlUtils;
@@ -91,6 +92,50 @@ public class CrawlJdbcRepository {
         counts.put("ats_endpoints", countTable("ats_endpoints"));
         counts.put("job_postings", countTable("job_postings"));
         return counts;
+    }
+
+    public long countCompaniesMissingDomain() {
+        Long count = jdbc.queryForObject(
+            """
+                SELECT COUNT(*) AS total
+                FROM companies c
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains cd
+                    WHERE cd.company_id = c.id
+                )
+                """,
+            new MapSqlParameterSource(),
+            Long.class
+        );
+        return count == null ? 0L : count;
+    }
+
+    public Map<String, Long> countMissingDomainsByReason() {
+        Map<String, Long> reasons = new LinkedHashMap<>();
+        jdbc.query(
+            """
+                SELECT COALESCE(domain_resolution_error, domain_resolution_status, 'not_attempted') AS reason,
+                       COUNT(*) AS total
+                FROM companies c
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains cd
+                    WHERE cd.company_id = c.id
+                )
+                GROUP BY COALESCE(domain_resolution_error, domain_resolution_status, 'not_attempted')
+                ORDER BY total DESC, reason
+                """,
+            new MapSqlParameterSource(),
+            rs -> {
+                String reason = rs.getString("reason");
+                long total = rs.getLong("total");
+                if (reason != null) {
+                    reasons.put(reason, total);
+                }
+            }
+        );
+        return reasons;
     }
 
     public Map<String, Long> countAtsEndpointsByType() {
@@ -401,6 +446,36 @@ public class CrawlJdbcRepository {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
+    public CanaryRunStatus findLatestCanaryRun() {
+        List<CanaryRunStatus> rows = jdbc.query(
+            """
+                SELECT id,
+                       type,
+                       requested_limit,
+                       started_at,
+                       finished_at,
+                       status,
+                       summary_json,
+                       error_summary_json
+                FROM canary_runs
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+            new MapSqlParameterSource(),
+            (rs, rowNum) -> new CanaryRunStatus(
+                rs.getLong("id"),
+                rs.getString("type"),
+                (Integer) rs.getObject("requested_limit"),
+                toInstant(rs.getTimestamp("started_at")),
+                toInstant(rs.getTimestamp("finished_at")),
+                rs.getString("status"),
+                rs.getString("summary_json"),
+                rs.getString("error_summary_json")
+            )
+        );
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
     public void updateCanaryRun(
         long runId,
         Instant finishedAt,
@@ -551,6 +626,56 @@ public class CrawlJdbcRepository {
             .addValue("durationMs", durationMs)
             .addValue("httpStatus", httpStatus)
             .addValue("errorDetail", truncateErrorDetail(errorDetail));
+        if (!postgres) {
+            int updated = jdbc.update(
+                """
+                    UPDATE careers_discovery_company_results
+                    SET status = :status,
+                        reason_code = :reasonCode,
+                        stage = :stage,
+                        found_endpoints_count = :foundEndpointsCount,
+                        duration_ms = :durationMs,
+                        http_status = :httpStatus,
+                        error_detail = :errorDetail,
+                        created_at = NOW()
+                    WHERE discovery_run_id = :runId
+                      AND company_id = :companyId
+                    """,
+                params
+            );
+            if (updated == 0) {
+                jdbc.update(
+                    """
+                        INSERT INTO careers_discovery_company_results (
+                            discovery_run_id,
+                            company_id,
+                            status,
+                            reason_code,
+                            stage,
+                            found_endpoints_count,
+                            duration_ms,
+                            http_status,
+                            error_detail,
+                            created_at
+                        )
+                        VALUES (
+                            :runId,
+                            :companyId,
+                            :status,
+                            :reasonCode,
+                            :stage,
+                            :foundEndpointsCount,
+                            :durationMs,
+                            :httpStatus,
+                            :errorDetail,
+                            NOW()
+                        )
+                        """,
+                    params
+                );
+            }
+            return;
+        }
         jdbc.update(
             """
                 INSERT INTO careers_discovery_company_results (
@@ -1089,11 +1214,11 @@ public class CrawlJdbcRepository {
             """
                 UPDATE company_domains
                 SET careers_hint_url = COALESCE(:careersHintUrl, careers_hint_url),
-                    source = :source,
-                    confidence = :confidence,
-                    resolved_at = :resolvedAt,
-                    resolution_method = COALESCE(:resolutionMethod, resolution_method),
-                    wikidata_qid = COALESCE(:wikidataQid, wikidata_qid)
+                    source = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN source ELSE :source END,
+                    confidence = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN confidence ELSE :confidence END,
+                    resolved_at = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN resolved_at ELSE :resolvedAt END,
+                    resolution_method = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN resolution_method ELSE COALESCE(:resolutionMethod, resolution_method) END,
+                    wikidata_qid = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN wikidata_qid ELSE COALESCE(:wikidataQid, wikidata_qid) END
                 WHERE company_id = :companyId
                   AND domain = :domain
                 """,
@@ -1119,11 +1244,11 @@ public class CrawlJdbcRepository {
                     """
                         UPDATE company_domains
                         SET careers_hint_url = COALESCE(:careersHintUrl, careers_hint_url),
-                            source = :source,
-                            confidence = :confidence,
-                            resolved_at = :resolvedAt,
-                            resolution_method = COALESCE(:resolutionMethod, resolution_method),
-                            wikidata_qid = COALESCE(:wikidataQid, wikidata_qid)
+                            source = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN source ELSE :source END,
+                            confidence = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN confidence ELSE :confidence END,
+                            resolved_at = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN resolved_at ELSE :resolvedAt END,
+                            resolution_method = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN resolution_method ELSE COALESCE(:resolutionMethod, resolution_method) END,
+                            wikidata_qid = CASE WHEN source = 'MANUAL' AND :source <> 'MANUAL' THEN wikidata_qid ELSE COALESCE(:wikidataQid, wikidata_qid) END
                         WHERE company_id = :companyId
                           AND domain = :domain
                         """,
@@ -1283,6 +1408,42 @@ public class CrawlJdbcRepository {
                 """,
             params,
             companyIdentityRowMapper()
+        );
+    }
+
+    public List<MissingDomainEntry> findMissingDomainEntries(int limit) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("limit", limit);
+        return jdbc.query(
+            """
+                SELECT c.ticker,
+                       c.name,
+                       c.cik,
+                       c.wikipedia_title,
+                       c.domain_resolution_method,
+                       c.domain_resolution_status,
+                       c.domain_resolution_error,
+                       c.domain_resolution_attempted_at
+                FROM companies c
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains cd
+                    WHERE cd.company_id = c.id
+                )
+                ORDER BY COALESCE(c.domain_resolution_attempted_at, c.ticker) ASC
+                LIMIT :limit
+                """,
+            params,
+            (rs, rowNum) -> new MissingDomainEntry(
+                rs.getString("ticker"),
+                rs.getString("name"),
+                rs.getString("cik"),
+                rs.getString("wikipedia_title"),
+                rs.getString("domain_resolution_method"),
+                rs.getString("domain_resolution_status"),
+                rs.getString("domain_resolution_error"),
+                toInstant(rs.getTimestamp("domain_resolution_attempted_at"))
+            )
         );
     }
 

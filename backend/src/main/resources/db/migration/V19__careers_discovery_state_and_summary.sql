@@ -1,11 +1,25 @@
 ALTER TABLE careers_discovery_runs
-    ADD COLUMN companies_considered INT NOT NULL DEFAULT 0,
-    ADD COLUMN homepage_scanned INT NOT NULL DEFAULT 0,
-    ADD COLUMN endpoints_found_homepage_json TEXT,
-    ADD COLUMN endpoints_found_vendor_json TEXT,
-    ADD COLUMN careers_paths_checked INT NOT NULL DEFAULT 0,
-    ADD COLUMN robots_blocked_count INT NOT NULL DEFAULT 0,
-    ADD COLUMN fetch_failed_count INT NOT NULL DEFAULT 0,
+    ADD COLUMN companies_considered INT NOT NULL DEFAULT 0;
+
+ALTER TABLE careers_discovery_runs
+    ADD COLUMN homepage_scanned INT NOT NULL DEFAULT 0;
+
+ALTER TABLE careers_discovery_runs
+    ADD COLUMN endpoints_found_homepage_json TEXT;
+
+ALTER TABLE careers_discovery_runs
+    ADD COLUMN endpoints_found_vendor_json TEXT;
+
+ALTER TABLE careers_discovery_runs
+    ADD COLUMN careers_paths_checked INT NOT NULL DEFAULT 0;
+
+ALTER TABLE careers_discovery_runs
+    ADD COLUMN robots_blocked_count INT NOT NULL DEFAULT 0;
+
+ALTER TABLE careers_discovery_runs
+    ADD COLUMN fetch_failed_count INT NOT NULL DEFAULT 0;
+
+ALTER TABLE careers_discovery_runs
     ADD COLUMN time_budget_exceeded_count INT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS careers_discovery_state (

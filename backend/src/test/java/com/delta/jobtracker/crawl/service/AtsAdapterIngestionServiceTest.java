@@ -155,6 +155,7 @@ class AtsAdapterIngestionServiceTest {
         String payload = Files.readString(Path.of("src/test/resources/fixtures/workday-cxs-response.json"));
         when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
         when(httpClient.postJson(eq(cxsUrl), anyString(), anyString())).thenReturn(successFetch(cxsUrl, payload));
+        when(httpClient.get(anyString(), anyString())).thenReturn(successFetch("https://walmart.wd5.myworkdayjobs.com/job/example", "<html></html>"));
 
         AtsAdapterResult result = service.ingestIfSupported(12L, company, List.of(endpoint), null);
 

@@ -10,24 +10,35 @@ import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.net.IDN;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class DomainResolutionService {
@@ -35,8 +46,11 @@ public class DomainResolutionService {
     private static final String WDQS_ENDPOINT = "https://query.wikidata.org/bigdata/namespace/wdq/sparql";
     private static final String SPARQL_ACCEPT = "application/sparql-results+json";
     private static final String CIK_PROPERTY = "P5531";
+    private static final String TICKER_PROPERTY = "P249";
     private static final String METHOD_WIKIPEDIA = "WIKIPEDIA_TITLE";
     private static final String METHOD_CIK = "CIK";
+    private static final String METHOD_TICKER = "TICKER";
+    private static final String METHOD_OVERRIDE = "OVERRIDE";
     private static final String METHOD_NONE = "NONE";
     private static final String STATUS_RESOLVED = "RESOLVED";
     private static final String STATUS_NO_ITEM = "NO_ITEM";
@@ -50,6 +64,14 @@ public class DomainResolutionService {
     private static final long WDQS_RETRY_BASE_MS = 750L;
     private static final long WDQS_RETRY_MAX_MS = 4000L;
     private static final int WDQS_BODY_SAMPLE_CHARS = 500;
+    private static final int CACHE_MAX_ENTRIES = 1024;
+    private static final Set<String> ATS_HOST_SUFFIXES = Set.of(
+        "greenhouse.io",
+        "lever.co",
+        "myworkdayjobs.com",
+        "myworkday.com",
+        "ashbyhq.com"
+    );
 
     private final CrawlerProperties properties;
     private final CrawlJdbcRepository repository;
@@ -57,6 +79,11 @@ public class DomainResolutionService {
     private final ObjectMapper objectMapper;
     private final Object wdqsThrottleLock = new Object();
     private Instant wdqsNextAllowedAt = Instant.EPOCH;
+    private final Map<String, WdqsMatch> titleCache = Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, WdqsMatch> cikCache = Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, WdqsMatch> tickerCache = Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, DomainOverride> overridesByTicker = Collections.synchronizedMap(new LinkedHashMap<>());
+    private volatile boolean overridesLoaded = false;
 
     public DomainResolutionService(
         CrawlerProperties properties,
@@ -104,23 +131,28 @@ public class DomainResolutionService {
             return new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of());
         }
 
+        loadOverrides();
         int batchSize = Math.min(properties.getDomainResolution().getBatchSize(), limit);
         Counts counts = new Counts();
         ErrorCollector errors = new ErrorCollector();
         int totalWithTitle = 0;
         int totalWithCik = 0;
+        int totalWithTicker = 0;
         for (CompanyIdentity company : missingDomain) {
             if (hasWikipediaTitle(company)) {
                 totalWithTitle++;
             } else if (hasCik(company)) {
                 totalWithCik++;
+            } else if (hasTicker(company)) {
+                totalWithTicker++;
             }
         }
         int batchCount = (missingDomain.size() + batchSize - 1) / batchSize;
-        log.info("Domain resolver starting: companies={}, with_wikipedia_title={}, with_cik={}, batch_size={}",
+        log.info("Domain resolver starting: companies={}, with_wikipedia_title={}, with_cik={}, with_ticker={}, batch_size={}",
             missingDomain.size(),
             totalWithTitle,
             totalWithCik,
+            totalWithTicker,
             batchSize
         );
 
@@ -137,6 +169,8 @@ public class DomainResolutionService {
             Map<String, List<CompanyIdentity>> companiesByTitle = new LinkedHashMap<>();
             Map<CompanyIdentity, List<String>> ciksByCompany = new LinkedHashMap<>();
             Map<String, List<CompanyIdentity>> companiesByCik = new LinkedHashMap<>();
+            Map<CompanyIdentity, List<String>> tickersByCompany = new LinkedHashMap<>();
+            Map<String, List<CompanyIdentity>> companiesByTicker = new LinkedHashMap<>();
 
             for (CompanyIdentity company : batch) {
                 if (deadline != null && Instant.now().isAfter(deadline)) {
@@ -144,6 +178,9 @@ public class DomainResolutionService {
                     break;
                 }
                 Instant now = Instant.now();
+                if (applyOverride(company, counts)) {
+                    continue;
+                }
                 if (hasWikipediaTitle(company)) {
                     if (shouldSkipCached(company, METHOD_WIKIPEDIA, now)) {
                         continue;
@@ -162,6 +199,11 @@ public class DomainResolutionService {
                         continue;
                     }
                     titlesByCompany.put(company, titles);
+                    WdqsMatch cached = findCachedMatch(titles, titleCache);
+                    if (cached != null) {
+                        applyMatch(company, cached, METHOD_WIKIPEDIA, "enwiki_sitelink", counts, errors);
+                        continue;
+                    }
                     for (String title : titles) {
                         companiesByTitle.computeIfAbsent(title, ignored -> new ArrayList<>()).add(company);
                     }
@@ -183,8 +225,39 @@ public class DomainResolutionService {
                         continue;
                     }
                     ciksByCompany.put(company, ciks);
+                    WdqsMatch cached = findCachedMatch(ciks, cikCache);
+                    if (cached != null) {
+                        applyMatch(company, cached, METHOD_CIK, "cik", counts, errors);
+                        continue;
+                    }
                     for (String cik : ciks) {
                         companiesByCik.computeIfAbsent(cik, ignored -> new ArrayList<>()).add(company);
+                    }
+                } else if (hasTicker(company)) {
+                    if (shouldSkipCached(company, METHOD_TICKER, now)) {
+                        continue;
+                    }
+                    List<String> variants = buildTickerVariants(company.ticker());
+                    if (variants.isEmpty()) {
+                        counts.noWikipediaTitle++;
+                        errors.add(company, "no_ticker");
+                        repository.updateCompanyDomainResolutionCache(
+                            company.companyId(),
+                            METHOD_TICKER,
+                            STATUS_NO_IDENTIFIER,
+                            "no_ticker",
+                            now
+                        );
+                        continue;
+                    }
+                    tickersByCompany.put(company, variants);
+                    WdqsMatch cached = findCachedMatch(variants, tickerCache);
+                    if (cached != null) {
+                        applyMatch(company, cached, METHOD_TICKER, "stock_ticker", counts, errors);
+                        continue;
+                    }
+                    for (String variant : variants) {
+                        companiesByTicker.computeIfAbsent(variant, ignored -> new ArrayList<>()).add(company);
                     }
                 } else {
                     counts.noWikipediaTitle++;
@@ -226,6 +299,7 @@ public class DomainResolutionService {
                         );
                     }
                 } else {
+                    cacheMatches(titleCache, lookupResult.lookup().matches());
                     for (Map.Entry<CompanyIdentity, List<String>> entry : titlesByCompany.entrySet()) {
                         CompanyIdentity company = entry.getKey();
                         WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
@@ -261,10 +335,47 @@ public class DomainResolutionService {
                         );
                     }
                 } else {
+                    cacheMatches(cikCache, lookupResult.lookup().matches());
                     for (Map.Entry<CompanyIdentity, List<String>> entry : ciksByCompany.entrySet()) {
                         CompanyIdentity company = entry.getKey();
                         WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
                         applyMatch(company, match, METHOD_CIK, "cik", counts, errors);
+                    }
+                }
+            }
+
+            if (!tickersByCompany.isEmpty()) {
+                log.info(
+                    "Domain resolver batch {}/{} ticker-companies={} tickers={}",
+                    batchIndex,
+                    batchCount,
+                    tickersByCompany.size(),
+                    companiesByTicker.keySet().size()
+                );
+                WdqsLookupResult lookupResult = fetchWdqsMatchesByTicker(new ArrayList<>(companiesByTicker.keySet()));
+                if (lookupResult.lookup() == null) {
+                    String errorCategory = lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
+                    for (CompanyIdentity company : tickersByCompany.keySet()) {
+                        if ("wdqs_timeout".equals(errorCategory)) {
+                            counts.wdqsTimeout++;
+                        } else {
+                            counts.wdqsError++;
+                        }
+                        errors.add(company, errorCategory);
+                        repository.updateCompanyDomainResolutionCache(
+                            company.companyId(),
+                            METHOD_TICKER,
+                            "wdqs_timeout".equals(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
+                            errorCategory,
+                            Instant.now()
+                        );
+                    }
+                } else {
+                    cacheMatches(tickerCache, lookupResult.lookup().matches());
+                    for (Map.Entry<CompanyIdentity, List<String>> entry : tickersByCompany.entrySet()) {
+                        CompanyIdentity company = entry.getKey();
+                        WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
+                        applyMatch(company, match, METHOD_TICKER, "stock_ticker", counts, errors);
                     }
                 }
             }
@@ -288,6 +399,44 @@ public class DomainResolutionService {
             counts.wdqsTimeout,
             errors.sampleErrors()
         );
+    }
+
+    private void cacheMatches(Map<String, WdqsMatch> cache, Map<String, WdqsMatch> matches) {
+        if (cache == null || matches == null || matches.isEmpty()) {
+            return;
+        }
+        synchronized (cache) {
+            for (Map.Entry<String, WdqsMatch> entry : matches.entrySet()) {
+                String key = entry.getKey();
+                WdqsMatch value = entry.getValue();
+                if (key == null || value == null) {
+                    continue;
+                }
+                if (cache.size() >= CACHE_MAX_ENTRIES && !cache.containsKey(key)) {
+                    Iterator<String> iterator = cache.keySet().iterator();
+                    if (iterator.hasNext()) {
+                        iterator.next();
+                        iterator.remove();
+                    }
+                }
+                cache.put(key, value);
+            }
+        }
+    }
+
+    private WdqsMatch findCachedMatch(List<String> keys, Map<String, WdqsMatch> cache) {
+        if (keys == null || cache == null || cache.isEmpty()) {
+            return null;
+        }
+        synchronized (cache) {
+            for (String key : keys) {
+                WdqsMatch match = cache.get(key);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
     }
 
     private WdqsMatch findMatch(List<String> titles, Map<String, WdqsMatch> matches) {
@@ -333,8 +482,8 @@ public class DomainResolutionService {
             return;
         }
 
-        String domain = normalizeDomain(match.website());
-        if (domain == null) {
+        NormalizedDomain normalized = normalizeDomain(match.website());
+        if (normalized == null || normalized.domain() == null || normalized.domain().isBlank()) {
             counts.noP856++;
             errors.add(company, "invalid_website_url");
             repository.updateCompanyDomainResolutionCache(
@@ -349,8 +498,8 @@ public class DomainResolutionService {
 
         repository.upsertCompanyDomain(
             company.companyId(),
-            domain,
-            null,
+            normalized.domain(),
+            normalized.careersHintUrl(),
             "WIKIDATA",
             0.95,
             Instant.now(),
@@ -373,6 +522,44 @@ public class DomainResolutionService {
 
     private boolean hasCik(CompanyIdentity company) {
         return company != null && company.cik() != null && !company.cik().isBlank();
+    }
+
+    private boolean hasTicker(CompanyIdentity company) {
+        return company != null && company.ticker() != null && !company.ticker().isBlank();
+    }
+
+    private boolean applyOverride(CompanyIdentity company, Counts counts) {
+        if (company == null || company.ticker() == null) {
+            return false;
+        }
+        DomainOverride override = findOverride(company.ticker());
+        if (override == null) {
+            return false;
+        }
+        NormalizedDomain normalized = normalizeDomain(override.domain());
+        if (normalized == null || normalized.domain() == null || normalized.domain().isBlank()) {
+            log.warn("Override for {} ignored due to invalid domain '{}'", company.ticker(), override.domain());
+            return false;
+        }
+        repository.upsertCompanyDomain(
+            company.companyId(),
+            normalized.domain(),
+            override.careersHintUrl(),
+            "MANUAL",
+            1.0,
+            Instant.now(),
+            "override_csv",
+            null
+        );
+        repository.updateCompanyDomainResolutionCache(
+            company.companyId(),
+            METHOD_OVERRIDE,
+            STATUS_RESOLVED,
+            null,
+            Instant.now()
+        );
+        counts.resolved++;
+        return true;
     }
 
     private boolean shouldSkipCached(CompanyIdentity company, String method, Instant now) {
@@ -491,6 +678,52 @@ public class DomainResolutionService {
         return new WdqsLookupResult(new WdqsLookup(matches), null);
     }
 
+    private WdqsLookupResult fetchWdqsMatchesByTicker(List<String> tickers) {
+        if (tickers.isEmpty()) {
+            return new WdqsLookupResult(new WdqsLookup(Map.of()), null);
+        }
+
+        String values = tickers.stream()
+            .map(this::sparqlLiteral)
+            .reduce((a, b) -> a + " " + b)
+            .orElse("");
+
+        String query =
+            """
+                SELECT ?candidateTicker ?item ?officialWebsite WHERE {
+                  VALUES ?candidateTicker { %s }
+                  ?item wdt:%s ?candidateTicker .
+                  OPTIONAL { ?item wdt:P856 ?officialWebsite . }
+                }
+                """.formatted(values, TICKER_PROPERTY);
+
+        WdqsQueryResult queryResult = executeWdqsQuery(query);
+        if (queryResult.root() == null) {
+            return new WdqsLookupResult(null, queryResult.errorCategory());
+        }
+
+        Map<String, WdqsMatch> matches = new HashMap<>();
+        JsonNode bindings = queryResult.root().path("results").path("bindings");
+        if (bindings.isArray()) {
+            for (JsonNode row : bindings) {
+                String candidate = row.path("candidateTicker").path("value").asText(null);
+                String item = row.path("item").path("value").asText(null);
+                String website = row.path("officialWebsite").path("value").asText(null);
+                if (candidate == null || item == null) {
+                    continue;
+                }
+                String qid = extractQid(item);
+                WdqsMatch existing = matches.get(candidate);
+                if (existing == null) {
+                    matches.put(candidate, new WdqsMatch(qid, website));
+                } else if ((existing.website() == null || existing.website().isBlank()) && website != null) {
+                    matches.put(candidate, new WdqsMatch(existing.qid() != null ? existing.qid() : qid, website));
+                }
+            }
+        }
+        return new WdqsLookupResult(new WdqsLookup(matches), null);
+    }
+
     private WdqsQueryResult executeWdqsQuery(String sparql) {
         String encoded = URLEncoder.encode(sparql, StandardCharsets.UTF_8);
         String formBody = "query=" + encoded;
@@ -585,6 +818,22 @@ public class DomainResolutionService {
         return List.copyOf(variants);
     }
 
+    private List<String> buildTickerVariants(String rawTicker) {
+        if (rawTicker == null || rawTicker.isBlank()) {
+            return List.of();
+        }
+        String normalized = rawTicker.trim().toUpperCase(Locale.ROOT);
+        List<String> variants = new ArrayList<>();
+        addVariant(variants, normalized);
+        int colonIdx = normalized.indexOf(':');
+        if (colonIdx > 0 && colonIdx + 1 < normalized.length()) {
+            addVariant(variants, normalized.substring(colonIdx + 1));
+        }
+        addVariant(variants, normalized.replace(".", ""));
+        addVariant(variants, normalized.replace("-", ""));
+        return List.copyOf(variants);
+    }
+
     private String stripFragmentAndQuery(String value) {
         String result = value;
         int hashIdx = result.indexOf('#');
@@ -671,7 +920,7 @@ public class DomainResolutionService {
             || token.equals("TRUST");
     }
 
-    private String normalizeDomain(String websiteUrl) {
+    private NormalizedDomain normalizeDomain(String websiteUrl) {
         if (websiteUrl == null || websiteUrl.isBlank()) {
             return null;
         }
@@ -685,14 +934,187 @@ public class DomainResolutionService {
             if (host == null || host.isBlank()) {
                 return null;
             }
+            host = host.endsWith(".") ? host.substring(0, host.length() - 1) : host;
+            host = IDN.toASCII(host);
             host = host.toLowerCase(Locale.ROOT);
             if (host.startsWith("www.")) {
                 host = host.substring(4);
             }
-            return host;
+            boolean atsHost = isAtsHost(host);
+            String registrable = registrableDomain(host);
+            String careersHint = null;
+            String resolvedDomain = registrable;
+            if (atsHost) {
+                careersHint = value;
+                String derived = deriveDomainFromAts(host, uri.getPath());
+                if (derived != null) {
+                    resolvedDomain = registrableDomain(derived);
+                }
+            }
+            if (resolvedDomain == null || resolvedDomain.isBlank()) {
+                return null;
+            }
+            return new NormalizedDomain(resolvedDomain, careersHint);
         } catch (URISyntaxException e) {
             return null;
         }
+    }
+
+    private boolean isAtsHost(String host) {
+        if (host == null) {
+            return false;
+        }
+        for (String suffix : ATS_HOST_SUFFIXES) {
+            if (host.equals(suffix) || host.endsWith("." + suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String deriveDomainFromAts(String host, String path) {
+        if (host == null) {
+            return null;
+        }
+        if (host.endsWith("greenhouse.io") || host.endsWith("lever.co") || host.endsWith("ashbyhq.com")) {
+            String slug = firstPathSegment(path);
+            if (slug != null) {
+                return slug + ".com";
+            }
+        }
+        if (host.endsWith("myworkdayjobs.com") || host.endsWith("myworkday.com")) {
+            String[] labels = host.split("\\.");
+            if (labels.length >= 3) {
+                String prefix = labels[0];
+                int dashIdx = prefix.indexOf('-');
+                if (dashIdx > 0) {
+                    prefix = prefix.substring(0, dashIdx);
+                }
+                int wdIdx = prefix.indexOf("wd");
+                if (wdIdx > 0) {
+                    prefix = prefix.substring(0, wdIdx);
+                }
+                if (!prefix.isBlank()) {
+                    return prefix + ".com";
+                }
+            }
+        }
+        return null;
+    }
+
+    private String registrableDomain(String host) {
+        if (host == null || host.isBlank()) {
+            return null;
+        }
+        String[] parts = host.split("\\.");
+        if (parts.length <= 2) {
+            return host;
+        }
+        String tld = parts[parts.length - 1];
+        String second = parts[parts.length - 2];
+        if (tld.length() == 2 && isSecondLevelCc(second) && parts.length >= 3) {
+            return (parts[parts.length - 3] + "." + second + "." + tld).toLowerCase(Locale.ROOT);
+        }
+        return (second + "." + tld).toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isSecondLevelCc(String value) {
+        return value != null && (
+            value.equals("co") || value.equals("com") || value.equals("net") ||
+            value.equals("org") || value.equals("gov") || value.equals("ac")
+        );
+    }
+
+    private String firstPathSegment(String path) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        String trimmed = path.startsWith("/") ? path.substring(1) : path;
+        if (trimmed.isBlank()) {
+            return null;
+        }
+        String segment = trimmed.split("/")[0];
+        segment = segment.replaceAll("[^A-Za-z0-9.-]", "");
+        return segment.isBlank() ? null : segment;
+    }
+
+    private DomainOverride findOverride(String rawTicker) {
+        if (rawTicker == null || rawTicker.isBlank()) {
+            return null;
+        }
+        String normalized = rawTicker.trim().toUpperCase(Locale.ROOT);
+        synchronized (overridesByTicker) {
+            return overridesByTicker.get(normalized);
+        }
+    }
+
+    private void loadOverrides() {
+        if (overridesLoaded) {
+            return;
+        }
+        synchronized (overridesByTicker) {
+            if (overridesLoaded) {
+                return;
+            }
+            Path path = resolvePath(properties.getData().getDomainsCsv());
+            if (path == null || !Files.exists(path)) {
+                overridesLoaded = true;
+                return;
+            }
+            try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8);
+                 CSVParser parser = CSVFormat.DEFAULT.builder()
+                     .setHeader()
+                     .setSkipHeaderRecord(true)
+                     .setIgnoreSurroundingSpaces(true)
+                     .build()
+                     .parse(reader)
+            ) {
+                for (CSVRecord record : parser) {
+                    String ticker = readColumn(record, "ticker");
+                    String domain = readColumn(record, "domain");
+                    String careers = readColumn(record, "optional_careers_hint_url");
+                    if (ticker == null || domain == null) {
+                        continue;
+                    }
+                    overridesByTicker.put(
+                        ticker.trim().toUpperCase(Locale.ROOT),
+                        new DomainOverride(domain.trim(), careers == null ? null : careers.trim())
+                    );
+                }
+                log.info("Loaded {} domain overrides from {}", overridesByTicker.size(), path);
+            } catch (IOException e) {
+                log.warn("Failed to load domain overrides from {}: {}", path, e.getMessage());
+            } finally {
+                overridesLoaded = true;
+            }
+        }
+    }
+
+    private Path resolvePath(String configuredPath) {
+        if (configuredPath == null || configuredPath.isBlank()) {
+            return null;
+        }
+        Path path = Paths.get(configuredPath);
+        if (path.isAbsolute()) {
+            return path.normalize();
+        }
+        return Paths.get("").toAbsolutePath().resolve(path).normalize();
+    }
+
+    private String readColumn(CSVRecord record, String header) {
+        if (record == null || header == null) {
+            return null;
+        }
+        for (String key : record.toMap().keySet()) {
+            if (key != null && key.trim().equalsIgnoreCase(header)) {
+                String value = record.get(key);
+                if (value == null || value.trim().isEmpty()) {
+                    return null;
+                }
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private String sparqlLiteral(String raw) {
@@ -808,5 +1230,11 @@ public class DomainResolutionService {
     }
 
     private record WdqsMatch(String qid, String website) {
+    }
+
+    private record NormalizedDomain(String domain, String careersHintUrl) {
+    }
+
+    private record DomainOverride(String domain, String careersHintUrl) {
     }
 }

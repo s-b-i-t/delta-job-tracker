@@ -43,6 +43,7 @@ class DomainResolutionServiceTest {
         CrawlerProperties properties = new CrawlerProperties();
         properties.getDomainResolution().setWdqsMinDelayMs(0);
         properties.getDomainResolution().setBatchSize(10);
+        properties.getData().setDomainsCsv("src/test/resources/missing.csv");
         service = new DomainResolutionService(properties, repository, wdqsHttpClient, new ObjectMapper());
     }
 
@@ -65,6 +66,91 @@ class DomainResolutionServiceTest {
             any(Instant.class),
             eq("enwiki_sitelink"),
             eq("Q312")
+        );
+    }
+
+    @Test
+    void normalizesCareersHostAndKeepsHint() {
+        CompanyIdentity company = new CompanyIdentity(11L, "ACME", "Acme Corp", "Tech", "Apple_Inc.", null, null, null, null, null);
+        when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+            .thenReturn(successFetch(wdqsResponseWithWebsite("https://boards.greenhouse.io/acme")));
+
+        service.resolveMissingDomains(1);
+
+        verify(repository).upsertCompanyDomain(
+            eq(11L),
+            eq("acme.com"),
+            eq("https://boards.greenhouse.io/acme"),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("enwiki_sitelink"),
+            eq("Q312")
+        );
+    }
+
+    @Test
+    void normalizesWorkdayHostToCompanyDomain() {
+        CompanyIdentity company = new CompanyIdentity(12L, "DELT", "Delta Corp", "Tech", "Apple_Inc.", null, null, null, null, null);
+        when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+            .thenReturn(successFetch(wdqsResponseWithWebsite("https://delta.wd1.myworkdayjobs.com/en-US/External")));
+
+        service.resolveMissingDomains(1);
+
+        verify(repository).upsertCompanyDomain(
+            eq(12L),
+            eq("delta.com"),
+            eq("https://delta.wd1.myworkdayjobs.com/en-US/External"),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("enwiki_sitelink"),
+            eq("Q312")
+        );
+    }
+
+    @Test
+    void keepsRegistrableCountryDomain() {
+        CompanyIdentity company = new CompanyIdentity(13L, "UKCO", "UK Co", "Finance", "Apple_Inc.", null, null, null, null, null);
+        when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+            .thenReturn(successFetch(wdqsResponseWithWebsite("https://www.example.co.uk/about")));
+
+        service.resolveMissingDomains(1);
+
+        verify(repository).upsertCompanyDomain(
+            eq(13L),
+            eq("example.co.uk"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("enwiki_sitelink"),
+            eq("Q312")
+        );
+    }
+
+    @Test
+    void resolvesTickerWhenNoWikipediaOrCik() {
+        CompanyIdentity company = new CompanyIdentity(14L, "XYZ", "Xyz Corp", null, null, null, null, null, null, null);
+        when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+        when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+            .thenReturn(successFetch(wdqsResponseWithTickerWebsite("XYZ", "https://xyz.com", "QXYZ")));
+
+        DomainResolutionResult result = service.resolveMissingDomains(1);
+
+        assertThat(result.resolvedCount()).isEqualTo(1);
+        verify(repository).upsertCompanyDomain(
+            eq(14L),
+            eq("xyz.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("stock_ticker"),
+            eq("QXYZ")
         );
     }
 
@@ -196,11 +282,15 @@ class DomainResolutionServiceTest {
     }
 
     private String wdqsResponseWithWebsite() {
+        return wdqsResponseWithWebsite("https://www.apple.com");
+    }
+
+    private String wdqsResponseWithWebsite(String website) {
         return """
             {"results":{"bindings":[
-              {"candidateTitle":{"value":"Apple Inc."},"articleTitle":{"value":"Apple Inc."},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
+              {"candidateTitle":{"value":"Apple Inc."},"articleTitle":{"value":"Apple Inc."},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"%s"}}
             ]}}
-            """;
+            """.formatted(website);
     }
 
     private String wdqsResponseWithoutWebsite() {
@@ -223,5 +313,13 @@ class DomainResolutionServiceTest {
               {"candidateCik":{"value":"0000320193"},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
             ]}}
             """;
+    }
+
+    private String wdqsResponseWithTickerWebsite(String ticker, String website, String qid) {
+        return """
+            {"results":{"bindings":[
+              {"candidateTicker":{"value":"%s"},"item":{"value":"http://www.wikidata.org/entity/%s"},"officialWebsite":{"value":"%s"}}
+            ]}}
+            """.formatted(ticker, qid, website);
     }
 }

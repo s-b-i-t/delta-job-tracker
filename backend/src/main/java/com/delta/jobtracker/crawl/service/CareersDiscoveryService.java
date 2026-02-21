@@ -1076,14 +1076,6 @@ public class CareersDiscoveryService {
         DiscoveryFailure primaryFailure() {
             return failure;
         }
-
-        boolean skipped() {
-            return skipped;
-        }
-
-        boolean timeBudgetExceeded() {
-            return timeBudgetExceeded;
-        }
     }
 
     static final class DiscoveryMetrics {
