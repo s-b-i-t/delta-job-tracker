@@ -12,7 +12,4 @@ public record CareersDiscoveryMethodMetrics(
     int sitemapUrlsChecked,
     Map<String, Integer> endpointsFoundHomepageByAtsType,
     Map<String, Integer> endpointsFoundVendorProbeByAtsType,
-    Map<String, Integer> endpointsFoundSitemapByAtsType
-) {
-}
-
+    Map<String, Integer> endpointsFoundSitemapByAtsType) {}

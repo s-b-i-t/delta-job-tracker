@@ -13,6 +13,4 @@ public record CareersDiscoveryCompanyResultView(
     Long durationMs,
     Integer httpStatus,
     String errorDetail,
-    Instant createdAt
-) {
-}
+    Instant createdAt) {}

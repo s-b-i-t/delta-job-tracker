@@ -13,6 +13,4 @@ public record CompanyCrawlSummary(
     int jobpostingPagesFoundCount,
     int jobsExtractedCount,
     boolean closeoutSafe,
-    Map<String, Integer> topErrors
-) {
-}
+    Map<String, Integer> topErrors) {}

@@ -1,9 +1,8 @@
 package com.delta.jobtracker.crawl.service;
 
+import java.io.IOException;
 import org.jsoup.nodes.Document;
 
-import java.io.IOException;
-
 public interface Sp500WikipediaClient {
-    Document fetchConstituentsPage(String url, String userAgent, int timeoutMs) throws IOException;
+  Document fetchConstituentsPage(String url, String userAgent, int timeoutMs) throws IOException;
 }

@@ -1,6 +1,11 @@
 package com.delta.jobtracker.crawl.persistence;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,30 +14,24 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
 class JobPostingCanonicalUrlUpdateTest {
 
-    @Autowired
-    private CrawlJdbcRepository repository;
+  @Autowired private CrawlJdbcRepository repository;
 
-    @Autowired
-    private NamedParameterJdbcTemplate jdbc;
+  @Autowired private NamedParameterJdbcTemplate jdbc;
 
-    @Test
-    void updatesCanonicalUrlWhenExternalIdentifierMatches() {
-        String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        long companyId = repository.upsertCompany("CU" + suffix, "Canonical Update Co " + suffix, "Technology");
-        long runId = repository.insertCrawlRun(Instant.now().minusSeconds(120), "RUNNING", "canonical");
+  @Test
+  void updatesCanonicalUrlWhenExternalIdentifierMatches() {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    long companyId =
+        repository.upsertCompany("CU" + suffix, "Canonical Update Co " + suffix, "Technology");
+    long runId = repository.insertCrawlRun(Instant.now().minusSeconds(120), "RUNNING", "canonical");
 
-        NormalizedJobPosting initial = new NormalizedJobPosting(
+    NormalizedJobPosting initial =
+        new NormalizedJobPosting(
             "https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true",
             "https://boards.greenhouse.io/acme/jobs/old",
             "Senior Engineer",
@@ -42,11 +41,11 @@ class JobPostingCanonicalUrlUpdateTest {
             LocalDate.parse("2026-01-05"),
             "desc",
             "req-123",
-            "hash-" + UUID.randomUUID()
-        );
-        repository.upsertJobPosting(companyId, runId, initial, Instant.now().minusSeconds(30));
+            "hash-" + UUID.randomUUID());
+    repository.upsertJobPosting(companyId, runId, initial, Instant.now().minusSeconds(30));
 
-        NormalizedJobPosting updated = new NormalizedJobPosting(
+    NormalizedJobPosting updated =
+        new NormalizedJobPosting(
             "https://boards.greenhouse.io/acme/jobs/123",
             "https://boards.greenhouse.io/acme/jobs/123",
             "Senior Engineer",
@@ -56,11 +55,11 @@ class JobPostingCanonicalUrlUpdateTest {
             LocalDate.parse("2026-01-05"),
             "desc",
             "req-123",
-            "hash-" + UUID.randomUUID()
-        );
-        repository.upsertJobPosting(companyId, runId, updated, Instant.now());
+            "hash-" + UUID.randomUUID());
+    repository.upsertJobPosting(companyId, runId, updated, Instant.now());
 
-        String canonical = jdbc.queryForObject(
+    String canonical =
+        jdbc.queryForObject(
             """
                 SELECT canonical_url
                 FROM job_postings
@@ -70,9 +69,8 @@ class JobPostingCanonicalUrlUpdateTest {
             new MapSqlParameterSource()
                 .addValue("companyId", companyId)
                 .addValue("externalIdentifier", "req-123"),
-            String.class
-        );
+            String.class);
 
-        assertEquals("https://boards.greenhouse.io/acme/jobs/123", canonical);
-    }
+    assertEquals("https://boards.greenhouse.io/acme/jobs/123", canonical);
+  }
 }

@@ -11,6 +11,4 @@ public record CanaryRunStatusResponse(
     Instant finishedAt,
     String status,
     SecCanarySummary summary,
-    Map<String, Integer> errorSummary
-) {
-}
+    Map<String, Integer> errorSummary) {}

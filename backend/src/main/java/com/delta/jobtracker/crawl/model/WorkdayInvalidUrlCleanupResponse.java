@@ -7,6 +7,4 @@ public record WorkdayInvalidUrlCleanupResponse(
     int errors,
     boolean dryRun,
     long lastId,
-    boolean limitReached
-) {
-}
+    boolean limitReached) {}

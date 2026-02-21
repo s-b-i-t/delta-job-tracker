@@ -4,7 +4,4 @@ import java.util.List;
 import java.util.Map;
 
 public record DiscoveryFailuresDiagnosticsResponse(
-    Map<String, Long> countsByReason,
-    List<DiscoveryFailureEntry> recentFailures
-) {
-}
+    Map<String, Long> countsByReason, List<DiscoveryFailureEntry> recentFailures) {}

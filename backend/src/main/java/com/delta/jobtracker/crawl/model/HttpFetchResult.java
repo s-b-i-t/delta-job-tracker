@@ -15,13 +15,12 @@ public record HttpFetchResult(
     Instant fetchedAt,
     Duration duration,
     String errorCode,
-    String errorMessage
-) {
-    public boolean isSuccessful() {
-        return statusCode >= 200 && statusCode < 300 && errorCode == null;
-    }
+    String errorMessage) {
+  public boolean isSuccessful() {
+    return statusCode >= 200 && statusCode < 300 && errorCode == null;
+  }
 
-    public String finalUrlOrRequested() {
-        return finalUri != null ? finalUri.toString() : requestedUrl;
-    }
+  public String finalUrlOrRequested() {
+    return finalUri != null ? finalUri.toString() : requestedUrl;
+  }
 }

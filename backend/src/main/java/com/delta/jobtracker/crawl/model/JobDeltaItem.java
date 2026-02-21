@@ -9,6 +9,4 @@ public record JobDeltaItem(
     String sourceUrl,
     AtsType atsType,
     Instant firstSeenAt,
-    Instant lastSeenAt
-) {
-}
+    Instant lastSeenAt) {}

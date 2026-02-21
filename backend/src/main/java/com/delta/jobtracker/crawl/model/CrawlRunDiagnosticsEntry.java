@@ -9,6 +9,4 @@ public record CrawlRunDiagnosticsEntry(
     String status,
     long discoveredUrls,
     long discoveredSitemaps,
-    long jobPostings
-) {
-}
+    long jobPostings) {}

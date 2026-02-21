@@ -18,6 +18,4 @@ public record JobPostingListView(
     LocalDate datePosted,
     Instant firstSeenAt,
     Instant lastSeenAt,
-    boolean isActive
-) {
-}
+    boolean isActive) {}

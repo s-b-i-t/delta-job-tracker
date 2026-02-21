@@ -6,6 +6,4 @@ public record CompanyTarget(
     String name,
     String sector,
     String domain,
-    String careersHintUrl
-) {
-}
+    String careersHintUrl) {}

@@ -2,32 +2,33 @@ package com.delta.jobtracker.crawl.persistence;
 
 import com.delta.jobtracker.crawl.model.CrawlQueueErrorSample;
 import com.delta.jobtracker.crawl.model.CrawlQueueStats;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Timestamp;
-import java.time.Instant;
-import java.util.List;
-
 @Repository
 public class CrawlQueueRepository {
-    private final NamedParameterJdbcTemplate jdbc;
+  private final NamedParameterJdbcTemplate jdbc;
 
-    public CrawlQueueRepository(NamedParameterJdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
+  public CrawlQueueRepository(NamedParameterJdbcTemplate jdbc) {
+    this.jdbc = jdbc;
+  }
 
-    public Long claimNextCompany(String lockOwner, long lockTtlSeconds) {
-        Instant now = Instant.now();
-        Instant lockedUntil = now.plusSeconds(Math.max(1, lockTtlSeconds));
-        String safeOwner = (lockOwner == null || lockOwner.isBlank()) ? "unknown" : lockOwner.trim();
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public Long claimNextCompany(String lockOwner, long lockTtlSeconds) {
+    Instant now = Instant.now();
+    Instant lockedUntil = now.plusSeconds(Math.max(1, lockTtlSeconds));
+    String safeOwner = (lockOwner == null || lockOwner.isBlank()) ? "unknown" : lockOwner.trim();
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("now", Timestamp.from(now))
             .addValue("lockedUntil", Timestamp.from(lockedUntil))
             .addValue("lockOwner", safeOwner);
 
-        List<Long> results = jdbc.query(
+    List<Long> results =
+        jdbc.query(
             """
                 WITH candidate AS (
                     SELECT company_id
@@ -49,19 +50,19 @@ public class CrawlQueueRepository {
                 RETURNING cq.company_id
                 """,
             params,
-            (rs, rowNum) -> rs.getLong("company_id")
-        );
-        return results.isEmpty() ? null : results.getFirst();
-    }
+            (rs, rowNum) -> rs.getLong("company_id"));
+    return results.isEmpty() ? null : results.getFirst();
+  }
 
-    public void markSuccess(long companyId, Instant nextRunAt) {
-        Instant now = Instant.now();
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void markSuccess(long companyId, Instant nextRunAt) {
+    Instant now = Instant.now();
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("nextRunAt", Timestamp.from(nextRunAt))
             .addValue("now", Timestamp.from(now));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE crawl_queue
                 SET next_run_at = :nextRunAt,
                     locked_until = NULL,
@@ -75,19 +76,19 @@ public class CrawlQueueRepository {
                     updated_at = :now
                 WHERE company_id = :companyId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void markFailure(long companyId, Instant nextRunAt, String error) {
-        Instant now = Instant.now();
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void markFailure(long companyId, Instant nextRunAt, String error) {
+    Instant now = Instant.now();
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("nextRunAt", Timestamp.from(nextRunAt))
             .addValue("lastError", error)
             .addValue("now", Timestamp.from(now));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE crawl_queue
                 SET next_run_at = :nextRunAt,
                     locked_until = NULL,
@@ -100,46 +101,44 @@ public class CrawlQueueRepository {
                     updated_at = :now
                 WHERE company_id = :companyId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public void releaseLock(long companyId) {
-        Instant now = Instant.now();
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public void releaseLock(long companyId) {
+    Instant now = Instant.now();
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("companyId", companyId)
             .addValue("now", Timestamp.from(now));
-        jdbc.update(
-            """
+    jdbc.update(
+        """
                 UPDATE crawl_queue
                 SET locked_until = NULL,
                     lock_owner = NULL,
                     updated_at = :now
                 WHERE company_id = :companyId
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public int getConsecutiveFailures(long companyId) {
-        Integer value = jdbc.queryForObject(
+  public int getConsecutiveFailures(long companyId) {
+    Integer value =
+        jdbc.queryForObject(
             """
                 SELECT consecutive_failures
                 FROM crawl_queue
                 WHERE company_id = :companyId
                 """,
             new MapSqlParameterSource().addValue("companyId", companyId),
-            Integer.class
-        );
-        return value == null ? 0 : value;
-    }
+            Integer.class);
+    return value == null ? 0 : value;
+  }
 
-    public int bootstrapQueue() {
-        Instant now = Instant.now();
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("now", Timestamp.from(now));
-        return jdbc.update(
-            """
+  public int bootstrapQueue() {
+    Instant now = Instant.now();
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("now", Timestamp.from(now));
+    return jdbc.update(
+        """
                 INSERT INTO crawl_queue (company_id, next_run_at, updated_at)
                 SELECT id, :now, :now
                 FROM companies
@@ -147,17 +146,18 @@ public class CrawlQueueRepository {
                 DO UPDATE SET next_run_at = EXCLUDED.next_run_at,
                               updated_at = EXCLUDED.updated_at
                 """,
-            params
-        );
-    }
+        params);
+  }
 
-    public CrawlQueueStats fetchQueueStats(int errorSampleLimit) {
-        Instant now = Instant.now();
-        MapSqlParameterSource params = new MapSqlParameterSource()
+  public CrawlQueueStats fetchQueueStats(int errorSampleLimit) {
+    Instant now = Instant.now();
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
             .addValue("now", Timestamp.from(now))
             .addValue("limit", errorSampleLimit);
 
-        Long dueCount = jdbc.queryForObject(
+    Long dueCount =
+        jdbc.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM crawl_queue
@@ -165,9 +165,9 @@ public class CrawlQueueRepository {
                   AND (locked_until IS NULL OR locked_until < :now)
                 """,
             params,
-            Long.class
-        );
-        Long lockedCount = jdbc.queryForObject(
+            Long.class);
+    Long lockedCount =
+        jdbc.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM crawl_queue
@@ -175,18 +175,18 @@ public class CrawlQueueRepository {
                   AND locked_until > :now
                 """,
             params,
-            Long.class
-        );
-        Timestamp nextDue = jdbc.queryForObject(
+            Long.class);
+    Timestamp nextDue =
+        jdbc.queryForObject(
             """
                 SELECT MIN(next_run_at)
                 FROM crawl_queue
                 """,
             params,
-            Timestamp.class
-        );
+            Timestamp.class);
 
-        List<CrawlQueueErrorSample> errors = jdbc.query(
+    List<CrawlQueueErrorSample> errors =
+        jdbc.query(
             """
                 SELECT company_id,
                        last_error,
@@ -198,21 +198,19 @@ public class CrawlQueueRepository {
                 LIMIT :limit
                 """,
             params,
-            (rs, rowNum) -> new CrawlQueueErrorSample(
-                rs.getLong("company_id"),
-                rs.getString("last_error"),
-                rs.getTimestamp("last_finished_at") == null
-                    ? null
-                    : rs.getTimestamp("last_finished_at").toInstant(),
-                rs.getInt("consecutive_failures")
-            )
-        );
+            (rs, rowNum) ->
+                new CrawlQueueErrorSample(
+                    rs.getLong("company_id"),
+                    rs.getString("last_error"),
+                    rs.getTimestamp("last_finished_at") == null
+                        ? null
+                        : rs.getTimestamp("last_finished_at").toInstant(),
+                    rs.getInt("consecutive_failures")));
 
-        return new CrawlQueueStats(
-            dueCount == null ? 0L : dueCount,
-            lockedCount == null ? 0L : lockedCount,
-            nextDue == null ? null : nextDue.toInstant(),
-            errors
-        );
-    }
+    return new CrawlQueueStats(
+        dueCount == null ? 0L : dueCount,
+        lockedCount == null ? 0L : lockedCount,
+        nextDue == null ? null : nextDue.toInstant(),
+        errors);
+  }
 }

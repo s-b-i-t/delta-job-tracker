@@ -8,6 +8,4 @@ public record CareersDiscoveryState(
     String lastReasonCode,
     String lastCandidateUrl,
     int consecutiveFailures,
-    Instant nextAttemptAt
-) {
-}
+    Instant nextAttemptAt) {}

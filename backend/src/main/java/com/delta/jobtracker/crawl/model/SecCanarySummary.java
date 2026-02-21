@@ -30,6 +30,4 @@ public record SecCanarySummary(
     Map<String, Integer> jobsExtractedByAtsType,
     int domainResolutionSucceeded,
     int domainResolutionFailed,
-    Map<String, Map<String, Integer>> topErrorsByStep
-) {
-}
+    Map<String, Map<String, Integer>> topErrorsByStep) {}

@@ -10,6 +10,4 @@ public record FullCycleSummary(
     CareersDiscoveryResult careersDiscovery,
     CrawlRunSummary crawlRun,
     int jobsExtracted,
-    Map<String, Integer> topErrors
-) {
-}
+    Map<String, Integer> topErrors) {}

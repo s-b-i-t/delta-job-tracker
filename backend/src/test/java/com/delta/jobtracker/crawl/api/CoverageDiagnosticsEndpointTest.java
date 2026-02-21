@@ -1,9 +1,17 @@
 package com.delta.jobtracker.crawl.api;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,62 +22,51 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.UUID;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
 class CoverageDiagnosticsEndpointTest {
 
-    @Autowired
-    private WebApplicationContext context;
+  @Autowired private WebApplicationContext context;
 
-    @Autowired
-    private CrawlJdbcRepository repository;
+  @Autowired private CrawlJdbcRepository repository;
 
-    private MockMvc mockMvc;
+  private MockMvc mockMvc;
 
-    @BeforeEach
-    void setUp() {
-        this.mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
-    }
+  @BeforeEach
+  void setUp() {
+    this.mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+  }
 
-    @Test
-    void returnsCoverageCountsAndAtsBreakdown() throws Exception {
-        String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        long companyId = repository.upsertCompany("DC" + suffix, "Diagnostics Co " + suffix, "Technology");
-        repository.upsertCompanyDomain(companyId, "diag" + suffix.toLowerCase() + ".example.com", null);
+  @Test
+  void returnsCoverageCountsAndAtsBreakdown() throws Exception {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    long companyId =
+        repository.upsertCompany("DC" + suffix, "Diagnostics Co " + suffix, "Technology");
+    repository.upsertCompanyDomain(companyId, "diag" + suffix.toLowerCase() + ".example.com", null);
 
-        Instant runStart = Instant.now().minusSeconds(30);
-        long runId = repository.insertCrawlRun(runStart, "RUNNING", "diag");
-        repository.upsertDiscoveredUrl(
-            runId,
-            companyId,
-            "https://diag" + suffix.toLowerCase() + ".example.com/careers",
-            DiscoveredUrlType.OTHER,
-            "discovered",
-            runStart
-        );
+    Instant runStart = Instant.now().minusSeconds(30);
+    long runId = repository.insertCrawlRun(runStart, "RUNNING", "diag");
+    repository.upsertDiscoveredUrl(
+        runId,
+        companyId,
+        "https://diag" + suffix.toLowerCase() + ".example.com/careers",
+        DiscoveredUrlType.OTHER,
+        "discovered",
+        runStart);
 
-        repository.upsertAtsEndpoint(
-            companyId,
-            AtsType.GREENHOUSE,
-            "https://boards.greenhouse.io/diagnostics" + suffix.toLowerCase(),
-            "https://diag" + suffix.toLowerCase() + ".example.com/careers",
-            0.9,
-            Instant.now(),
-            "test",
-            true
-        );
+    repository.upsertAtsEndpoint(
+        companyId,
+        AtsType.GREENHOUSE,
+        "https://boards.greenhouse.io/diagnostics" + suffix.toLowerCase(),
+        "https://diag" + suffix.toLowerCase() + ".example.com/careers",
+        0.9,
+        Instant.now(),
+        "test",
+        true);
 
-        NormalizedJobPosting posting = new NormalizedJobPosting(
+    NormalizedJobPosting posting =
+        new NormalizedJobPosting(
             "https://boards.greenhouse.io/diagnostics" + suffix.toLowerCase() + "/jobs/123",
             "https://boards.greenhouse.io/diagnostics" + suffix.toLowerCase() + "/jobs/123",
             "Test Role",
@@ -79,17 +76,17 @@ class CoverageDiagnosticsEndpointTest {
             LocalDate.parse("2026-01-10"),
             "<p>Testing</p>",
             "req-" + suffix,
-            "hash-" + UUID.randomUUID()
-        );
-        repository.upsertJobPosting(companyId, runId, posting, runStart.plusSeconds(5));
+            "hash-" + UUID.randomUUID());
+    repository.upsertJobPosting(companyId, runId, posting, runStart.plusSeconds(5));
 
-        mockMvc.perform(get("/api/diagnostics/coverage"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.counts.company_domains").value(greaterThanOrEqualTo(1)))
-            .andExpect(jsonPath("$.counts.discovered_urls").value(greaterThanOrEqualTo(1)))
-            .andExpect(jsonPath("$.counts.ats_endpoints").value(greaterThanOrEqualTo(1)))
-            .andExpect(jsonPath("$.counts.job_postings").value(greaterThanOrEqualTo(1)))
-            .andExpect(jsonPath("$.atsEndpointsByType.GREENHOUSE").value(greaterThanOrEqualTo(1)))
-            .andExpect(jsonPath("$.atsEndpointsByMethod.test").value(greaterThanOrEqualTo(1)));
-    }
+    mockMvc
+        .perform(get("/api/diagnostics/coverage"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.counts.company_domains").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.counts.discovered_urls").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.counts.ats_endpoints").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.counts.job_postings").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.atsEndpointsByType.GREENHOUSE").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.atsEndpointsByMethod.test").value(greaterThanOrEqualTo(1)));
+  }
 }
