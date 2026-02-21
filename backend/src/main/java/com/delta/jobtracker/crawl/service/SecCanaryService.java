@@ -12,6 +12,8 @@ import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.CrawlRunRequest;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryMethodMetrics;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryWithMetrics;
 import com.delta.jobtracker.crawl.model.SecCanarySummary;
 import com.delta.jobtracker.crawl.model.SecIngestionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -141,9 +143,25 @@ public class SecCanaryService {
         long durationTotalMs = 0L;
         DomainResolutionResult domainResolution = new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of());
         CareersDiscoveryResult careersDiscovery = new CareersDiscoveryResult(Map.of(), 0, 0, Map.of());
+        CareersDiscoveryMethodMetrics careersDiscoveryMetrics = new CareersDiscoveryMethodMetrics(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
         Map<String, Integer> endpointsDiscoveredByAtsType = Map.of();
         Map<String, Integer> companiesCrawledByAtsType = Map.of();
+        Map<String, Integer> jobsExtractedByAtsType = Map.of();
         int cooldownSkips = 0;
+        int domainResolutionSucceeded = 0;
+        int domainResolutionFailed = 0;
+        Map<String, Map<String, Integer>> topErrorsByStep = new LinkedHashMap<>();
 
         CanaryHttpBudget budget = new CanaryHttpBudget(
             properties.getCanary().getMaxRequestsPerHost(),
@@ -165,6 +183,7 @@ public class SecCanaryService {
             companiesIngested = tickers.size();
             if (!ingestionResult.sampleErrors().isEmpty()) {
                 topErrors.put("ingest_errors", ingestionResult.errorCount());
+                topErrorsByStep.put("ingest", Map.of("ingest_errors", ingestionResult.errorCount()));
             }
 
             if (tickers.isEmpty()) {
@@ -178,12 +197,21 @@ public class SecCanaryService {
                 durationDomainResolutionMs = Duration.between(domainStart, Instant.now()).toMillis();
                 stepDurationsMs.put("resolveDomains", durationDomainResolutionMs);
                 domainsResolved = domainResolution.resolvedCount();
+                domainResolutionSucceeded = domainResolution.resolvedCount();
+                domainResolutionFailed = Math.max(
+                    0,
+                    domainResolution.noWikipediaTitleCount()
+                        + domainResolution.noItemCount()
+                        + domainResolution.noP856Count()
+                        + domainResolution.wdqsErrorCount()
+                        + domainResolution.wdqsTimeoutCount()
+                );
                 if (deadlineExceeded(deadline)) {
                     status = "ABORTED";
                     abortReason = "time_budget_exceeded";
                 } else {
                     Instant discoveryStart = Instant.now();
-                    careersDiscovery = careersDiscoveryService.discoverForTickers(
+                    CareersDiscoveryWithMetrics discoveryWithMetrics = careersDiscoveryService.discoverForTickersWithMetrics(
                         tickers,
                         tickers.size(),
                         deadline,
@@ -191,6 +219,8 @@ public class SecCanaryService {
                     );
                     durationDiscoveryMs = Duration.between(discoveryStart, Instant.now()).toMillis();
                     stepDurationsMs.put("discoverCareers", durationDiscoveryMs);
+                    careersDiscovery = discoveryWithMetrics == null ? careersDiscovery : discoveryWithMetrics.result();
+                    careersDiscoveryMetrics = discoveryWithMetrics == null ? careersDiscoveryMetrics : discoveryWithMetrics.metrics();
                     endpointsDiscoveredByAtsType = careersDiscovery.discoveredCountByAtsType();
                     if (deadlineExceeded(deadline)) {
                         status = "ABORTED";
@@ -227,16 +257,48 @@ public class SecCanaryService {
 
         if (crawlRunId != null) {
             companiesCrawledByAtsType = repository.countCrawlRunCompaniesByAtsType(crawlRunId);
+            jobsExtractedByAtsType = repository.countCrawlRunJobsExtractedByAtsType(crawlRunId);
             Map<String, Long> crawlFailures = repository.countCrawlRunCompanyFailures(crawlRunId);
+            Map<String, Integer> crawlErrors = new LinkedHashMap<>();
             for (Map.Entry<String, Long> entry : crawlFailures.entrySet()) {
-                topErrors.put(entry.getKey(), entry.getValue().intValue());
+                int count = entry.getValue() == null ? 0 : entry.getValue().intValue();
+                topErrors.put(entry.getKey(), count);
+                crawlErrors.put(entry.getKey(), count);
+            }
+            if (!crawlErrors.isEmpty()) {
+                topErrorsByStep.put("crawl", crawlErrors);
             }
         }
+
+        Map<String, Integer> domainErrorsByStep = new LinkedHashMap<>();
         mergeDomainErrors(domainResolution, topErrors);
+        if (domainResolution.noWikipediaTitleCount() > 0) {
+            domainErrorsByStep.put("domain_no_identifier", domainResolution.noWikipediaTitleCount());
+        }
+        if (domainResolution.noItemCount() > 0) {
+            domainErrorsByStep.put("domain_no_item", domainResolution.noItemCount());
+        }
+        if (domainResolution.noP856Count() > 0) {
+            domainErrorsByStep.put("domain_no_p856", domainResolution.noP856Count());
+        }
+        if (domainResolution.wdqsErrorCount() > 0) {
+            domainErrorsByStep.put("domain_wdqs_error", domainResolution.wdqsErrorCount());
+        }
+        if (domainResolution.wdqsTimeoutCount() > 0) {
+            domainErrorsByStep.put("domain_wdqs_timeout", domainResolution.wdqsTimeoutCount());
+        }
+        if (!domainErrorsByStep.isEmpty()) {
+            topErrorsByStep.put("domain_resolution", domainErrorsByStep);
+        }
+
         cooldownSkips = careersDiscovery.cooldownSkips();
         mergeErrors(topErrors, careersDiscovery.topErrors());
+        if (careersDiscovery.topErrors() != null && !careersDiscovery.topErrors().isEmpty()) {
+            topErrorsByStep.put("discovery", new LinkedHashMap<>(careersDiscovery.topErrors()));
+        }
         if (careersDiscovery.failedCount() > 0 && careersDiscovery.topErrors().isEmpty()) {
             topErrors.put("discovery_failed", careersDiscovery.failedCount());
+            topErrorsByStep.put("discovery", Map.of("discovery_failed", careersDiscovery.failedCount()));
         }
         ensureHostCooldownCategory(topErrors);
 
@@ -264,7 +326,12 @@ public class SecCanaryService {
             jobsExtracted,
             cooldownSkips,
             topErrors,
-            stepDurationsMs
+            stepDurationsMs,
+            careersDiscoveryMetrics,
+            jobsExtractedByAtsType,
+            domainResolutionSucceeded,
+            domainResolutionFailed,
+            topErrorsByStep
         );
     }
 

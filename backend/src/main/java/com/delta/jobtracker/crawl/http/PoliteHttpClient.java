@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -28,6 +30,8 @@ import java.util.concurrent.ThreadLocalRandom;
 @Service
 public class PoliteHttpClient {
     private static final Duration BACKOFF_DURATION = Duration.ofSeconds(30);
+    private static final int DEFAULT_MAX_BYTES_READ_BUFFER = 8192;
+    private static final String BODY_TOO_LARGE_ERROR = "body_too_large";
 
     private final CrawlerProperties properties;
     private final HttpClient client;
@@ -54,23 +58,31 @@ public class PoliteHttpClient {
     }
 
     public HttpFetchResult get(String url, String acceptHeader) {
-        return send(url, "GET", acceptHeader, null, null, null);
+        return send(url, "GET", acceptHeader, null, null, null, null);
     }
 
     public HttpFetchResult get(String url, String acceptHeader, String userAgentOverride) {
-        return send(url, "GET", acceptHeader, null, null, userAgentOverride);
+        return send(url, "GET", acceptHeader, null, null, userAgentOverride, null);
+    }
+
+    public HttpFetchResult get(String url, String acceptHeader, int maxBytes) {
+        return send(url, "GET", acceptHeader, null, null, null, maxBytes);
+    }
+
+    public HttpFetchResult get(String url, String acceptHeader, String userAgentOverride, int maxBytes) {
+        return send(url, "GET", acceptHeader, null, null, userAgentOverride, maxBytes);
     }
 
     public HttpFetchResult postJson(String url, String jsonBody, String acceptHeader) {
-        return send(url, "POST", acceptHeader, jsonBody == null ? "" : jsonBody, "application/json", null);
+        return send(url, "POST", acceptHeader, jsonBody == null ? "" : jsonBody, "application/json", null, null);
     }
 
     public HttpFetchResult postForm(String url, String formBody, String acceptHeader) {
-        return send(url, "POST", acceptHeader, formBody == null ? "" : formBody, "application/x-www-form-urlencoded", null);
+        return send(url, "POST", acceptHeader, formBody == null ? "" : formBody, "application/x-www-form-urlencoded", null, null);
     }
 
     private HttpFetchResult send(String url, String method, String acceptHeader, String body) {
-        return send(url, method, acceptHeader, body, "application/json", null);
+        return send(url, method, acceptHeader, body, "application/json", null, null);
     }
 
     private HttpFetchResult send(
@@ -79,7 +91,8 @@ public class PoliteHttpClient {
         String acceptHeader,
         String body,
         String contentType,
-        String userAgentOverride
+        String userAgentOverride,
+        Integer maxBytes
     ) {
         CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
         int maxAttempts = Math.max(1, 1 + properties.getRequestMaxRetries());
@@ -88,7 +101,7 @@ public class PoliteHttpClient {
         }
         HttpFetchResult lastResult = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            lastResult = executeOnce(url, method, acceptHeader, body, contentType, userAgentOverride);
+            lastResult = executeOnce(url, method, acceptHeader, body, contentType, userAgentOverride, maxBytes);
             if (lastResult == null || !shouldRetry(lastResult) || attempt >= maxAttempts) {
                 return lastResult;
             }
@@ -105,7 +118,8 @@ public class PoliteHttpClient {
         String acceptHeader,
         String body,
         String contentType,
-        String userAgentOverride
+        String userAgentOverride,
+        Integer maxBytes
     ) {
         Instant startedAt = Instant.now();
         URI uri = normalizeUri(url);
@@ -178,51 +192,35 @@ public class PoliteHttpClient {
                 request = builder.GET().build();
             }
 
-            HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() == 403 || response.statusCode() == 429) {
-                extendBackoff(host, BACKOFF_DURATION);
-            }
-            byte[] responseBytes = response.body();
-            String responseBody = responseBytes == null ? null : new String(responseBytes, StandardCharsets.UTF_8);
-            HttpFetchResult result = new HttpFetchResult(
-                url,
-                response.uri(),
-                response.statusCode(),
-                responseBody,
-                responseBytes,
-                response.headers().firstValue("Content-Type").orElse(null),
-                response.headers().firstValue("Content-Encoding").orElse(null),
-                Instant.now(),
-                Duration.between(startedAt, Instant.now()),
-                null,
-                null
-            );
+            HttpFetchResult result = maxBytes != null && maxBytes > 0
+                ? executeWithMaxBytes(url, host, request, startedAt, maxBytes)
+                : executeWithoutMaxBytes(url, host, request, startedAt);
             if (budget != null) {
                 budget.recordResult(result);
-                recordHostCooldownIfNeeded(host, result);
             }
+            recordHostCooldownIfNeeded(host, result);
             return result;
         } catch (HttpTimeoutException e) {
             HttpFetchResult result = errorResult(url, startedAt, "timeout", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
-                recordHostCooldownIfNeeded(host, result);
             }
+            recordHostCooldownIfNeeded(host, result);
             return result;
         } catch (IOException e) {
             HttpFetchResult result = errorResult(url, startedAt, "io_error", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
-                recordHostCooldownIfNeeded(host, result);
             }
+            recordHostCooldownIfNeeded(host, result);
             return result;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             HttpFetchResult result = errorResult(url, startedAt, "interrupted", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
-                recordHostCooldownIfNeeded(host, result);
             }
+            recordHostCooldownIfNeeded(host, result);
             return result;
         } catch (CanaryAbortException e) {
             throw e;
@@ -230,8 +228,8 @@ public class PoliteHttpClient {
             HttpFetchResult result = errorResult(url, startedAt, "http_error", e.getMessage());
             if (budget != null) {
                 budget.recordResult(result);
-                recordHostCooldownIfNeeded(host, result);
             }
+            recordHostCooldownIfNeeded(host, result);
             return result;
         } finally {
             if (hostAcquired) {
@@ -252,10 +250,14 @@ public class PoliteHttpClient {
         }
         String errorCode = result.errorCode();
         if (errorCode != null && !errorCode.isBlank()) {
+            if (errorCode.equals("host_cooldown") || errorCode.equals(BODY_TOO_LARGE_ERROR)) {
+                return false;
+            }
             return !errorCode.equals("invalid_url") && !errorCode.equals("interrupted");
         }
         int status = result.statusCode();
-        return status == 408 || status == 429 || status >= 500;
+        // Fail-fast on 429: record cooldown and let callers skip the host for the rest of the run.
+        return status == 408 || status >= 500;
     }
 
     private void recordHostCooldownIfNeeded(String host, HttpFetchResult result) {
@@ -291,6 +293,146 @@ public class PoliteHttpClient {
             return ReasonCodeClassifier.TIMEOUT;
         }
         return null;
+    }
+
+    private HttpFetchResult executeWithoutMaxBytes(
+        String url,
+        String host,
+        HttpRequest request,
+        Instant startedAt
+    ) throws IOException, InterruptedException {
+        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        if (response.statusCode() == 403 || response.statusCode() == 429) {
+            extendBackoff(host, BACKOFF_DURATION);
+        }
+        byte[] responseBytes = response.body();
+        String responseBody = responseBytes == null ? null : new String(responseBytes, StandardCharsets.UTF_8);
+        return new HttpFetchResult(
+            url,
+            response.uri(),
+            response.statusCode(),
+            responseBody,
+            responseBytes,
+            response.headers().firstValue("Content-Type").orElse(null),
+            response.headers().firstValue("Content-Encoding").orElse(null),
+            Instant.now(),
+            Duration.between(startedAt, Instant.now()),
+            null,
+            null
+        );
+    }
+
+    private HttpFetchResult executeWithMaxBytes(
+        String url,
+        String host,
+        HttpRequest request,
+        Instant startedAt,
+        int maxBytes
+    ) throws IOException, InterruptedException {
+        int safeMaxBytes = Math.max(1, maxBytes);
+        HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() == 403 || response.statusCode() == 429) {
+            extendBackoff(host, BACKOFF_DURATION);
+        }
+
+        Long contentLength = parseContentLength(response);
+        if (contentLength != null && contentLength > safeMaxBytes) {
+            try (InputStream ignored = response.body()) {
+                // Close early to avoid downloading the full body.
+            }
+            return new HttpFetchResult(
+                url,
+                response.uri(),
+                response.statusCode(),
+                null,
+                null,
+                response.headers().firstValue("Content-Type").orElse(null),
+                response.headers().firstValue("Content-Encoding").orElse(null),
+                Instant.now(),
+                Duration.between(startedAt, Instant.now()),
+                BODY_TOO_LARGE_ERROR,
+                "max_bytes=" + safeMaxBytes + " content_length=" + contentLength
+            );
+        }
+
+        LimitedBody body = readBodyUpTo(response.body(), safeMaxBytes);
+        boolean tooLarge = body.reachedLimit() && contentLength == null;
+        if (tooLarge) {
+            return new HttpFetchResult(
+                url,
+                response.uri(),
+                response.statusCode(),
+                null,
+                null,
+                response.headers().firstValue("Content-Type").orElse(null),
+                response.headers().firstValue("Content-Encoding").orElse(null),
+                Instant.now(),
+                Duration.between(startedAt, Instant.now()),
+                BODY_TOO_LARGE_ERROR,
+                "max_bytes=" + safeMaxBytes + " bytes_read=" + body.bytesRead()
+            );
+        }
+
+        byte[] responseBytes = body.bytes();
+        String responseBody = responseBytes == null ? null : new String(responseBytes, StandardCharsets.UTF_8);
+        return new HttpFetchResult(
+            url,
+            response.uri(),
+            response.statusCode(),
+            responseBody,
+            responseBytes,
+            response.headers().firstValue("Content-Type").orElse(null),
+            response.headers().firstValue("Content-Encoding").orElse(null),
+            Instant.now(),
+            Duration.between(startedAt, Instant.now()),
+            null,
+            null
+        );
+    }
+
+    private Long parseContentLength(HttpResponse<?> response) {
+        if (response == null) {
+            return null;
+        }
+        try {
+            String value = response.headers().firstValue("Content-Length").orElse(null);
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            long parsed = Long.parseLong(value.trim());
+            return parsed < 0 ? null : parsed;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private LimitedBody readBodyUpTo(InputStream stream, int maxBytes) throws IOException {
+        if (stream == null) {
+            return new LimitedBody(null, 0, false);
+        }
+        int safeMaxBytes = Math.max(1, maxBytes);
+        ByteArrayOutputStream out = new ByteArrayOutputStream(Math.min(safeMaxBytes, 16 * 1024));
+        byte[] buffer = new byte[Math.min(DEFAULT_MAX_BYTES_READ_BUFFER, safeMaxBytes)];
+        int total = 0;
+        boolean reachedLimit = false;
+        try (InputStream input = stream) {
+            while (total < safeMaxBytes) {
+                int remaining = safeMaxBytes - total;
+                int read = input.read(buffer, 0, Math.min(buffer.length, remaining));
+                if (read < 0) {
+                    break;
+                }
+                if (read > 0) {
+                    out.write(buffer, 0, read);
+                    total += read;
+                }
+            }
+            reachedLimit = total >= safeMaxBytes;
+        }
+        return new LimitedBody(out.toByteArray(), total, reachedLimit);
+    }
+
+    private record LimitedBody(byte[] bytes, int bytesRead, boolean reachedLimit) {
     }
 
     private boolean sleepBackoff(int attempt) {

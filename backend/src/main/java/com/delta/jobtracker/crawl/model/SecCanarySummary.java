@@ -25,6 +25,11 @@ public record SecCanarySummary(
     int jobsExtracted,
     int cooldownSkips,
     Map<String, Integer> topErrors,
-    Map<String, Long> stepDurationsMs
+    Map<String, Long> stepDurationsMs,
+    CareersDiscoveryMethodMetrics careersDiscoveryMetrics,
+    Map<String, Integer> jobsExtractedByAtsType,
+    int domainResolutionSucceeded,
+    int domainResolutionFailed,
+    Map<String, Map<String, Integer>> topErrorsByStep
 ) {
 }

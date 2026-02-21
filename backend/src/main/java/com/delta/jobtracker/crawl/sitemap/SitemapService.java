@@ -30,6 +30,7 @@ import java.util.zip.GZIPInputStream;
 @Service
 public class SitemapService {
     private static final Logger log = LoggerFactory.getLogger(SitemapService.class);
+    private static final int MAX_SITEMAP_BYTES = 2_000_000;
     private final PoliteHttpClient httpClient;
     private final RobotsTxtService robotsTxtService;
 
@@ -70,7 +71,11 @@ public class SitemapService {
                 continue;
             }
 
-            HttpFetchResult fetch = httpClient.get(current.url(), "application/xml,text/xml;q=0.9,*/*;q=0.1");
+            HttpFetchResult fetch = httpClient.get(
+                current.url(),
+                "application/xml,text/xml;q=0.9,*/*;q=0.1",
+                MAX_SITEMAP_BYTES
+            );
             if (!fetch.isSuccessful()) {
                 increment(errors, errorKey(fetch));
                 continue;

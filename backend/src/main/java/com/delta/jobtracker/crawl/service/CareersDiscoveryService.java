@@ -12,6 +12,8 @@ import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.AtsDetectionRecord;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryState;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryMethodMetrics;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryWithMetrics;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.model.SitemapDiscoveryResult;
@@ -155,10 +157,34 @@ public class CareersDiscoveryService {
         return discoverForCompanies(companies, deadline, vendorProbeOnly);
     }
 
+    public CareersDiscoveryWithMetrics discoverForTickersWithMetrics(
+        List<String> tickers,
+        Integer requestedLimit,
+        Instant deadline,
+        boolean vendorProbeOnly
+    ) {
+        int limit = requestedLimit == null
+            ? properties.getCareersDiscovery().getDefaultLimit()
+            : Math.max(1, requestedLimit);
+        List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
+        DiscoveryMetrics metrics = new DiscoveryMetrics();
+        CareersDiscoveryResult result = discoverForCompanies(companies, deadline, vendorProbeOnly, metrics);
+        return new CareersDiscoveryWithMetrics(result, toMethodMetrics(metrics));
+    }
+
     private CareersDiscoveryResult discoverForCompanies(
         List<CompanyTarget> companies,
         Instant deadline,
         boolean vendorProbeOnly
+    ) {
+        return discoverForCompanies(companies, deadline, vendorProbeOnly, null);
+    }
+
+    private CareersDiscoveryResult discoverForCompanies(
+        List<CompanyTarget> companies,
+        Instant deadline,
+        boolean vendorProbeOnly,
+        DiscoveryMetrics metrics
     ) {
         Map<String, Integer> discoveredCountByType = new LinkedHashMap<>();
         int failedCount = 0;
@@ -172,7 +198,7 @@ public class CareersDiscoveryService {
                 break;
             }
             try {
-                DiscoveryOutcome outcome = discoverForCompany(company, deadline, null, vendorProbeLimiter, vendorProbeOnly);
+                DiscoveryOutcome outcome = discoverForCompany(company, deadline, metrics, vendorProbeLimiter, vendorProbeOnly);
                 cooldownSkips += outcome.cooldownSkips();
                 if (outcome.skipped()) {
                     continue;
@@ -195,6 +221,54 @@ public class CareersDiscoveryService {
         }
 
         return new CareersDiscoveryResult(discoveredCountByType, failedCount, cooldownSkips, topErrors);
+    }
+
+    private CareersDiscoveryMethodMetrics toMethodMetrics(DiscoveryMetrics metrics) {
+        if (metrics == null) {
+            return new CareersDiscoveryMethodMetrics(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                Map.of(),
+                Map.of(),
+                Map.of()
+            );
+        }
+        return new CareersDiscoveryMethodMetrics(
+            metrics.homepageScanned(),
+            metrics.careersPathsChecked(),
+            metrics.robotsBlockedCount(),
+            metrics.fetchFailedCount(),
+            metrics.timeBudgetExceededCount(),
+            metrics.sitemapsScanned(),
+            metrics.sitemapUrlsChecked(),
+            toStringKeyMap(metrics.endpointsFoundHomepage()),
+            toStringKeyMap(metrics.endpointsFoundVendorProbe()),
+            toStringKeyMap(metrics.endpointsFoundSitemap())
+        );
+    }
+
+    private Map<String, Integer> toStringKeyMap(Map<AtsType, Integer> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (Map.Entry<AtsType, Integer> entry : source.entrySet()) {
+            AtsType type = entry.getKey();
+            if (type == null) {
+                continue;
+            }
+            int value = entry.getValue() == null ? 0 : entry.getValue();
+            if (value <= 0) {
+                continue;
+            }
+            out.put(type.name(), value);
+        }
+        return out;
     }
 
     DiscoveryOutcome discoverForCompany(CompanyTarget company, Instant deadline) {
@@ -253,7 +327,14 @@ public class CareersDiscoveryService {
                     metrics.incrementHomepageScanned();
                 }
                 HttpFetchResult fetch = fetchHomepage(homepageUrl);
-                if (!fetch.isSuccessful() || fetch.body() == null) {
+                if ("body_too_large".equals(fetch.errorCode())) {
+                    failures.add(new DiscoveryFailure(
+                        "discovery_homepage_too_large",
+                        homepageUrl,
+                        fetch.errorMessage()
+                    ));
+                    recordCooldownSuccess(homepageUrl);
+                } else if (!fetch.isSuccessful() || fetch.body() == null) {
                     failures.add(failureFromFetch("discovery_fetch_failed", homepageUrl, fetch));
                     if (metrics != null) {
                         metrics.incrementFetchFailed();
@@ -429,7 +510,11 @@ public class CareersDiscoveryService {
                 continue;
             }
 
-            HttpFetchResult fetch = httpClient.get(homepage, HTML_ACCEPT);
+            HttpFetchResult fetch = httpClient.get(homepage, HTML_ACCEPT, MAX_HOMEPAGE_BYTES);
+            if ("body_too_large".equals(fetch.errorCode())) {
+                recordCooldownSuccess(homepage);
+                continue;
+            }
             if (!fetch.isSuccessful() || fetch.body() == null) {
                 recordCooldownFromFetch(homepage, fetch);
                 continue;
@@ -778,7 +863,7 @@ public class CareersDiscoveryService {
             Duration.ofSeconds(HOMEPAGE_TIMEOUT_SECONDS * 2L)
         );
         try (CanaryHttpBudgetContext.Scope scope = CanaryHttpBudgetContext.activate(budget)) {
-            return httpClient.get(homepageUrl, HTML_ACCEPT);
+            return httpClient.get(homepageUrl, HTML_ACCEPT, MAX_HOMEPAGE_BYTES);
         }
     }
 

@@ -91,7 +91,7 @@ class CareersDiscoveryServiceTest {
         String homepage = "https://acme.com/";
         when(repository.findCareersDiscoveryState(1L)).thenReturn(null);
         when(robotsTxtService.isAllowed(homepage)).thenReturn(true);
-        when(httpClient.get(eq(homepage), anyString()))
+        when(httpClient.get(eq(homepage), anyString(), anyInt()))
             .thenReturn(successHtml(homepage, "<a href=\"https://boards.greenhouse.io/acme\">Careers</a>"));
 
         CareersDiscoveryService.DiscoveryOutcome outcome = service.discoverForCompany(company, null, null, null, false);
@@ -131,7 +131,7 @@ class CareersDiscoveryServiceTest {
             eq("vendor_probe"),
             eq(true)
         );
-        verify(httpClient, never()).get(eq("https://acme.com/"), anyString());
+        verify(httpClient, never()).get(eq("https://acme.com/"), anyString(), anyInt());
     }
 
     @Test
@@ -139,7 +139,7 @@ class CareersDiscoveryServiceTest {
         CompanyTarget company = new CompanyTarget(4L, "SITE", "Site Corp", null, "sitemapco.com", null);
         String homepage = "https://sitemapco.com/";
         when(repository.findCareersDiscoveryState(4L)).thenReturn(null);
-        when(httpClient.get(eq(homepage), anyString()))
+        when(httpClient.get(eq(homepage), anyString(), anyInt()))
             .thenReturn(successHtml(homepage, "<html><body>No links</body></html>"));
         SitemapDiscoveryResult sitemapResult = new SitemapDiscoveryResult(
             List.of(),
@@ -172,7 +172,7 @@ class CareersDiscoveryServiceTest {
         when(robotsTxtService.isAllowed("https://acme.com/careers")).thenReturn(false);
         when(httpClient.get(anyString(), anyString()))
             .thenReturn(failureFetch(homepage));
-        when(httpClient.get(eq(homepage), anyString()))
+        when(httpClient.get(eq(homepage), anyString(), anyInt()))
             .thenReturn(successHtml(homepage, "<html>No ATS</html>"));
 
         service.discoverForCompany(company, null, null, null, false);

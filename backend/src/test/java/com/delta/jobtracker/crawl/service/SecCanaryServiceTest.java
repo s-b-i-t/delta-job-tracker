@@ -1,7 +1,9 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryMethodMetrics;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
+import com.delta.jobtracker.crawl.model.CareersDiscoveryWithMetrics;
 import com.delta.jobtracker.crawl.model.CompanyCrawlSummary;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
@@ -64,8 +66,20 @@ class SecCanaryServiceTest {
         Map<String, Integer> discovered = new LinkedHashMap<>();
         discovered.put("WORKDAY", 2);
         CareersDiscoveryResult discoveryResult = new CareersDiscoveryResult(discovered, 0, 0, Map.of());
-        when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(2), any(), org.mockito.ArgumentMatchers.anyBoolean()))
-            .thenReturn(discoveryResult);
+        CareersDiscoveryMethodMetrics discoveryMetrics = new CareersDiscoveryMethodMetrics(
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Map.of("WORKDAY", 2),
+            Map.of(),
+            Map.of()
+        );
+        when(careersDiscoveryService.discoverForTickersWithMetrics(eq(tickers), eq(2), any(), org.mockito.ArgumentMatchers.anyBoolean()))
+            .thenReturn(new CareersDiscoveryWithMetrics(discoveryResult, discoveryMetrics));
 
         CompanyTarget targetOne = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
         CompanyTarget targetTwo = new CompanyTarget(2L, "BBB", "Beta", null, "beta.com", null);
@@ -104,6 +118,8 @@ class SecCanaryServiceTest {
 
         when(repository.countCrawlRunCompaniesByAtsType(123L))
             .thenReturn(Map.of("WORKDAY", 2));
+        when(repository.countCrawlRunJobsExtractedByAtsType(123L))
+            .thenReturn(Map.of("WORKDAY", 5));
         when(repository.countCrawlRunCompanyFailures(123L))
             .thenReturn(Map.of("HTTP_404", 1L));
 
@@ -125,6 +141,10 @@ class SecCanaryServiceTest {
             assertEquals(2, summary.companiesIngested());
             assertEquals(1, summary.domainsResolved());
             assertEquals(5, summary.jobsExtracted());
+            assertEquals(1, summary.domainResolutionSucceeded());
+            assertEquals(0, summary.domainResolutionFailed());
+            assertEquals(1, summary.careersDiscoveryMetrics().homepageScanned());
+            assertEquals(5, summary.jobsExtractedByAtsType().get("WORKDAY"));
             assertEquals("COMPLETED_WITH_ERRORS", summary.status());
             assertEquals(domainResult, summary.domainResolution());
             assertEquals(discoveryResult, summary.careersDiscovery());
@@ -168,7 +188,7 @@ class SecCanaryServiceTest {
             assertEquals("NO_COMPANIES", summary.status());
             verify(domainResolutionService, never()).resolveMissingDomainsForTickers(any(), any(), any());
             verify(careersDiscoveryService, never())
-                .discoverForTickers(any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+                .discoverForTickersWithMetrics(any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
             verify(repository, never()).insertCrawlRun(any(), any(), any());
         } finally {
             executor.shutdownNow();
@@ -190,13 +210,18 @@ class SecCanaryServiceTest {
             1,
             Map.of("discovery_host_cooldown", 1)
         );
-        when(careersDiscoveryService.discoverForTickers(eq(tickers), eq(1), any(), org.mockito.ArgumentMatchers.anyBoolean()))
-            .thenReturn(discoveryResult);
+        when(careersDiscoveryService.discoverForTickersWithMetrics(eq(tickers), eq(1), any(), org.mockito.ArgumentMatchers.anyBoolean()))
+            .thenReturn(new CareersDiscoveryWithMetrics(
+                discoveryResult,
+                new CareersDiscoveryMethodMetrics(0, 0, 0, 0, 0, 0, 0, Map.of(), Map.of(), Map.of())
+            ));
 
         when(repository.insertCrawlRun(any(), any(), any())).thenReturn(123L);
         when(repository.findCompanyTargetsWithAts(eq(tickers), eq(1)))
             .thenReturn(List.of());
         when(repository.countCrawlRunCompaniesByAtsType(123L))
+            .thenReturn(Map.of());
+        when(repository.countCrawlRunJobsExtractedByAtsType(123L))
             .thenReturn(Map.of());
         when(repository.countCrawlRunCompanyFailures(123L))
             .thenReturn(Map.of());

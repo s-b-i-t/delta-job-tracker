@@ -19,7 +19,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,7 +79,7 @@ class SitemapServiceGzipTest {
         );
 
         when(robotsTxtService.isAllowed(anyString())).thenReturn(true);
-        when(httpClient.get(seedUrl, "application/xml,text/xml;q=0.9,*/*;q=0.1")).thenReturn(fetchResult);
+        when(httpClient.get(eq(seedUrl), eq("application/xml,text/xml;q=0.9,*/*;q=0.1"), anyInt())).thenReturn(fetchResult);
 
         SitemapService service = new SitemapService(httpClient, robotsTxtService);
         return service.discover(List.of(seedUrl), 1, 10, 10);

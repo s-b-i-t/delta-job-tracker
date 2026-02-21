@@ -2666,6 +2666,32 @@ public class CrawlJdbcRepository {
         return counts;
     }
 
+    public Map<String, Integer> countCrawlRunJobsExtractedByAtsType(long crawlRunId) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("crawlRunId", crawlRunId);
+        jdbc.query(
+            """
+                SELECT COALESCE(r.ats_type, 'UNKNOWN') AS ats_type,
+                       SUM(COALESCE(r.jobs_extracted, 0)) AS total_jobs
+                FROM crawl_run_company_results r
+                WHERE r.crawl_run_id = :crawlRunId
+                  AND r.stage = 'ATS_ADAPTER'
+                GROUP BY COALESCE(r.ats_type, 'UNKNOWN')
+                ORDER BY total_jobs DESC, ats_type
+                """,
+            params,
+            rs -> {
+                String atsType = rs.getString("ats_type");
+                Integer total = rs.getObject("total_jobs", Integer.class);
+                if (atsType != null && total != null) {
+                    counts.put(atsType, Math.max(0, total));
+                }
+            }
+        );
+        return counts;
+    }
+
     public List<CrawlRunCompanyResultView> findCrawlRunCompanyOverallResults(long crawlRunId, String status, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 500));
         MapSqlParameterSource params = new MapSqlParameterSource()
