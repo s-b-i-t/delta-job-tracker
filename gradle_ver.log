@@ -1,0 +1,15 @@
+
+------------------------------------------------------------
+Gradle 9.3.0
+------------------------------------------------------------
+
+Build time:    2026-01-16 11:14:22 UTC
+Revision:      701205ed2f78811508466c8e1952304c2ea869f5
+
+Kotlin:        2.2.21
+Groovy:        4.0.29
+Ant:           Apache Ant(TM) version 1.10.15 compiled on August 25 2024
+Launcher JVM:  21.0.10 (Ubuntu 21.0.10+7-Ubuntu-124.04)
+Daemon JVM:    /usr/lib/jvm/java-21-openjdk-amd64 (no Daemon JVM specified, using current Java home)
+OS:            Linux 6.6.87.2-microsoft-standard-WSL2 amd64
+
