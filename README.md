@@ -1,5 +1,5 @@
 # delta-job-tracker
-
+- desktop version
 Backend spike for company job tracking using low-effort crawl signals, automated domain/ATS discovery, and ATS adapters.
 
 ## Stack

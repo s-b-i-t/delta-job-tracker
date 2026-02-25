@@ -619,7 +619,6 @@ public class CrawlJdbcRepository {
           params);
       return;
     }
-
     int updated =
         jdbc.update(
             """
@@ -668,7 +667,6 @@ public class CrawlJdbcRepository {
             """,
         params);
   }
-
   public List<CareersDiscoveryCompanyResultView> findCareersDiscoveryCompanyResults(
       long runId, String status, int limit) {
     int safeLimit = Math.max(1, Math.min(limit, 500));
