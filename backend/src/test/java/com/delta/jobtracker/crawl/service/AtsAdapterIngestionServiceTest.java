@@ -1,34 +1,13 @@
 package com.delta.jobtracker.crawl.service;
 
-<<<<<<< HEAD
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import org.mockito.Mock;
-=======
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
->>>>>>> 63bc946 (ats-discovery updates)
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-<<<<<<< HEAD
-import org.mockito.junit.jupiter.MockitoExtension;
-=======
->>>>>>> 63bc946 (ats-discovery updates)
 
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
@@ -42,8 +21,6 @@ import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-<<<<<<< HEAD
-=======
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -54,7 +31,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
->>>>>>> 63bc946 (ats-discovery updates)
 
 @ExtendWith(MockitoExtension.class)
 class AtsAdapterIngestionServiceTest {
@@ -171,15 +147,6 @@ class AtsAdapterIngestionServiceTest {
             "https://walmart.wd5.myworkdayjobs.com/WalmartExternal",
             null,
             0.9,
-<<<<<<< HEAD
-            Instant.now()
-        );
-        String cxsUrl = "https://walmart.wd5.myworkdayjobs.com/wday/cxs/walmart/WalmartExternal/jobs";
-        String payload = Files.readString(Path.of("src/test/resources/fixtures/workday-cxs-response.json"));
-        when(robotsTxtService.isAllowedForAtsAdapter(anyString())).thenReturn(true);
-        when(httpClient.postJson(eq(cxsUrl), anyString(), anyString())).thenReturn(successFetch(cxsUrl, payload));
-        when(httpClient.get(anyString(), anyString())).thenReturn(successFetch("https://walmart.wd5.myworkdayjobs.com/job/example", "<html></html>"));
-=======
             Instant.now());
     String cxsUrl = "https://walmart.wd5.myworkdayjobs.com/wday/cxs/walmart/WalmartExternal/jobs";
     String payload =
@@ -189,7 +156,6 @@ class AtsAdapterIngestionServiceTest {
         .thenReturn(successFetch(cxsUrl, payload));
     when(httpClient.get(anyString(), anyString()))
         .thenAnswer(invocation -> successFetch(invocation.getArgument(0), "<html></html>"));
->>>>>>> 63bc946 (ats-discovery updates)
 
     AtsAdapterResult result = service.ingestIfSupported(12L, company, List.of(endpoint), null);
 

@@ -4,8 +4,4 @@ import java.util.List;
 import java.util.Map;
 
 public record MissingDomainsDiagnosticsResponse(
-    long missingDomainCount,
-    Map<String, Long> reasons,
-    List<MissingDomainEntry> samples
-) {
-}
+    long missingDomainCount, Map<String, Long> reasons, List<MissingDomainEntry> samples) {}

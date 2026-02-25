@@ -98,32 +98,6 @@ public class PoliteHttpClient {
     return send(url, method, acceptHeader, body, "application/json", null, null);
   }
 
-<<<<<<< HEAD
-    private HttpFetchResult send(
-        String url,
-        String method,
-        String acceptHeader,
-        String body,
-        String contentType,
-        String userAgentOverride,
-        Integer maxBytes
-    ) {
-        CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
-        int maxAttempts = Math.max(1, 1 + properties.getRequestMaxRetries());
-        if (budget != null) {
-            maxAttempts = Math.max(1, budget.maxAttemptsPerRequest());
-        }
-        HttpFetchResult lastResult = null;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            lastResult = executeOnce(url, method, acceptHeader, body, contentType);
-            if (lastResult == null || !shouldRetry(lastResult) || attempt >= maxAttempts) {
-                return lastResult;
-            }
-            if (!sleepBackoff(attempt)) {
-                return lastResult;
-            }
-        }
-=======
   private HttpFetchResult send(
       String url,
       String method,
@@ -142,7 +116,6 @@ public class PoliteHttpClient {
       lastResult =
           executeOnce(url, method, acceptHeader, body, contentType, userAgentOverride, maxBytes);
       if (lastResult == null || !shouldRetry(lastResult) || attempt >= maxAttempts) {
->>>>>>> 63bc946 (ats-discovery updates)
         return lastResult;
       }
       if (!sleepBackoff(attempt)) {
@@ -177,33 +150,6 @@ public class PoliteHttpClient {
           "URL missing host or malformed");
     }
 
-<<<<<<< HEAD
-    private HttpFetchResult executeOnce(
-        String url,
-        String method,
-        String acceptHeader,
-        String body,
-        String contentType,
-        String userAgentOverride
-    ) {
-        Instant startedAt = Instant.now();
-        URI uri = normalizeUri(url);
-        if (uri == null || uri.getHost() == null) {
-            return new HttpFetchResult(
-                url,
-                null,
-                0,
-                null,
-                null,
-                null,
-                null,
-                Instant.now(),
-                Duration.between(startedAt, Instant.now()),
-                "invalid_url",
-                "URL missing host or malformed"
-            );
-        }
-=======
     String host = uri.getHost().toLowerCase(Locale.ROOT);
     if (hostCrawlStateService != null) {
       Instant nextAllowedAt = hostCrawlStateService.nextAllowedAt(host);
@@ -226,7 +172,6 @@ public class PoliteHttpClient {
       hostLimiter.acquire();
       hostAcquired = true;
       enforcePerHostDelay(host, budget);
->>>>>>> 63bc946 (ats-discovery updates)
 
       String userAgent =
           userAgentOverride == null || userAgentOverride.isBlank()

@@ -10,15 +10,14 @@ public record MissingDomainEntry(
     String domainResolutionMethod,
     String domainResolutionStatus,
     String domainResolutionError,
-    Instant domainResolutionAttemptedAt
-) {
-    public String reason() {
-        if (domainResolutionError != null && !domainResolutionError.isBlank()) {
-            return domainResolutionError;
-        }
-        if (domainResolutionStatus != null && !domainResolutionStatus.isBlank()) {
-            return domainResolutionStatus;
-        }
-        return "not_attempted";
+    Instant domainResolutionAttemptedAt) {
+  public String reason() {
+    if (domainResolutionError != null && !domainResolutionError.isBlank()) {
+      return domainResolutionError;
     }
+    if (domainResolutionStatus != null && !domainResolutionStatus.isBlank()) {
+      return domainResolutionStatus;
+    }
+    return "not_attempted";
+  }
 }

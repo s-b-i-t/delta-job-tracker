@@ -1,7 +1,5 @@
 package com.delta.jobtracker.crawl.persistence;
 
-<<<<<<< HEAD
-=======
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.AtsAttemptSample;
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
@@ -30,7 +28,6 @@ import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.util.JobUrlUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
->>>>>>> 63bc946 (ats-discovery updates)
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.Connection;
@@ -54,47 +51,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
-
-import org.jsoup.Jsoup;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
-import org.springframework.stereotype.Repository;
-
-import com.delta.jobtracker.config.CrawlerProperties;
-import com.delta.jobtracker.crawl.model.AtsAttemptSample;
-import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
-import com.delta.jobtracker.crawl.model.AtsType;
-import com.delta.jobtracker.crawl.model.CanaryRunStatus;
-import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyFailureView;
-import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
-import com.delta.jobtracker.crawl.model.CareersDiscoveryRunStatus;
-import com.delta.jobtracker.crawl.model.CareersDiscoveryState;
-import com.delta.jobtracker.crawl.model.CompanyIdentity;
-import com.delta.jobtracker.crawl.model.CompanySearchResult;
-import com.delta.jobtracker.crawl.model.CompanyTarget;
-import com.delta.jobtracker.crawl.model.CrawlRunActivityCounts;
-import com.delta.jobtracker.crawl.model.CrawlRunCompanyFailureView;
-import com.delta.jobtracker.crawl.model.CrawlRunCompanyResultView;
-import com.delta.jobtracker.crawl.model.CrawlRunMeta;
-import com.delta.jobtracker.crawl.model.CrawlRunStatus;
-import com.delta.jobtracker.crawl.model.DiscoveredUrlType;
-import com.delta.jobtracker.crawl.model.DiscoveryFailureEntry;
-import com.delta.jobtracker.crawl.model.HostCrawlState;
-import com.delta.jobtracker.crawl.model.JobDeltaItem;
-import com.delta.jobtracker.crawl.model.JobPostingListView;
-import com.delta.jobtracker.crawl.model.JobPostingUrlRef;
-import com.delta.jobtracker.crawl.model.JobPostingView;
-import com.delta.jobtracker.crawl.model.MissingDomainEntry;
-import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
-import com.delta.jobtracker.crawl.util.JobUrlUtils;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Repository
 public class CrawlJdbcRepository {
@@ -136,61 +92,10 @@ public class CrawlJdbcRepository {
     return counts;
   }
 
-<<<<<<< HEAD
-    public long countCompaniesMissingDomain() {
-        Long count = jdbc.queryForObject(
-            """
-                SELECT COUNT(*) AS total
-                FROM companies c
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM company_domains cd
-                    WHERE cd.company_id = c.id
-                )
-                """,
-            new MapSqlParameterSource(),
-            Long.class
-        );
-        return count == null ? 0L : count;
-    }
-
-    public Map<String, Long> countMissingDomainsByReason() {
-        Map<String, Long> reasons = new LinkedHashMap<>();
-        jdbc.query(
-            """
-                SELECT COALESCE(domain_resolution_error, domain_resolution_status, 'not_attempted') AS reason,
-                       COUNT(*) AS total
-                FROM companies c
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM company_domains cd
-                    WHERE cd.company_id = c.id
-                )
-                GROUP BY COALESCE(domain_resolution_error, domain_resolution_status, 'not_attempted')
-                ORDER BY total DESC, reason
-                """,
-            new MapSqlParameterSource(),
-            rs -> {
-                String reason = rs.getString("reason");
-                long total = rs.getLong("total");
-                if (reason != null) {
-                    reasons.put(reason, total);
-                }
-            }
-        );
-        return reasons;
-    }
-
-    public Map<String, Long> countAtsEndpointsByType() {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        jdbc.query(
-            """
-=======
   public Map<String, Long> countAtsEndpointsByType() {
     Map<String, Long> counts = new LinkedHashMap<>();
     jdbc.query(
         """
->>>>>>> 63bc946 (ats-discovery updates)
                 SELECT ats_type, COUNT(*) AS total
                 FROM ats_endpoints
                 GROUP BY ats_type
@@ -515,51 +420,10 @@ public class CrawlJdbcRepository {
     return rows.isEmpty() ? null : rows.getFirst();
   }
 
-<<<<<<< HEAD
-    public CanaryRunStatus findLatestCanaryRun() {
-        List<CanaryRunStatus> rows = jdbc.query(
-            """
-                SELECT id,
-                       type,
-                       requested_limit,
-                       started_at,
-                       finished_at,
-                       status,
-                       summary_json,
-                       error_summary_json
-                FROM canary_runs
-                ORDER BY started_at DESC
-                LIMIT 1
-                """,
-            new MapSqlParameterSource(),
-            (rs, rowNum) -> new CanaryRunStatus(
-                rs.getLong("id"),
-                rs.getString("type"),
-                (Integer) rs.getObject("requested_limit"),
-                toInstant(rs.getTimestamp("started_at")),
-                toInstant(rs.getTimestamp("finished_at")),
-                rs.getString("status"),
-                rs.getString("summary_json"),
-                rs.getString("error_summary_json")
-            )
-        );
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
-
-    public void updateCanaryRun(
-        long runId,
-        Instant finishedAt,
-        String status,
-        String summaryJson,
-        String errorSummaryJson
-    ) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-=======
   public void updateCanaryRun(
       long runId, Instant finishedAt, String status, String summaryJson, String errorSummaryJson) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
->>>>>>> 63bc946 (ats-discovery updates)
             .addValue("runId", runId)
             .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("status", status)
@@ -712,19 +576,6 @@ public class CrawlJdbcRepository {
             .addValue("durationMs", durationMs)
             .addValue("httpStatus", httpStatus)
             .addValue("errorDetail", truncateErrorDetail(errorDetail));
-<<<<<<< HEAD
-        if (!postgres) {
-            int updated = jdbc.update(
-                """
-                    UPDATE careers_discovery_company_results
-                    SET status = :status,
-                        reason_code = :reasonCode,
-                        stage = :stage,
-                        found_endpoints_count = :foundEndpointsCount,
-                        duration_ms = :durationMs,
-                        http_status = :httpStatus,
-                        error_detail = :errorDetail,
-=======
     if (postgres) {
       jdbc.update(
           """
@@ -761,93 +612,60 @@ public class CrawlJdbcRepository {
                         duration_ms = EXCLUDED.duration_ms,
                         http_status = EXCLUDED.http_status,
                         error_detail = EXCLUDED.error_detail,
->>>>>>> 63bc946 (ats-discovery updates)
                         created_at = NOW()
                     WHERE discovery_run_id = :runId
                       AND company_id = :companyId
                     """,
-<<<<<<< HEAD
-                params
-            );
-            if (updated == 0) {
-                jdbc.update(
-                    """
-                        INSERT INTO careers_discovery_company_results (
-                            discovery_run_id,
-                            company_id,
-                            status,
-                            reason_code,
-                            stage,
-                            found_endpoints_count,
-                            duration_ms,
-                            http_status,
-                            error_detail,
-                            created_at
-                        )
-                        VALUES (
-                            :runId,
-                            :companyId,
-                            :status,
-                            :reasonCode,
-                            :stage,
-                            :foundEndpointsCount,
-                            :durationMs,
-                            :httpStatus,
-                            :errorDetail,
-                            NOW()
-                        )
-                        """,
-                    params
-                );
-            }
-            return;
-        }
-        jdbc.update(
-            """
-                INSERT INTO careers_discovery_company_results (
-=======
           params);
       return;
     }
 
+    int updated =
+        jdbc.update(
+            """
+                UPDATE careers_discovery_company_results
+                SET status = :status,
+                    reason_code = :reasonCode,
+                    stage = :stage,
+                    found_endpoints_count = :foundEndpointsCount,
+                    duration_ms = :durationMs,
+                    http_status = :httpStatus,
+                    error_detail = :errorDetail,
+                    created_at = NOW()
+                WHERE discovery_run_id = :runId
+                  AND company_id = :companyId
+                """,
+            params);
+    if (updated > 0) {
+      return;
+    }
     jdbc.update(
         """
-                MERGE INTO careers_discovery_company_results (
->>>>>>> 63bc946 (ats-discovery updates)
-                    discovery_run_id,
-                    company_id,
-                    status,
-                    reason_code,
-                    stage,
-                    found_endpoints_count,
-                    duration_ms,
-                    http_status,
-                    error_detail,
-                    created_at
-                )
-                VALUES (
-                    :runId,
-                    :companyId,
-                    :status,
-                    :reasonCode,
-                    :stage,
-                    :foundEndpointsCount,
-                    :durationMs,
-                    :httpStatus,
-                    :errorDetail,
-                    NOW()
-                )
-                ON CONFLICT (discovery_run_id, company_id)
-                DO UPDATE SET
-                    status = EXCLUDED.status,
-                    reason_code = EXCLUDED.reason_code,
-                    stage = EXCLUDED.stage,
-                    found_endpoints_count = EXCLUDED.found_endpoints_count,
-                    duration_ms = EXCLUDED.duration_ms,
-                    http_status = EXCLUDED.http_status,
-                    error_detail = EXCLUDED.error_detail,
-                    created_at = NOW()
-                """,
+            INSERT INTO careers_discovery_company_results (
+                discovery_run_id,
+                company_id,
+                status,
+                reason_code,
+                stage,
+                found_endpoints_count,
+                duration_ms,
+                http_status,
+                error_detail,
+                created_at
+            )
+            VALUES (
+                :runId,
+                :companyId,
+                :status,
+                :reasonCode,
+                :stage,
+                :foundEndpointsCount,
+                :durationMs,
+                :httpStatus,
+                :errorDetail,
+                NOW()
+            )
+            """,
         params);
   }
 
@@ -1523,53 +1341,6 @@ public class CrawlJdbcRepository {
         companyIdentityRowMapper());
   }
 
-<<<<<<< HEAD
-    public List<MissingDomainEntry> findMissingDomainEntries(int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("limit", limit);
-        return jdbc.query(
-            """
-                SELECT c.ticker,
-                       c.name,
-                       c.cik,
-                       c.wikipedia_title,
-                       c.domain_resolution_method,
-                       c.domain_resolution_status,
-                       c.domain_resolution_error,
-                       c.domain_resolution_attempted_at
-                FROM companies c
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM company_domains cd
-                    WHERE cd.company_id = c.id
-                )
-                ORDER BY COALESCE(c.domain_resolution_attempted_at, c.ticker) ASC
-                LIMIT :limit
-                """,
-            params,
-            (rs, rowNum) -> new MissingDomainEntry(
-                rs.getString("ticker"),
-                rs.getString("name"),
-                rs.getString("cik"),
-                rs.getString("wikipedia_title"),
-                rs.getString("domain_resolution_method"),
-                rs.getString("domain_resolution_status"),
-                rs.getString("domain_resolution_error"),
-                toInstant(rs.getTimestamp("domain_resolution_attempted_at"))
-            )
-        );
-    }
-
-    public List<CompanyIdentity> findCompaniesMissingDomainByTickers(List<String> tickers, int limit) {
-        if (tickers == null || tickers.isEmpty()) {
-            return List.of();
-        }
-        MapSqlParameterSource params = new MapSqlParameterSource()
-            .addValue("tickers", tickers)
-            .addValue("limit", limit);
-        return jdbc.query(
-            """
-=======
   public List<CompanyIdentity> findCompaniesMissingDomainByTickers(
       List<String> tickers, int limit) {
     if (tickers == null || tickers.isEmpty()) {
@@ -1579,7 +1350,6 @@ public class CrawlJdbcRepository {
         new MapSqlParameterSource().addValue("tickers", tickers).addValue("limit", limit);
     return jdbc.query(
         """
->>>>>>> 63bc946 (ats-discovery updates)
                 SELECT c.id AS company_id,
                        c.ticker,
                        c.name,

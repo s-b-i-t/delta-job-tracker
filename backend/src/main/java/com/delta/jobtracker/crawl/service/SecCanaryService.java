@@ -110,21 +110,9 @@ public class SecCanaryService {
     return buildStatusResponse(record);
   }
 
-<<<<<<< HEAD
-    public CanaryRunStatusResponse getLatestCanaryRunStatus(String type) {
-        CanaryRunStatus record;
-        if (type == null || type.isBlank()) {
-            record = repository.findLatestCanaryRun();
-        } else {
-            record = repository.findLatestCanaryRun(type.trim().toUpperCase(Locale.ROOT));
-        }
-        return buildStatusResponse(record);
-    }
-=======
   public SecCanarySummary runSecCanary(Integer requestedLimit) {
     return runSecCanary(requestedLimit, false, true);
   }
->>>>>>> 63bc946 (ats-discovery updates)
 
   public SecCanarySummary runSecCanary(
       Integer requestedLimit, boolean vendorProbeOnly, boolean crawl) {

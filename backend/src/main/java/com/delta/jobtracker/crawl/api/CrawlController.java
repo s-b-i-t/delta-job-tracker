@@ -33,7 +33,6 @@ import com.delta.jobtracker.crawl.model.JobDeltaResponse;
 import com.delta.jobtracker.crawl.model.JobPostingListView;
 import com.delta.jobtracker.crawl.model.JobPostingPageResponse;
 import com.delta.jobtracker.crawl.model.JobPostingView;
-import com.delta.jobtracker.crawl.model.MissingDomainsDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.SecUniverseIngestionSummary;
 import com.delta.jobtracker.crawl.model.StatusResponse;
 import com.delta.jobtracker.crawl.model.WorkdayInvalidUrlCleanupResponse;
@@ -153,65 +152,8 @@ public class CrawlController {
     if (ingestBeforeCrawl) {
       ingestionService.ingest("wiki");
     }
-<<<<<<< HEAD
-
-    @PostMapping("/canary/sec")
-    public CanaryRunResponse runSecCanary(
-        @RequestParam(name = "limit", required = false) Integer limit
-    ) {
-        return secCanaryService.startSecCanary(limit);
-    }
-
-    @PostMapping("/canary/sec-full-cycle")
-    public CanaryRunResponse runSecFullCycleCanary(
-        @RequestParam(name = "companyLimit", required = false) Integer limit,
-        @RequestParam(name = "discoverVendorProbeOnly", required = false) Boolean vendorProbeOnly,
-        @RequestParam(name = "crawl", required = false) Boolean crawl
-    ) {
-        return secCanaryService.startSecFullCycleCanary(limit, vendorProbeOnly, crawl);
-    }
-
-    @GetMapping("/canary/{runId:\\d+}")
-    public CanaryRunStatusResponse getCanaryRunStatus(@PathVariable("runId") long runId) {
-        CanaryRunStatusResponse status = secCanaryService.getCanaryRunStatus(runId);
-        if (status == null) {
-            throw new ResponseStatusException(NOT_FOUND, "Canary run not found: " + runId);
-        }
-        return status;
-    }
-
-    @GetMapping("/canary/latest")
-    public CanaryRunStatusResponse getLatestCanaryRun(
-        @RequestParam(name = "type", required = false) String type
-    ) {
-        CanaryRunStatusResponse status = secCanaryService.getLatestCanaryRunStatus(type);
-        if (status == null && type != null) {
-            throw new ResponseStatusException(NOT_FOUND, "Canary run not found for type: " + type);
-        }
-        if (status == null) {
-            throw new ResponseStatusException(NOT_FOUND, "Canary run not found");
-        }
-        return status;
-    }
-
-    @GetMapping("/hosts/cooldown")
-    public List<HostCrawlState> getHostsCoolingDown(
-        @RequestParam(name = "limit", required = false) Integer limit
-    ) {
-        return hostCrawlStateService.listCooldownHosts(limit);
-    }
-
-    @PostMapping("/crawl/run")
-    public CrawlRunSummary runCrawl(@RequestBody(required = false) CrawlApiRunRequest request) {
-        boolean ingestBeforeCrawl = request == null || request.ingestBeforeCrawl() == null || request.ingestBeforeCrawl();
-        if (ingestBeforeCrawl) {
-            ingestionService.ingest("wiki");
-        }
-        int companyLimit = request == null || request.companyLimit() == null
-=======
     int companyLimit =
         request == null || request.companyLimit() == null
->>>>>>> 63bc946 (ats-discovery updates)
             ? crawlerProperties.getApi().getDefaultCompanyLimit()
             : Math.max(1, request.companyLimit());
 
@@ -398,24 +340,10 @@ public class CrawlController {
     return crawlStatusService.getStatus();
   }
 
-<<<<<<< HEAD
-    @GetMapping("/diagnostics/missing-domains")
-    public MissingDomainsDiagnosticsResponse getMissingDomainsDiagnostics(
-        @RequestParam(name = "limit", required = false) Integer limit
-    ) {
-        return crawlStatusService.getMissingDomainsDiagnostics(limit);
-    }
-
-    @GetMapping("/diagnostics/discovery-failures")
-    public DiscoveryFailuresDiagnosticsResponse getDiscoveryFailuresDiagnostics() {
-        return crawlStatusService.getDiscoveryFailuresDiagnostics();
-    }
-=======
   @GetMapping("/diagnostics/coverage")
   public CoverageDiagnosticsResponse getCoverageDiagnostics() {
     return crawlStatusService.getCoverageDiagnostics();
   }
->>>>>>> 63bc946 (ats-discovery updates)
 
   @GetMapping("/diagnostics/discovery-failures")
   public DiscoveryFailuresDiagnosticsResponse getDiscoveryFailuresDiagnostics() {
