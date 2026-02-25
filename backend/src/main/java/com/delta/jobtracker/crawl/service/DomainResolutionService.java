@@ -3,8 +3,10 @@ package com.delta.jobtracker.crawl.service;
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
+import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.http.WdqsHttpClient;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
+import com.delta.jobtracker.crawl.model.DomainResolutionMetrics;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -20,9 +22,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,6 +41,7 @@ public class DomainResolutionService {
   private static final String CIK_PROPERTY = "P5531";
   private static final String METHOD_WIKIPEDIA = "WIKIPEDIA_TITLE";
   private static final String METHOD_CIK = "CIK";
+  private static final String METHOD_HEURISTIC = "HEURISTIC_NAME_COM";
   private static final String METHOD_NONE = "NONE";
   private static final String STATUS_RESOLVED = "RESOLVED";
   private static final String STATUS_NO_ITEM = "NO_ITEM";
@@ -49,10 +55,26 @@ public class DomainResolutionService {
   private static final long WDQS_RETRY_BASE_MS = 750L;
   private static final long WDQS_RETRY_MAX_MS = 4000L;
   private static final int WDQS_BODY_SAMPLE_CHARS = 500;
+  private static final String HTML_ACCEPT =
+      "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+  private static final int HEURISTIC_MAX_BYTES = 256_000;
+  private static final int HEURISTIC_MAX_CANDIDATES = 6;
+  private static final double HEURISTIC_CONFIDENCE = 0.7;
+  private static final List<String> HEURISTIC_TLDS = List.of("com");
+  private static final List<String> PARKED_PAGE_HINTS =
+      List.of(
+          "domain for sale",
+          "buy this domain",
+          "this domain may be for sale",
+          "sedo domain parking",
+          "godaddy",
+          "dan.com",
+          "parked free");
 
   private final CrawlerProperties properties;
   private final CrawlJdbcRepository repository;
   private final WdqsHttpClient wdqsHttpClient;
+  private final PoliteHttpClient httpClient;
   private final ObjectMapper objectMapper;
   private final Object wdqsThrottleLock = new Object();
   private Instant wdqsNextAllowedAt = Instant.EPOCH;
@@ -61,10 +83,12 @@ public class DomainResolutionService {
       CrawlerProperties properties,
       CrawlJdbcRepository repository,
       WdqsHttpClient wdqsHttpClient,
+      PoliteHttpClient httpClient,
       ObjectMapper objectMapper) {
     this.properties = properties;
     this.repository = repository;
     this.wdqsHttpClient = wdqsHttpClient;
+    this.httpClient = httpClient;
     this.objectMapper = objectMapper;
   }
 
@@ -100,8 +124,11 @@ public class DomainResolutionService {
 
   private DomainResolutionResult resolveCompanies(
       List<CompanyIdentity> missingDomain, int limit, Instant deadline) {
+    Instant startedAt = Instant.now();
+    ResolutionMetricsCollector metrics =
+        new ResolutionMetricsCollector(missingDomain == null ? 0 : missingDomain.size());
     if (missingDomain.isEmpty()) {
-      return new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of());
+      return new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of(), metrics.toModel(0L));
     }
 
     int batchSize = Math.min(properties.getDomainResolution().getBatchSize(), limit);
@@ -152,10 +179,15 @@ public class DomainResolutionService {
         Instant now = Instant.now();
         if (hasWikipediaTitle(company)) {
           if (shouldSkipCached(company, METHOD_WIKIPEDIA, now)) {
+            metrics.incrementCachedSkip();
             continue;
           }
+          metrics.incrementCompaniesAttempted();
           List<String> titles = buildTitleVariants(company.wikipediaTitle());
           if (titles.isEmpty()) {
+            if (tryHeuristicFallback(company, "no_wikipedia_title", counts, errors, metrics, deadline)) {
+              continue;
+            }
             counts.noWikipediaTitle++;
             errors.add(company, "no_wikipedia_title");
             repository.updateCompanyDomainResolutionCache(
@@ -172,10 +204,15 @@ public class DomainResolutionService {
           }
         } else if (hasCik(company)) {
           if (shouldSkipCached(company, METHOD_CIK, now)) {
+            metrics.incrementCachedSkip();
             continue;
           }
+          metrics.incrementCompaniesAttempted();
           List<String> ciks = buildCikVariants(company.cik());
           if (ciks.isEmpty()) {
+            if (tryHeuristicFallback(company, "no_cik", counts, errors, metrics, deadline)) {
+              continue;
+            }
             counts.noWikipediaTitle++;
             errors.add(company, "no_cik");
             repository.updateCompanyDomainResolutionCache(
@@ -187,6 +224,10 @@ public class DomainResolutionService {
             companiesByCik.computeIfAbsent(cik, ignored -> new ArrayList<>()).add(company);
           }
         } else {
+          metrics.incrementCompaniesAttempted();
+          if (tryHeuristicFallback(company, "no_identifier", counts, errors, metrics, deadline)) {
+            continue;
+          }
           counts.noWikipediaTitle++;
           errors.add(company, "no_identifier");
           repository.updateCompanyDomainResolutionCache(
@@ -201,12 +242,18 @@ public class DomainResolutionService {
             batchCount,
             titlesByCompany.size(),
             companiesByTitle.keySet().size());
+        metrics.incrementWdqsTitleBatch();
+        Instant wdqsStartedAt = Instant.now();
         WdqsLookupResult lookupResult =
             fetchWdqsMatchesByTitle(new ArrayList<>(companiesByTitle.keySet()));
+        metrics.addWdqsDuration(Duration.between(wdqsStartedAt, Instant.now()).toMillis());
         if (lookupResult.lookup() == null) {
           String errorCategory =
               lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
           for (CompanyIdentity company : titlesByCompany.keySet()) {
+            if (tryHeuristicFallback(company, errorCategory, counts, errors, metrics, deadline)) {
+              continue;
+            }
             if ("wdqs_timeout".equals(errorCategory)) {
               counts.wdqsTimeout++;
             } else {
@@ -224,7 +271,15 @@ public class DomainResolutionService {
           for (Map.Entry<CompanyIdentity, List<String>> entry : titlesByCompany.entrySet()) {
             CompanyIdentity company = entry.getKey();
             WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
-            applyMatch(company, match, METHOD_WIKIPEDIA, "enwiki_sitelink", counts, errors);
+            applyMatch(
+                company,
+                match,
+                METHOD_WIKIPEDIA,
+                "enwiki_sitelink",
+                counts,
+                errors,
+                metrics,
+                deadline);
           }
         }
       }
@@ -236,12 +291,18 @@ public class DomainResolutionService {
             batchCount,
             ciksByCompany.size(),
             companiesByCik.keySet().size());
+        metrics.incrementWdqsCikBatch();
+        Instant wdqsStartedAt = Instant.now();
         WdqsLookupResult lookupResult =
             fetchWdqsMatchesByCik(new ArrayList<>(companiesByCik.keySet()));
+        metrics.addWdqsDuration(Duration.between(wdqsStartedAt, Instant.now()).toMillis());
         if (lookupResult.lookup() == null) {
           String errorCategory =
               lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
           for (CompanyIdentity company : ciksByCompany.keySet()) {
+            if (tryHeuristicFallback(company, errorCategory, counts, errors, metrics, deadline)) {
+              continue;
+            }
             if ("wdqs_timeout".equals(errorCategory)) {
               counts.wdqsTimeout++;
             } else {
@@ -259,7 +320,7 @@ public class DomainResolutionService {
           for (Map.Entry<CompanyIdentity, List<String>> entry : ciksByCompany.entrySet()) {
             CompanyIdentity company = entry.getKey();
             WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
-            applyMatch(company, match, METHOD_CIK, "cik", counts, errors);
+            applyMatch(company, match, METHOD_CIK, "cik", counts, errors, metrics, deadline);
           }
         }
       }
@@ -280,7 +341,8 @@ public class DomainResolutionService {
         counts.noP856,
         counts.wdqsError,
         counts.wdqsTimeout,
-        errors.sampleErrors());
+        errors.sampleErrors(),
+        metrics.toModel(Duration.between(startedAt, Instant.now()).toMillis()));
   }
 
   private WdqsMatch findMatch(List<String> titles, Map<String, WdqsMatch> matches) {
@@ -299,8 +361,13 @@ public class DomainResolutionService {
       String method,
       String resolutionMethod,
       Counts counts,
-      ErrorCollector errors) {
+      ErrorCollector errors,
+      ResolutionMetricsCollector metrics,
+      Instant deadline) {
     if (match == null) {
+      if (tryHeuristicFallback(company, "no_item", counts, errors, metrics, deadline)) {
+        return;
+      }
       counts.noItem++;
       errors.add(company, "no_item");
       repository.updateCompanyDomainResolutionCache(
@@ -308,6 +375,9 @@ public class DomainResolutionService {
       return;
     }
     if (match.website() == null || match.website().isBlank()) {
+      if (tryHeuristicFallback(company, "no_p856", counts, errors, metrics, deadline)) {
+        return;
+      }
       counts.noP856++;
       errors.add(company, "no_p856");
       repository.updateCompanyDomainResolutionCache(
@@ -317,6 +387,9 @@ public class DomainResolutionService {
 
     String domain = normalizeDomain(match.website());
     if (domain == null) {
+      if (tryHeuristicFallback(company, "invalid_website_url", counts, errors, metrics, deadline)) {
+        return;
+      }
       counts.noP856++;
       errors.add(company, "invalid_website_url");
       repository.updateCompanyDomainResolutionCache(
@@ -340,6 +413,7 @@ public class DomainResolutionService {
     repository.updateCompanyDomainResolutionCache(
         company.companyId(), method, STATUS_RESOLVED, null, Instant.now());
     counts.resolved++;
+    metrics.recordResolved("WIKIDATA");
   }
 
   private boolean hasWikipediaTitle(CompanyIdentity company) {
@@ -679,6 +753,231 @@ public class DomainResolutionService {
     }
   }
 
+  private boolean tryHeuristicFallback(
+      CompanyIdentity company,
+      String failureReason,
+      Counts counts,
+      ErrorCollector errors,
+      ResolutionMetricsCollector metrics,
+      Instant deadline) {
+    if (company == null || company.name() == null || company.name().isBlank()) {
+      return false;
+    }
+    if (deadline != null && Instant.now().isAfter(deadline)) {
+      return false;
+    }
+
+    List<String> candidates = heuristicDomainCandidates(company);
+    if (candidates.isEmpty()) {
+      return false;
+    }
+
+    metrics.incrementHeuristicCompaniesTried();
+    int attempted = 0;
+    for (String candidate : candidates) {
+      if (attempted >= HEURISTIC_MAX_CANDIDATES) {
+        break;
+      }
+      if (deadline != null && Instant.now().isAfter(deadline)) {
+        break;
+      }
+      attempted++;
+      metrics.incrementHeuristicCandidateTried();
+      Instant fetchStartedAt = Instant.now();
+      HttpFetchResult fetch = httpClient.get("https://" + candidate + "/", HTML_ACCEPT, HEURISTIC_MAX_BYTES);
+      metrics.addHeuristicDuration(Duration.between(fetchStartedAt, Instant.now()).toMillis());
+      if (fetch != null && fetch.isSuccessful()) {
+        metrics.incrementHeuristicFetchSuccess();
+      }
+
+      HeuristicVerdict verdict = verifyHeuristicCandidate(company, candidate, fetch);
+      if (!verdict.accepted()) {
+        metrics.incrementHeuristicRejected();
+        continue;
+      }
+
+      String resolvedDomain = verdict.resolvedDomain();
+      repository.upsertCompanyDomain(
+          company.companyId(),
+          resolvedDomain,
+          null,
+          "HEURISTIC",
+          HEURISTIC_CONFIDENCE,
+          Instant.now(),
+          METHOD_HEURISTIC,
+          null);
+      repository.updateCompanyDomainResolutionCache(
+          company.companyId(), METHOD_HEURISTIC, STATUS_RESOLVED, null, Instant.now());
+      counts.resolved++;
+      metrics.incrementHeuristicResolved();
+      metrics.recordResolved("HEURISTIC");
+      metrics.recordHeuristicSuccessReason(failureReason);
+      log.info(
+          "Domain heuristic resolved ticker={} name={} candidate={} resolved={} reason={}",
+          company.ticker(),
+          company.name(),
+          candidate,
+          resolvedDomain,
+          failureReason);
+      return true;
+    }
+    return false;
+  }
+
+  private List<String> heuristicDomainCandidates(CompanyIdentity company) {
+    if (company == null || company.name() == null || company.name().isBlank()) {
+      return List.of();
+    }
+    LinkedHashSet<String> slugs = new LinkedHashSet<>();
+    String cleanedName = cleanupTitle(company.name().replace('&', ' '));
+    String strippedName = stripCorporateSuffixes(cleanedName);
+    addHeuristicSlugs(slugs, strippedName);
+    addHeuristicSlugs(slugs, cleanedName);
+    if (company.ticker() != null
+        && !company.ticker().isBlank()
+        && company.ticker().trim().length() <= 4) {
+      addHeuristicSlugs(slugs, company.ticker());
+    }
+
+    LinkedHashSet<String> candidates = new LinkedHashSet<>();
+    for (String slug : slugs) {
+      if (slug == null || slug.isBlank()) {
+        continue;
+      }
+      for (String tld : HEURISTIC_TLDS) {
+        candidates.add(slug + "." + tld);
+      }
+    }
+    return new ArrayList<>(candidates);
+  }
+
+  private void addHeuristicSlugs(LinkedHashSet<String> slugs, String raw) {
+    if (raw == null || raw.isBlank()) {
+      return;
+    }
+    String normalized = raw.toLowerCase(Locale.ROOT).replace("&", " and ");
+    normalized = normalized.replaceAll("[^a-z0-9]+", " ").trim();
+    if (normalized.isBlank()) {
+      return;
+    }
+    String compact = normalized.replace(" ", "");
+    if (!compact.isBlank()) {
+      slugs.add(compact);
+    }
+    String hyphenated = normalized.replace(" ", "-");
+    if (!hyphenated.isBlank()) {
+      slugs.add(hyphenated);
+    }
+    if (normalized.startsWith("the ")) {
+      String withoutThe = normalized.substring(4).trim();
+      if (!withoutThe.isBlank()) {
+        slugs.add(withoutThe.replace(" ", ""));
+        slugs.add(withoutThe.replace(" ", "-"));
+      }
+    }
+  }
+
+  private HeuristicVerdict verifyHeuristicCandidate(
+      CompanyIdentity company, String candidateDomain, HttpFetchResult fetch) {
+    if (fetch == null || !fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
+      return HeuristicVerdict.reject("fetch_failed");
+    }
+
+    String resolvedDomain = normalizeDomain(fetch.finalUrlOrRequested());
+    if (resolvedDomain == null || resolvedDomain.isBlank()) {
+      return HeuristicVerdict.reject("no_resolved_domain");
+    }
+
+    String text = fetch.body().toLowerCase(Locale.ROOT);
+    for (String parkedHint : PARKED_PAGE_HINTS) {
+      if (text.contains(parkedHint)) {
+        return HeuristicVerdict.reject("parked_page");
+      }
+    }
+
+    Document doc = Jsoup.parse(fetch.body(), fetch.finalUrlOrRequested());
+    String pageTitle = doc.title() == null ? "" : doc.title();
+    String bodyText = doc.body() == null ? "" : doc.body().text();
+    String verificationText = (pageTitle + " " + bodyText).toLowerCase(Locale.ROOT);
+
+    NameSignals signals = buildNameSignals(company.name());
+    if (signals == null || signals.strongTokens().isEmpty()) {
+      return HeuristicVerdict.reject("no_name_signals");
+    }
+
+    int tokenMatches = 0;
+    for (String token : signals.strongTokens()) {
+      if (verificationText.contains(token.toLowerCase(Locale.ROOT))) {
+        tokenMatches++;
+      }
+    }
+
+    String candidateRoot = candidateDomain.contains(".")
+        ? candidateDomain.substring(0, candidateDomain.indexOf('.'))
+        : candidateDomain;
+    String resolvedRoot = resolvedDomain.contains(".")
+        ? resolvedDomain.substring(0, resolvedDomain.indexOf('.'))
+        : resolvedDomain;
+    boolean rootMatches =
+        signals.acceptableRoots().contains(candidateRoot.toLowerCase(Locale.ROOT))
+            || signals.acceptableRoots().contains(resolvedRoot.toLowerCase(Locale.ROOT));
+
+    if (!rootMatches) {
+      return HeuristicVerdict.reject("root_mismatch");
+    }
+    if (tokenMatches == 0 && !verificationText.contains(resolvedRoot.toLowerCase(Locale.ROOT))) {
+      return HeuristicVerdict.reject("name_not_found");
+    }
+
+    return HeuristicVerdict.accept(resolvedDomain);
+  }
+
+  private NameSignals buildNameSignals(String name) {
+    if (name == null || name.isBlank()) {
+      return null;
+    }
+    String cleaned = cleanupTitle(name.replace('&', ' '));
+    String stripped = stripCorporateSuffixes(cleaned);
+    LinkedHashSet<String> roots = new LinkedHashSet<>();
+    addHeuristicSlugs(roots, cleaned);
+    addHeuristicSlugs(roots, stripped);
+
+    LinkedHashSet<String> tokens = new LinkedHashSet<>();
+    String normalized = stripped.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", " ").trim();
+    if (!normalized.isBlank()) {
+      for (String token : normalized.split("\\s+")) {
+        if (token.length() >= 3 && !isWeakNameToken(token)) {
+          tokens.add(token);
+        }
+      }
+    }
+    if (tokens.isEmpty()) {
+      String fallback = normalized.replace(" ", "");
+      if (!fallback.isBlank()) {
+        tokens.add(fallback);
+      }
+    }
+    return new NameSignals(List.copyOf(tokens), List.copyOf(roots));
+  }
+
+  private boolean isWeakNameToken(String token) {
+    if (token == null || token.isBlank()) {
+      return true;
+    }
+    return token.equals("the")
+        || token.equals("and")
+        || token.equals("company")
+        || token.equals("group")
+        || token.equals("holdings")
+        || token.equals("holding")
+        || token.equals("inc")
+        || token.equals("corp")
+        || token.equals("co")
+        || token.equals("plc")
+        || token.equals("ltd")
+        || token.equals("llc");
+  }
+
   private String sparqlLiteral(String raw) {
     String escaped = raw.replace("\\", "\\\\").replace("\"", "\\\"");
     return "\"" + escaped + "\"";
@@ -779,6 +1078,117 @@ public class DomainResolutionService {
       return List.copyOf(sampleErrors);
     }
   }
+
+  private static final class ResolutionMetricsCollector {
+    private final int companiesInputCount;
+    private int companiesAttemptedCount;
+    private int cachedSkipCount;
+    private int wdqsTitleBatchCount;
+    private int wdqsCikBatchCount;
+    private int heuristicCompaniesTriedCount;
+    private int heuristicCandidatesTriedCount;
+    private int heuristicFetchSuccessCount;
+    private int heuristicResolvedCount;
+    private int heuristicRejectedCount;
+    private long wdqsDurationMs;
+    private long heuristicDurationMs;
+    private final Map<String, Integer> resolvedByMethod = new LinkedHashMap<>();
+    private final Map<String, Integer> heuristicSuccessByReason = new LinkedHashMap<>();
+
+    private ResolutionMetricsCollector(int companiesInputCount) {
+      this.companiesInputCount = Math.max(0, companiesInputCount);
+    }
+
+    private void incrementCompaniesAttempted() {
+      companiesAttemptedCount++;
+    }
+
+    private void incrementCachedSkip() {
+      cachedSkipCount++;
+    }
+
+    private void incrementWdqsTitleBatch() {
+      wdqsTitleBatchCount++;
+    }
+
+    private void incrementWdqsCikBatch() {
+      wdqsCikBatchCount++;
+    }
+
+    private void incrementHeuristicCompaniesTried() {
+      heuristicCompaniesTriedCount++;
+    }
+
+    private void incrementHeuristicCandidateTried() {
+      heuristicCandidatesTriedCount++;
+    }
+
+    private void incrementHeuristicFetchSuccess() {
+      heuristicFetchSuccessCount++;
+    }
+
+    private void incrementHeuristicResolved() {
+      heuristicResolvedCount++;
+    }
+
+    private void incrementHeuristicRejected() {
+      heuristicRejectedCount++;
+    }
+
+    private void addWdqsDuration(long durationMs) {
+      wdqsDurationMs += Math.max(0L, durationMs);
+    }
+
+    private void addHeuristicDuration(long durationMs) {
+      heuristicDurationMs += Math.max(0L, durationMs);
+    }
+
+    private void recordResolved(String method) {
+      if (method == null || method.isBlank()) {
+        return;
+      }
+      resolvedByMethod.put(method, resolvedByMethod.getOrDefault(method, 0) + 1);
+    }
+
+    private void recordHeuristicSuccessReason(String reason) {
+      if (reason == null || reason.isBlank()) {
+        return;
+      }
+      heuristicSuccessByReason.put(
+          reason, heuristicSuccessByReason.getOrDefault(reason, 0) + 1);
+    }
+
+    private DomainResolutionMetrics toModel(long totalDurationMs) {
+      return new DomainResolutionMetrics(
+          companiesInputCount,
+          companiesAttemptedCount,
+          cachedSkipCount,
+          wdqsTitleBatchCount,
+          wdqsCikBatchCount,
+          heuristicCompaniesTriedCount,
+          heuristicCandidatesTriedCount,
+          heuristicFetchSuccessCount,
+          heuristicResolvedCount,
+          heuristicRejectedCount,
+          Math.max(0L, totalDurationMs),
+          wdqsDurationMs,
+          heuristicDurationMs,
+          Map.copyOf(resolvedByMethod),
+          Map.copyOf(heuristicSuccessByReason));
+    }
+  }
+
+  private record HeuristicVerdict(boolean accepted, String resolvedDomain, String rejectionReason) {
+    private static HeuristicVerdict accept(String resolvedDomain) {
+      return new HeuristicVerdict(true, resolvedDomain, null);
+    }
+
+    private static HeuristicVerdict reject(String reason) {
+      return new HeuristicVerdict(false, null, reason);
+    }
+  }
+
+  private record NameSignals(List<String> strongTokens, List<String> acceptableRoots) {}
 
   private record WdqsLookupResult(WdqsLookup lookup, String errorCategory) {}
 

@@ -9,4 +9,24 @@ public record DomainResolutionResult(
     int noP856Count,
     int wdqsErrorCount,
     int wdqsTimeoutCount,
-    List<String> sampleErrors) {}
+    List<String> sampleErrors,
+    DomainResolutionMetrics metrics) {
+  public DomainResolutionResult(
+      int resolvedCount,
+      int noWikipediaTitleCount,
+      int noItemCount,
+      int noP856Count,
+      int wdqsErrorCount,
+      int wdqsTimeoutCount,
+      List<String> sampleErrors) {
+    this(
+        resolvedCount,
+        noWikipediaTitleCount,
+        noItemCount,
+        noP856Count,
+        wdqsErrorCount,
+        wdqsTimeoutCount,
+        sampleErrors,
+        null);
+  }
+}
