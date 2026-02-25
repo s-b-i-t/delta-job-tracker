@@ -179,12 +179,41 @@ public class DomainResolutionService {
         Instant now = Instant.now();
         if (hasWikipediaTitle(company)) {
           if (shouldSkipCached(company, METHOD_WIKIPEDIA, now)) {
+            if (hasCik(company) && !shouldSkipCached(company, METHOD_CIK, now)) {
+              metrics.incrementCompaniesAttempted();
+              List<String> ciks = buildCikVariants(company.cik());
+              if (ciks.isEmpty()) {
+                if (tryHeuristicFallback(company, "no_cik", counts, errors, metrics, deadline)) {
+                  continue;
+                }
+                counts.noWikipediaTitle++;
+                errors.add(company, "no_cik");
+                repository.updateCompanyDomainResolutionCache(
+                    company.companyId(), METHOD_CIK, STATUS_NO_IDENTIFIER, "no_cik", now);
+                continue;
+              }
+              ciksByCompany.put(company, ciks);
+              for (String cik : ciks) {
+                companiesByCik.computeIfAbsent(cik, ignored -> new ArrayList<>()).add(company);
+              }
+              continue;
+            }
             metrics.incrementCachedSkip();
             continue;
           }
           metrics.incrementCompaniesAttempted();
           List<String> titles = buildTitleVariants(company.wikipediaTitle());
           if (titles.isEmpty()) {
+            if (hasCik(company) && !shouldSkipCached(company, METHOD_CIK, now)) {
+              List<String> ciks = buildCikVariants(company.cik());
+              if (!ciks.isEmpty()) {
+                ciksByCompany.put(company, ciks);
+                for (String cik : ciks) {
+                  companiesByCik.computeIfAbsent(cik, ignored -> new ArrayList<>()).add(company);
+                }
+                continue;
+              }
+            }
             if (tryHeuristicFallback(company, "no_wikipedia_title", counts, errors, metrics, deadline)) {
               continue;
             }
@@ -251,6 +280,9 @@ public class DomainResolutionService {
           String errorCategory =
               lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
           for (CompanyIdentity company : titlesByCompany.keySet()) {
+            if (tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+              continue;
+            }
             if (tryHeuristicFallback(company, errorCategory, counts, errors, metrics, deadline)) {
               continue;
             }
@@ -276,6 +308,7 @@ public class DomainResolutionService {
                 match,
                 METHOD_WIKIPEDIA,
                 "enwiki_sitelink",
+                true,
                 counts,
                 errors,
                 metrics,
@@ -320,7 +353,7 @@ public class DomainResolutionService {
           for (Map.Entry<CompanyIdentity, List<String>> entry : ciksByCompany.entrySet()) {
             CompanyIdentity company = entry.getKey();
             WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
-            applyMatch(company, match, METHOD_CIK, "cik", counts, errors, metrics, deadline);
+            applyMatch(company, match, METHOD_CIK, "cik", false, counts, errors, metrics, deadline);
           }
         }
       }
@@ -360,11 +393,15 @@ public class DomainResolutionService {
       WdqsMatch match,
       String method,
       String resolutionMethod,
+      boolean allowCikFallback,
       Counts counts,
       ErrorCollector errors,
       ResolutionMetricsCollector metrics,
       Instant deadline) {
     if (match == null) {
+      if (allowCikFallback && tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+        return;
+      }
       if (tryHeuristicFallback(company, "no_item", counts, errors, metrics, deadline)) {
         return;
       }
@@ -375,6 +412,9 @@ public class DomainResolutionService {
       return;
     }
     if (match.website() == null || match.website().isBlank()) {
+      if (allowCikFallback && tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+        return;
+      }
       if (tryHeuristicFallback(company, "no_p856", counts, errors, metrics, deadline)) {
         return;
       }
@@ -387,6 +427,9 @@ public class DomainResolutionService {
 
     String domain = normalizeDomain(match.website());
     if (domain == null) {
+      if (allowCikFallback && tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+        return;
+      }
       if (tryHeuristicFallback(company, "invalid_website_url", counts, errors, metrics, deadline)) {
         return;
       }
@@ -414,6 +457,57 @@ public class DomainResolutionService {
         company.companyId(), method, STATUS_RESOLVED, null, Instant.now());
     counts.resolved++;
     metrics.recordResolved("WIKIDATA");
+  }
+
+  private boolean tryCikFallbackLookup(
+      CompanyIdentity company,
+      Counts counts,
+      ErrorCollector errors,
+      ResolutionMetricsCollector metrics,
+      Instant deadline) {
+    if (!hasCik(company)) {
+      return false;
+    }
+    Instant now = Instant.now();
+    if (shouldSkipCached(company, METHOD_CIK, now)) {
+      return false;
+    }
+    if (deadline != null && now.isAfter(deadline)) {
+      return false;
+    }
+    List<String> ciks = buildCikVariants(company.cik());
+    if (ciks.isEmpty()) {
+      return false;
+    }
+
+    metrics.incrementWdqsCikBatch();
+    Instant wdqsStartedAt = Instant.now();
+    WdqsLookupResult lookupResult = fetchWdqsMatchesByCik(ciks);
+    metrics.addWdqsDuration(Duration.between(wdqsStartedAt, Instant.now()).toMillis());
+    if (lookupResult.lookup() == null) {
+      String errorCategory =
+          lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
+      if (tryHeuristicFallback(company, errorCategory, counts, errors, metrics, deadline)) {
+        return true;
+      }
+      if ("wdqs_timeout".equals(errorCategory)) {
+        counts.wdqsTimeout++;
+      } else {
+        counts.wdqsError++;
+      }
+      errors.add(company, errorCategory);
+      repository.updateCompanyDomainResolutionCache(
+          company.companyId(),
+          METHOD_CIK,
+          "wdqs_timeout".equals(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
+          errorCategory,
+          Instant.now());
+      return true;
+    }
+
+    WdqsMatch match = findMatch(ciks, lookupResult.lookup().matches());
+    applyMatch(company, match, METHOD_CIK, "cik", false, counts, errors, metrics, deadline);
+    return true;
   }
 
   private boolean hasWikipediaTitle(CompanyIdentity company) {
@@ -912,20 +1006,14 @@ public class DomainResolutionService {
       }
     }
 
-    String candidateRoot = candidateDomain.contains(".")
-        ? candidateDomain.substring(0, candidateDomain.indexOf('.'))
-        : candidateDomain;
-    String resolvedRoot = resolvedDomain.contains(".")
-        ? resolvedDomain.substring(0, resolvedDomain.indexOf('.'))
-        : resolvedDomain;
     boolean rootMatches =
-        signals.acceptableRoots().contains(candidateRoot.toLowerCase(Locale.ROOT))
-            || signals.acceptableRoots().contains(resolvedRoot.toLowerCase(Locale.ROOT));
+        hostnameContainsAcceptableRoot(candidateDomain, signals.acceptableRoots())
+            || hostnameContainsAcceptableRoot(resolvedDomain, signals.acceptableRoots());
 
     if (!rootMatches) {
       return HeuristicVerdict.reject("root_mismatch");
     }
-    if (tokenMatches == 0 && !verificationText.contains(resolvedRoot.toLowerCase(Locale.ROOT))) {
+    if (tokenMatches == 0 && !hostnameContainsAcceptableRoot(resolvedDomain, signals.acceptableRoots())) {
       return HeuristicVerdict.reject("name_not_found");
     }
 
@@ -976,6 +1064,24 @@ public class DomainResolutionService {
         || token.equals("plc")
         || token.equals("ltd")
         || token.equals("llc");
+  }
+
+  private boolean hostnameContainsAcceptableRoot(String host, List<String> acceptableRoots) {
+    if (host == null || host.isBlank() || acceptableRoots == null || acceptableRoots.isEmpty()) {
+      return false;
+    }
+    String[] labels = host.toLowerCase(Locale.ROOT).split("\\.");
+    for (String label : labels) {
+      if (label == null || label.isBlank()) {
+        continue;
+      }
+      for (String root : acceptableRoots) {
+        if (root != null && !root.isBlank() && label.equals(root.toLowerCase(Locale.ROOT))) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private String sparqlLiteral(String raw) {

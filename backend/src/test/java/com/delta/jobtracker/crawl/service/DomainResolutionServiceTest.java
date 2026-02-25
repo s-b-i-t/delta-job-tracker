@@ -176,6 +176,32 @@ class DomainResolutionServiceTest {
   }
 
   @Test
+  void fallsBackToCikWhenWikipediaLookupMisses() {
+    CompanyIdentity company =
+        new CompanyIdentity(
+            55L, "AAPL", "Apple Inc.", null, "Apple_Unknown_Title", "0000320193", null, null, null, null);
+    when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()))
+        .thenReturn(successFetch(wdqsResponseWithCikWebsite()));
+
+    DomainResolutionResult result = service.resolveMissingDomains(1);
+
+    assertThat(result.resolvedCount()).isEqualTo(1);
+    assertThat(result.noItemCount()).isZero();
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(55L),
+            eq("apple.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("cik"),
+            eq("Q312"));
+  }
+
+  @Test
   void reportsWdqsTimeoutWhenQueryTimesOut() {
     CompanyIdentity company =
         new CompanyIdentity(
@@ -262,6 +288,42 @@ class DomainResolutionServiceTest {
             any(Instant.class),
             any(),
             any());
+  }
+
+  @Test
+  void heuristicFallbackAcceptsRedirectToCompanySubdomain() {
+    CompanyIdentity company =
+        new CompanyIdentity(
+            56L, "DDOG", "Datadog, Inc.", null, null, null, null, null, null, null);
+    when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenReturn(
+            new HttpFetchResult(
+                "https://datadog.com/",
+                URI.create("https://careers.datadog.com/"),
+                200,
+                "<html><head><title>Datadog Careers</title></head><body>Datadog jobs</body></html>",
+                null,
+                "text/html",
+                null,
+                Instant.now(),
+                Duration.ofMillis(5),
+                null,
+                null));
+
+    DomainResolutionResult result = service.resolveMissingDomains(1);
+
+    assertThat(result.resolvedCount()).isEqualTo(1);
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(56L),
+            eq("careers.datadog.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
   }
 
   @Test

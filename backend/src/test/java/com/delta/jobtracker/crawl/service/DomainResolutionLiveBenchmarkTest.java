@@ -19,12 +19,19 @@ import com.delta.jobtracker.crawl.model.DomainResolutionMetrics;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.Reader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -139,8 +146,165 @@ class DomainResolutionLiveBenchmarkTest {
     System.out.println("sample_errors=" + result.sampleErrors());
   }
 
+  @Test
+  @EnabledIfEnvironmentVariable(
+      named = "RUN_LIVE_DOMAIN_RESOLUTION_CSV_BENCHMARK",
+      matches = "(?i)true|1|yes")
+  void benchmarksLiveDomainResolutionOnSp500UndiscoveredCsvSample() throws Exception {
+    int sampleSize = readEnvInt("LIVE_DOMAIN_RESOLUTION_CSV_SAMPLE_SIZE", 150);
+    List<CompanyIdentity> sample = loadSp500UndiscoveredCsvSample(sampleSize);
+    assertThat(sample.size()).isGreaterThanOrEqualTo(100);
+
+    when(repository.findCompaniesMissingDomain(sample.size())).thenReturn(sample);
+    lenient()
+        .doNothing()
+        .when(repository)
+        .updateCompanyDomainResolutionCache(anyLong(), any(), any(), any(), any());
+
+    Map<Long, String> resolvedDomainsByCompanyId = new LinkedHashMap<>();
+    doAnswer(
+            invocation -> {
+              long companyId = invocation.getArgument(0, Long.class);
+              String domain = invocation.getArgument(1, String.class);
+              resolvedDomainsByCompanyId.put(companyId, domain);
+              return null;
+            })
+        .when(repository)
+        .upsertCompanyDomain(
+            anyLong(),
+            anyString(),
+            any(),
+            anyString(),
+            anyDouble(),
+            any(Instant.class),
+            any(),
+            any());
+
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.setUserAgent("delta-job-tracker-benchmark/0.1");
+    properties.setRequestTimeoutSeconds(6);
+    properties.setRequestMaxRetries(0);
+    properties.setPerHostDelayMs(200);
+    properties.setGlobalConcurrency(4);
+    properties.getDomainResolution().setBatchSize(Math.min(sample.size(), 50));
+    properties.getDomainResolution().setWdqsMinDelayMs(200);
+    properties.getDomainResolution().setWdqsTimeoutSeconds(6);
+    properties.getDomainResolution().setCacheTtlMinutes(0);
+
+    httpExecutor = Executors.newFixedThreadPool(8);
+    PoliteHttpClient politeHttpClient =
+        new PoliteHttpClient(properties, httpExecutor, hostCrawlStateService);
+    WdqsHttpClient wdqsHttpClient = new WdqsHttpClient(properties, httpExecutor);
+    DomainResolutionService service =
+        new DomainResolutionService(
+            properties, repository, wdqsHttpClient, politeHttpClient, new ObjectMapper());
+
+    Instant startedAt = Instant.now();
+    DomainResolutionResult result = service.resolveMissingDomains(sample.size());
+    long wallClockMs = java.time.Duration.between(startedAt, Instant.now()).toMillis();
+
+    DomainResolutionMetrics metrics = result.metrics();
+    assertThat(metrics).isNotNull();
+    assertThat(metrics.companiesInputCount()).isEqualTo(sample.size());
+    verify(repository).findCompaniesMissingDomain(eq(sample.size()));
+
+    Map<String, String> resolvedByTicker = new LinkedHashMap<>();
+    for (CompanyIdentity company : sample) {
+      String domain = resolvedDomainsByCompanyId.get(company.companyId());
+      if (domain != null) {
+        resolvedByTicker.put(company.ticker(), domain);
+      }
+    }
+
+    System.out.println("=== Domain Resolution CSV Live Benchmark ===");
+    System.out.println("dataset=sp500_minus_domains_csv");
+    System.out.println("sample_size=" + sample.size());
+    System.out.println("resolved_count=" + result.resolvedCount());
+    System.out.println("resolution_rate=" + percent(result.resolvedCount(), sample.size()));
+    System.out.println("no_identifier_count=" + result.noWikipediaTitleCount());
+    System.out.println("no_item_count=" + result.noItemCount());
+    System.out.println("no_p856_count=" + result.noP856Count());
+    System.out.println("wdqs_error_count=" + result.wdqsErrorCount());
+    System.out.println("wdqs_timeout_count=" + result.wdqsTimeoutCount());
+    System.out.println("wall_clock_ms=" + wallClockMs);
+    System.out.println("metrics_total_duration_ms=" + metrics.totalDurationMs());
+    System.out.println("metrics_wdqs_duration_ms=" + metrics.wdqsDurationMs());
+    System.out.println("metrics_heuristic_duration_ms=" + metrics.heuristicDurationMs());
+    System.out.println("heuristic_companies_tried=" + metrics.heuristicCompaniesTriedCount());
+    System.out.println("heuristic_candidates_tried=" + metrics.heuristicCandidatesTriedCount());
+    System.out.println("heuristic_fetch_success=" + metrics.heuristicFetchSuccessCount());
+    System.out.println("heuristic_resolved=" + metrics.heuristicResolvedCount());
+    System.out.println("heuristic_rejected=" + metrics.heuristicRejectedCount());
+    System.out.println("resolved_by_method=" + metrics.resolvedByMethod());
+    System.out.println("heuristic_success_by_reason=" + metrics.heuristicSuccessByReason());
+    System.out.println(
+        "resolved_ticker_domain_sample="
+            + resolvedByTicker.entrySet().stream().limit(25).toList());
+    System.out.println("sample_errors=" + result.sampleErrors());
+  }
+
   private CompanyIdentity company(long id, String ticker, String name, String wikiTitle, String cik) {
     return new CompanyIdentity(id, ticker, name, null, wikiTitle, cik, null, null, null, null);
+  }
+
+  private List<CompanyIdentity> loadSp500UndiscoveredCsvSample(int sampleSize) throws Exception {
+    Path sp500Path = Path.of("..", "data", "sp500_constituents.csv");
+    Path domainsPath = Path.of("..", "data", "domains.csv");
+    LinkedHashSet<String> knownTickers = new LinkedHashSet<>();
+    try (Reader reader = Files.newBufferedReader(domainsPath);
+        CSVParser parser =
+            CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(reader)) {
+      for (CSVRecord record : parser) {
+        String ticker = record.get("ticker");
+        if (ticker != null && !ticker.isBlank()) {
+          knownTickers.add(ticker.trim().toUpperCase());
+        }
+      }
+    }
+
+    Map<String, CompanyIdentity> missingByTicker = new LinkedHashMap<>();
+    long syntheticId = 10_000L;
+    try (Reader reader = Files.newBufferedReader(sp500Path);
+        CSVParser parser =
+            CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(reader)) {
+      for (CSVRecord record : parser) {
+        String ticker = record.get("Symbol");
+        String name = record.get("Security");
+        String cik = record.get("CIK");
+        if (ticker == null || ticker.isBlank() || knownTickers.contains(ticker.trim().toUpperCase())) {
+          continue;
+        }
+        if (cik == null || cik.isBlank()) {
+          continue;
+        }
+        missingByTicker.put(
+            ticker.trim().toUpperCase(),
+            new CompanyIdentity(
+                syntheticId++,
+                ticker.trim().toUpperCase(),
+                name == null ? ticker.trim() : name.trim(),
+                null,
+                null,
+                cik.trim(),
+                null,
+                null,
+                null,
+                null));
+      }
+    }
+    return missingByTicker.values().stream().limit(Math.max(100, sampleSize)).toList();
+  }
+
+  private int readEnvInt(String envName, int defaultValue) {
+    String raw = System.getenv(envName);
+    if (raw == null || raw.isBlank()) {
+      return defaultValue;
+    }
+    try {
+      return Math.max(1, Integer.parseInt(raw.trim()));
+    } catch (NumberFormatException e) {
+      return defaultValue;
+    }
   }
 
   private String percent(int numerator, int denominator) {
