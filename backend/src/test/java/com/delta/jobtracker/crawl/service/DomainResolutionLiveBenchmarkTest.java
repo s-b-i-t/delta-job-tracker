@@ -17,6 +17,7 @@ import com.delta.jobtracker.crawl.http.WdqsHttpClient;
 import com.delta.jobtracker.crawl.model.CompanyIdentity;
 import com.delta.jobtracker.crawl.model.DomainResolutionMetrics;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
+import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.Reader;
@@ -243,6 +244,104 @@ class DomainResolutionLiveBenchmarkTest {
     System.out.println("sample_errors=" + result.sampleErrors());
   }
 
+  @Test
+  @EnabledIfEnvironmentVariable(
+      named = "RUN_LIVE_WIKIPEDIA_INFOBOX_DOMAIN_BENCHMARK",
+      matches = "(?i)true|1|yes")
+  void benchmarksLiveWikipediaInfoboxFallback() {
+    List<CompanyIdentity> sample =
+        List.of(
+            company(20_001L, "MSFTX", "Microsoft Corporation", "Microsoft", null),
+            company(20_002L, "NVDAx", "NVIDIA Corporation", "Nvidia", null),
+            company(20_003L, "NFLXx", "Netflix, Inc.", "Netflix", null),
+            company(20_004L, "ADBEx", "Adobe Inc.", "Adobe_Inc.", null),
+            company(20_005L, "INTUx", "Intuit Inc.", "Intuit", null),
+            company(20_006L, "NOWx", "ServiceNow, Inc.", "ServiceNow", null),
+            company(20_007L, "ORCLx", "Oracle Corporation", "Oracle_Corporation", null),
+            company(20_008L, "COSTx", "Costco Wholesale Corporation", "Costco", null),
+            company(20_009L, "UBERx", "Uber Technologies, Inc.", "Uber", null),
+            company(20_010L, "CRMx", "Salesforce, Inc.", "Salesforce", null),
+            company(20_011L, "SHOPx", "Shopify Inc.", "Shopify", null),
+            company(20_012L, "SQx", "Block, Inc.", "Block,_Inc.", null),
+            company(20_013L, "SPOTx", "Spotify Technology S.A.", "Spotify", null),
+            company(20_014L, "AMDx", "Advanced Micro Devices, Inc.", "Advanced_Micro_Devices", null),
+            company(20_015L, "AAPLx", "Apple Inc.", "Apple_Inc.", null),
+            company(20_016L, "GOOGx", "Alphabet Inc.", "Alphabet_Inc.", null),
+            company(20_017L, "PANWx", "Palo Alto Networks, Inc.", "Palo_Alto_Networks", null),
+            company(20_018L, "SNOWx", "Snowflake Inc.", "Snowflake_Inc.", null),
+            company(20_019L, "DDOGx", "Datadog, Inc.", "Datadog", null),
+            company(20_020L, "NETx", "Cloudflare, Inc.", "Cloudflare", null));
+
+    when(repository.findCompaniesMissingDomain(sample.size())).thenReturn(sample);
+    lenient()
+        .doNothing()
+        .when(repository)
+        .updateCompanyDomainResolutionCache(anyLong(), any(), any(), any(), any());
+    WdqsHttpClient mockedWdqsHttpClient = org.mockito.Mockito.mock(WdqsHttpClient.class);
+    when(mockedWdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successWdqsFetch("{\"results\":{\"bindings\":[]}}"));
+
+    Map<Long, String> resolvedDomainsByCompanyId = new LinkedHashMap<>();
+    doAnswer(
+            invocation -> {
+              long companyId = invocation.getArgument(0, Long.class);
+              String domain = invocation.getArgument(1, String.class);
+              resolvedDomainsByCompanyId.put(companyId, domain);
+              return null;
+            })
+        .when(repository)
+        .upsertCompanyDomain(
+            anyLong(),
+            anyString(),
+            any(),
+            anyString(),
+            anyDouble(),
+            any(Instant.class),
+            any(),
+            any());
+
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.setUserAgent("delta-job-tracker-benchmark/0.1");
+    properties.setRequestTimeoutSeconds(6);
+    properties.setRequestMaxRetries(0);
+    properties.setPerHostDelayMs(200);
+    properties.setGlobalConcurrency(4);
+    properties.getDomainResolution().setBatchSize(sample.size());
+    properties.getDomainResolution().setWdqsMinDelayMs(0);
+    properties.getDomainResolution().setWdqsTimeoutSeconds(6);
+    properties.getDomainResolution().setCacheTtlMinutes(0);
+
+    httpExecutor = Executors.newFixedThreadPool(8);
+    PoliteHttpClient politeHttpClient =
+        new PoliteHttpClient(properties, httpExecutor, hostCrawlStateService);
+    DomainResolutionService service =
+        new DomainResolutionService(
+            properties, repository, mockedWdqsHttpClient, politeHttpClient, new ObjectMapper());
+
+    Instant startedAt = Instant.now();
+    DomainResolutionResult result = service.resolveMissingDomains(sample.size());
+    long wallClockMs = java.time.Duration.between(startedAt, Instant.now()).toMillis();
+
+    DomainResolutionMetrics metrics = result.metrics();
+    assertThat(metrics).isNotNull();
+    verify(repository).findCompaniesMissingDomain(eq(sample.size()));
+
+    System.out.println("=== Wikipedia Infobox Domain Benchmark ===");
+    System.out.println("sample_size=" + sample.size());
+    System.out.println("resolved_count=" + result.resolvedCount());
+    System.out.println("resolution_rate=" + percent(result.resolvedCount(), sample.size()));
+    System.out.println("wall_clock_ms=" + wallClockMs);
+    System.out.println("wdqs_batches_title=" + metrics.wdqsTitleBatchCount());
+    System.out.println("infobox_tried=" + metrics.wikipediaInfoboxTriedCount());
+    System.out.println("infobox_resolved=" + metrics.wikipediaInfoboxResolvedCount());
+    System.out.println("infobox_rejected=" + metrics.wikipediaInfoboxRejectedCount());
+    System.out.println("infobox_duration_ms=" + metrics.wikipediaInfoboxDurationMs());
+    System.out.println("heuristic_resolved=" + metrics.heuristicResolvedCount());
+    System.out.println("resolved_by_method=" + metrics.resolvedByMethod());
+    System.out.println("sample_errors=" + result.sampleErrors());
+    System.out.println("resolved_domains_by_company_id=" + resolvedDomainsByCompanyId);
+  }
+
   private CompanyIdentity company(long id, String ticker, String name, String wikiTitle, String cik) {
     return new CompanyIdentity(id, ticker, name, null, wikiTitle, cik, null, null, null, null);
   }
@@ -313,5 +412,20 @@ class DomainResolutionLiveBenchmarkTest {
     }
     double value = (100.0 * numerator) / denominator;
     return String.format("%.1f%%", value);
+  }
+
+  private HttpFetchResult successWdqsFetch(String body) {
+    return new HttpFetchResult(
+        "https://query.wikidata.org",
+        null,
+        200,
+        body,
+        body == null ? null : body.getBytes(),
+        "application/sparql-results+json",
+        null,
+        Instant.now(),
+        java.time.Duration.ZERO,
+        null,
+        null);
   }
 }

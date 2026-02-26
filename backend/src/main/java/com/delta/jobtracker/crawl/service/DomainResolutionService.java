@@ -26,8 +26,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,7 +45,8 @@ public class DomainResolutionService {
   private static final String CIK_PROPERTY = "P5531";
   private static final String METHOD_WIKIPEDIA = "WIKIPEDIA_TITLE";
   private static final String METHOD_CIK = "CIK";
-  private static final String METHOD_HEURISTIC = "HEURISTIC_NAME_COM";
+  private static final String METHOD_HEURISTIC = "HEURISTIC_NAME";
+  private static final String METHOD_WIKIPEDIA_INFOBOX = "WIKIPEDIA_INFOBOX";
   private static final String METHOD_NONE = "NONE";
   private static final String STATUS_RESOLVED = "RESOLVED";
   private static final String STATUS_NO_ITEM = "NO_ITEM";
@@ -50,6 +55,7 @@ public class DomainResolutionService {
   private static final String STATUS_WDQS_ERROR = "WDQS_ERROR";
   private static final String STATUS_WDQS_TIMEOUT = "WDQS_TIMEOUT";
   private static final String STATUS_NO_IDENTIFIER = "NO_IDENTIFIER";
+  private static final String STATUS_INFOBOX_ERROR = "INFOBOX_ERROR";
   private static final int MAX_ERROR_SAMPLES = 10;
   private static final int WDQS_MAX_ATTEMPTS = 3;
   private static final long WDQS_RETRY_BASE_MS = 750L;
@@ -59,8 +65,10 @@ public class DomainResolutionService {
       "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
   private static final int HEURISTIC_MAX_BYTES = 256_000;
   private static final int HEURISTIC_MAX_CANDIDATES = 6;
+  private static final long HEURISTIC_MAX_TOTAL_DURATION_MS = 120_000L;
+  private static final double WIKIPEDIA_INFOBOX_CONFIDENCE = 0.9;
   private static final double HEURISTIC_CONFIDENCE = 0.7;
-  private static final List<String> HEURISTIC_TLDS = List.of("com");
+  private static final int HEURISTIC_NON_COM_TOP_SLUGS = 2;
   private static final List<String> PARKED_PAGE_HINTS =
       List.of(
           "domain for sale",
@@ -69,7 +77,36 @@ public class DomainResolutionService {
           "sedo domain parking",
           "godaddy",
           "dan.com",
+          "domaineasy",
+          "afternic",
+          "hugedomains",
+          "parkingcrew",
+          "bodis",
           "parked free");
+  private static final List<String> PARKED_HOST_SUFFIXES =
+      List.of(
+          "domaineasy.com",
+          "dan.com",
+          "sedo.com",
+          "afternic.com",
+          "hugedomains.com",
+          "parkingcrew.net",
+          "bodis.com");
+  private static final List<String> INFOBOX_DISALLOWED_HOST_SUFFIXES =
+      List.of(
+          "boards.greenhouse.io",
+          "greenhouse.io",
+          "jobs.lever.co",
+          "lever.co",
+          "myworkdayjobs.com",
+          "workdayjobs.com",
+          "smartrecruiters.com",
+          "icims.com",
+          "jobvite.com",
+          "breezy.hr",
+          "ashbyhq.com");
+  private static final Pattern URL_TEXT_PATTERN =
+      Pattern.compile("https?://[^\\s<>\"']+", Pattern.CASE_INSENSITIVE);
 
   private final CrawlerProperties properties;
   private final CrawlJdbcRepository repository;
@@ -134,6 +171,8 @@ public class DomainResolutionService {
     int batchSize = Math.min(properties.getDomainResolution().getBatchSize(), limit);
     Counts counts = new Counts();
     ErrorCollector errors = new ErrorCollector();
+    Map<String, HttpFetchResult> heuristicFetchCache = new HashMap<>();
+    HeuristicBudget heuristicBudget = new HeuristicBudget(HEURISTIC_MAX_TOTAL_DURATION_MS);
     int totalWithTitle = 0;
     int totalWithCik = 0;
     for (CompanyIdentity company : missingDomain) {
@@ -183,7 +222,15 @@ public class DomainResolutionService {
               metrics.incrementCompaniesAttempted();
               List<String> ciks = buildCikVariants(company.cik());
               if (ciks.isEmpty()) {
-                if (tryHeuristicFallback(company, "no_cik", counts, errors, metrics, deadline)) {
+                if (tryHeuristicFallback(
+                    company,
+                    "no_cik",
+                    counts,
+                    errors,
+                    metrics,
+                    deadline,
+                    heuristicFetchCache,
+                    heuristicBudget)) {
                   continue;
                 }
                 counts.noWikipediaTitle++;
@@ -214,7 +261,15 @@ public class DomainResolutionService {
                 continue;
               }
             }
-            if (tryHeuristicFallback(company, "no_wikipedia_title", counts, errors, metrics, deadline)) {
+            if (tryHeuristicFallback(
+                company,
+                "no_wikipedia_title",
+                counts,
+                errors,
+                metrics,
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget)) {
               continue;
             }
             counts.noWikipediaTitle++;
@@ -239,7 +294,15 @@ public class DomainResolutionService {
           metrics.incrementCompaniesAttempted();
           List<String> ciks = buildCikVariants(company.cik());
           if (ciks.isEmpty()) {
-            if (tryHeuristicFallback(company, "no_cik", counts, errors, metrics, deadline)) {
+            if (tryHeuristicFallback(
+                company,
+                "no_cik",
+                counts,
+                errors,
+                metrics,
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget)) {
               continue;
             }
             counts.noWikipediaTitle++;
@@ -254,7 +317,15 @@ public class DomainResolutionService {
           }
         } else {
           metrics.incrementCompaniesAttempted();
-          if (tryHeuristicFallback(company, "no_identifier", counts, errors, metrics, deadline)) {
+          if (tryHeuristicFallback(
+              company,
+              "no_identifier",
+              counts,
+              errors,
+              metrics,
+              deadline,
+              heuristicFetchCache,
+              heuristicBudget)) {
             continue;
           }
           counts.noWikipediaTitle++;
@@ -280,10 +351,19 @@ public class DomainResolutionService {
           String errorCategory =
               lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
           for (CompanyIdentity company : titlesByCompany.keySet()) {
-            if (tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+            if (tryCikFallbackLookup(
+                company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
               continue;
             }
-            if (tryHeuristicFallback(company, errorCategory, counts, errors, metrics, deadline)) {
+            if (tryHeuristicFallback(
+                company,
+                errorCategory,
+                counts,
+                errors,
+                metrics,
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget)) {
               continue;
             }
             if ("wdqs_timeout".equals(errorCategory)) {
@@ -312,7 +392,9 @@ public class DomainResolutionService {
                 counts,
                 errors,
                 metrics,
-                deadline);
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget);
           }
         }
       }
@@ -333,7 +415,15 @@ public class DomainResolutionService {
           String errorCategory =
               lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
           for (CompanyIdentity company : ciksByCompany.keySet()) {
-            if (tryHeuristicFallback(company, errorCategory, counts, errors, metrics, deadline)) {
+            if (tryHeuristicFallback(
+                company,
+                errorCategory,
+                counts,
+                errors,
+                metrics,
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget)) {
               continue;
             }
             if ("wdqs_timeout".equals(errorCategory)) {
@@ -353,7 +443,18 @@ public class DomainResolutionService {
           for (Map.Entry<CompanyIdentity, List<String>> entry : ciksByCompany.entrySet()) {
             CompanyIdentity company = entry.getKey();
             WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
-            applyMatch(company, match, METHOD_CIK, "cik", false, counts, errors, metrics, deadline);
+            applyMatch(
+                company,
+                match,
+                METHOD_CIK,
+                "cik",
+                false,
+                counts,
+                errors,
+                metrics,
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget);
           }
         }
       }
@@ -397,12 +498,27 @@ public class DomainResolutionService {
       Counts counts,
       ErrorCollector errors,
       ResolutionMetricsCollector metrics,
-      Instant deadline) {
+      Instant deadline,
+      Map<String, HttpFetchResult> heuristicFetchCache,
+      HeuristicBudget heuristicBudget) {
     if (match == null) {
-      if (allowCikFallback && tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+      if (allowCikFallback
+          && tryCikFallbackLookup(
+              company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
         return;
       }
-      if (tryHeuristicFallback(company, "no_item", counts, errors, metrics, deadline)) {
+      if (tryWikipediaInfoboxFallback(company, "no_item", counts, metrics, deadline)) {
+        return;
+      }
+      if (tryHeuristicFallback(
+          company,
+          "no_item",
+          counts,
+          errors,
+          metrics,
+          deadline,
+          heuristicFetchCache,
+          heuristicBudget)) {
         return;
       }
       counts.noItem++;
@@ -412,10 +528,23 @@ public class DomainResolutionService {
       return;
     }
     if (match.website() == null || match.website().isBlank()) {
-      if (allowCikFallback && tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+      if (allowCikFallback
+          && tryCikFallbackLookup(
+              company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
         return;
       }
-      if (tryHeuristicFallback(company, "no_p856", counts, errors, metrics, deadline)) {
+      if (tryWikipediaInfoboxFallback(company, "no_p856", counts, metrics, deadline)) {
+        return;
+      }
+      if (tryHeuristicFallback(
+          company,
+          "no_p856",
+          counts,
+          errors,
+          metrics,
+          deadline,
+          heuristicFetchCache,
+          heuristicBudget)) {
         return;
       }
       counts.noP856++;
@@ -427,10 +556,23 @@ public class DomainResolutionService {
 
     String domain = normalizeDomain(match.website());
     if (domain == null) {
-      if (allowCikFallback && tryCikFallbackLookup(company, counts, errors, metrics, deadline)) {
+      if (allowCikFallback
+          && tryCikFallbackLookup(
+              company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
         return;
       }
-      if (tryHeuristicFallback(company, "invalid_website_url", counts, errors, metrics, deadline)) {
+      if (tryWikipediaInfoboxFallback(company, "invalid_website_url", counts, metrics, deadline)) {
+        return;
+      }
+      if (tryHeuristicFallback(
+          company,
+          "invalid_website_url",
+          counts,
+          errors,
+          metrics,
+          deadline,
+          heuristicFetchCache,
+          heuristicBudget)) {
         return;
       }
       counts.noP856++;
@@ -459,12 +601,205 @@ public class DomainResolutionService {
     metrics.recordResolved("WIKIDATA");
   }
 
+  private boolean tryWikipediaInfoboxFallback(
+      CompanyIdentity company,
+      String failureReason,
+      Counts counts,
+      ResolutionMetricsCollector metrics,
+      Instant deadline) {
+    if (!hasWikipediaTitle(company)) {
+      return false;
+    }
+    Instant now = Instant.now();
+    if (deadline != null && now.isAfter(deadline)) {
+      return false;
+    }
+    if (shouldSkipCached(company, METHOD_WIKIPEDIA_INFOBOX, now)) {
+      return false;
+    }
+
+    metrics.incrementWikipediaInfoboxTried();
+    Instant startedAt = Instant.now();
+    InfoboxResolutionAttempt attempt = resolveFromWikipediaInfobox(company);
+    metrics.addWikipediaInfoboxDuration(Duration.between(startedAt, Instant.now()).toMillis());
+
+    if (attempt.resolvedDomain() != null) {
+      repository.upsertCompanyDomain(
+          company.companyId(),
+          attempt.resolvedDomain(),
+          null,
+          "WIKIPEDIA",
+          WIKIPEDIA_INFOBOX_CONFIDENCE,
+          Instant.now(),
+          METHOD_WIKIPEDIA_INFOBOX,
+          null);
+      repository.updateCompanyDomainResolutionCache(
+          company.companyId(), METHOD_WIKIPEDIA_INFOBOX, STATUS_RESOLVED, null, Instant.now());
+      counts.resolved++;
+      metrics.incrementWikipediaInfoboxResolved();
+      metrics.recordResolved("WIKIPEDIA_INFOBOX");
+      return true;
+    }
+
+    metrics.incrementWikipediaInfoboxRejected();
+    repository.updateCompanyDomainResolutionCache(
+        company.companyId(),
+        METHOD_WIKIPEDIA_INFOBOX,
+        attempt.status() == null ? STATUS_INFOBOX_ERROR : attempt.status(),
+        attempt.errorCategory() == null ? failureReason : attempt.errorCategory(),
+        Instant.now());
+    return false;
+  }
+
+  private InfoboxResolutionAttempt resolveFromWikipediaInfobox(CompanyIdentity company) {
+    if (company == null || company.wikipediaTitle() == null || company.wikipediaTitle().isBlank()) {
+      return InfoboxResolutionAttempt.failure(STATUS_NO_IDENTIFIER, "no_wikipedia_title");
+    }
+    String pageUrl = wikipediaPageUrl(company.wikipediaTitle());
+    if (pageUrl == null) {
+      return InfoboxResolutionAttempt.failure(STATUS_INVALID_WEBSITE, "invalid_wikipedia_title");
+    }
+    HttpFetchResult fetch = httpClient.get(pageUrl, HTML_ACCEPT, HEURISTIC_MAX_BYTES);
+    if (fetch == null || !fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
+      String error = fetch == null ? "infobox_fetch_failed" : classifyInfoBoxFetchError(fetch);
+      return InfoboxResolutionAttempt.failure(STATUS_INFOBOX_ERROR, error);
+    }
+    String infoboxUrl = extractWikipediaInfoboxWebsiteUrl(fetch.body(), pageUrl);
+    if (infoboxUrl == null || infoboxUrl.isBlank()) {
+      return InfoboxResolutionAttempt.failure(STATUS_NO_P856, "infobox_no_website");
+    }
+    String domain = normalizeDomain(infoboxUrl);
+    if (domain == null || domain.isBlank()) {
+      return InfoboxResolutionAttempt.failure(STATUS_INVALID_WEBSITE, "infobox_invalid_website_url");
+    }
+    if (isParkedHost(domain)) {
+      return InfoboxResolutionAttempt.failure(STATUS_INVALID_WEBSITE, "infobox_parked_host");
+    }
+    if (isDisallowedInfoboxHost(domain)) {
+      return InfoboxResolutionAttempt.failure(STATUS_INVALID_WEBSITE, "infobox_disallowed_host");
+    }
+    if (domain.endsWith(".wikipedia.org") || domain.equals("wikipedia.org")) {
+      return InfoboxResolutionAttempt.failure(STATUS_INVALID_WEBSITE, "infobox_internal_link");
+    }
+    return InfoboxResolutionAttempt.success(domain);
+  }
+
+  private String classifyInfoBoxFetchError(HttpFetchResult fetch) {
+    if (fetch == null) {
+      return "infobox_fetch_failed";
+    }
+    if (fetch.errorCode() != null && !fetch.errorCode().isBlank()) {
+      return "infobox_" + fetch.errorCode();
+    }
+    return fetch.statusCode() > 0 ? "infobox_http_" + fetch.statusCode() : "infobox_fetch_failed";
+  }
+
+  private String wikipediaPageUrl(String wikipediaTitle) {
+    if (wikipediaTitle == null || wikipediaTitle.isBlank()) {
+      return null;
+    }
+    String normalized = stripFragmentAndQuery(wikipediaTitle.trim());
+    if (normalized.isBlank()) {
+      return null;
+    }
+    String decoded = decodeTitle(normalized).replace(' ', '_');
+    String encoded = URLEncoder.encode(decoded, StandardCharsets.UTF_8).replace("+", "%20");
+    return "https://en.wikipedia.org/wiki/" + encoded;
+  }
+
+  private String extractWikipediaInfoboxWebsiteUrl(String html, String baseUrl) {
+    if (html == null || html.isBlank()) {
+      return null;
+    }
+    Document doc = Jsoup.parse(html, baseUrl);
+    Element infobox = doc.selectFirst("table.infobox");
+    if (infobox == null) {
+      return null;
+    }
+    for (Element row : infobox.select("tr")) {
+      Element header = row.selectFirst("th");
+      Element value = row.selectFirst("td");
+      if (header == null || value == null) {
+        continue;
+      }
+      String headerText = header.text() == null ? "" : header.text().trim().toLowerCase(Locale.ROOT);
+      if (!headerText.equals("website") && !headerText.contains("website")) {
+        continue;
+      }
+      String preferred = firstExternalInfoboxUrl(value, true);
+      if (preferred != null) {
+        return preferred;
+      }
+      String fallback = firstExternalInfoboxUrl(value, false);
+      if (fallback != null) {
+        return fallback;
+      }
+      return firstUrlFromText(value.text());
+    }
+    return null;
+  }
+
+  private String firstExternalInfoboxUrl(Element valueCell, boolean httpsOnly) {
+    if (valueCell == null) {
+      return null;
+    }
+    Elements links = valueCell.select("a[href]");
+    for (Element link : links) {
+      String href = link.absUrl("href");
+      if (href == null || href.isBlank()) {
+        href = link.attr("href");
+      }
+      if (href == null || href.isBlank()) {
+        continue;
+      }
+      String lower = href.toLowerCase(Locale.ROOT);
+      if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+        continue;
+      }
+      if (httpsOnly && !lower.startsWith("https://")) {
+        continue;
+      }
+      return href;
+    }
+    return null;
+  }
+
+  private String firstUrlFromText(String text) {
+    if (text == null || text.isBlank()) {
+      return null;
+    }
+    Matcher matcher = URL_TEXT_PATTERN.matcher(text);
+    if (!matcher.find()) {
+      return null;
+    }
+    return matcher.group();
+  }
+
+  private boolean isDisallowedInfoboxHost(String host) {
+    if (host == null || host.isBlank()) {
+      return false;
+    }
+    String normalized = host.toLowerCase(Locale.ROOT);
+    for (String suffix : INFOBOX_DISALLOWED_HOST_SUFFIXES) {
+      if (suffix == null || suffix.isBlank()) {
+        continue;
+      }
+      String s = suffix.toLowerCase(Locale.ROOT);
+      if (normalized.equals(s) || normalized.endsWith("." + s)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private boolean tryCikFallbackLookup(
       CompanyIdentity company,
       Counts counts,
       ErrorCollector errors,
       ResolutionMetricsCollector metrics,
-      Instant deadline) {
+      Instant deadline,
+      Map<String, HttpFetchResult> heuristicFetchCache,
+      HeuristicBudget heuristicBudget) {
     if (!hasCik(company)) {
       return false;
     }
@@ -487,7 +822,15 @@ public class DomainResolutionService {
     if (lookupResult.lookup() == null) {
       String errorCategory =
           lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
-      if (tryHeuristicFallback(company, errorCategory, counts, errors, metrics, deadline)) {
+      if (tryHeuristicFallback(
+          company,
+          errorCategory,
+          counts,
+          errors,
+          metrics,
+          deadline,
+          heuristicFetchCache,
+          heuristicBudget)) {
         return true;
       }
       if ("wdqs_timeout".equals(errorCategory)) {
@@ -506,7 +849,18 @@ public class DomainResolutionService {
     }
 
     WdqsMatch match = findMatch(ciks, lookupResult.lookup().matches());
-    applyMatch(company, match, METHOD_CIK, "cik", false, counts, errors, metrics, deadline);
+    applyMatch(
+        company,
+        match,
+        METHOD_CIK,
+        "cik",
+        false,
+        counts,
+        errors,
+        metrics,
+        deadline,
+        heuristicFetchCache,
+        heuristicBudget);
     return true;
   }
 
@@ -853,11 +1207,16 @@ public class DomainResolutionService {
       Counts counts,
       ErrorCollector errors,
       ResolutionMetricsCollector metrics,
-      Instant deadline) {
+      Instant deadline,
+      Map<String, HttpFetchResult> heuristicFetchCache,
+      HeuristicBudget heuristicBudget) {
     if (company == null || company.name() == null || company.name().isBlank()) {
       return false;
     }
     if (deadline != null && Instant.now().isAfter(deadline)) {
+      return false;
+    }
+    if (heuristicBudget != null && !heuristicBudget.allowAttempt()) {
       return false;
     }
 
@@ -877,10 +1236,23 @@ public class DomainResolutionService {
       }
       attempted++;
       metrics.incrementHeuristicCandidateTried();
-      Instant fetchStartedAt = Instant.now();
-      HttpFetchResult fetch = httpClient.get("https://" + candidate + "/", HTML_ACCEPT, HEURISTIC_MAX_BYTES);
-      metrics.addHeuristicDuration(Duration.between(fetchStartedAt, Instant.now()).toMillis());
-      if (fetch != null && fetch.isSuccessful()) {
+      String candidateTld = topLevelDomain(candidate);
+      metrics.recordHeuristicCandidateTld(candidateTld);
+      HttpFetchResult fetch = heuristicFetchCache == null ? null : heuristicFetchCache.get(candidate);
+      boolean cacheHit = fetch != null;
+      if (!cacheHit) {
+        Instant fetchStartedAt = Instant.now();
+        fetch = httpClient.get("https://" + candidate + "/", HTML_ACCEPT, HEURISTIC_MAX_BYTES);
+        long fetchDurationMs = Duration.between(fetchStartedAt, Instant.now()).toMillis();
+        metrics.addHeuristicDuration(fetchDurationMs);
+        if (heuristicBudget != null) {
+          heuristicBudget.addDuration(fetchDurationMs);
+        }
+        if (heuristicFetchCache != null && fetch != null) {
+          heuristicFetchCache.put(candidate, fetch);
+        }
+      }
+      if (!cacheHit && fetch != null && fetch.isSuccessful()) {
         metrics.incrementHeuristicFetchSuccess();
       }
 
@@ -898,15 +1270,16 @@ public class DomainResolutionService {
           "HEURISTIC",
           HEURISTIC_CONFIDENCE,
           Instant.now(),
-          METHOD_HEURISTIC,
+          heuristicResolutionMethodForDomain(resolvedDomain),
           null);
       repository.updateCompanyDomainResolutionCache(
           company.companyId(), METHOD_HEURISTIC, STATUS_RESOLVED, null, Instant.now());
       counts.resolved++;
       metrics.incrementHeuristicResolved();
+      metrics.recordHeuristicResolvedTld(topLevelDomain(resolvedDomain));
       metrics.recordResolved("HEURISTIC");
       metrics.recordHeuristicSuccessReason(failureReason);
-      log.info(
+      log.debug(
           "Domain heuristic resolved ticker={} name={} candidate={} resolved={} reason={}",
           company.ticker(),
           company.name(),
@@ -933,16 +1306,53 @@ public class DomainResolutionService {
       addHeuristicSlugs(slugs, company.ticker());
     }
 
+    List<String> rankedTlds = properties.getDomainResolution().getHeuristicTlds();
     LinkedHashSet<String> candidates = new LinkedHashSet<>();
-    for (String slug : slugs) {
-      if (slug == null || slug.isBlank()) {
+    List<String> orderedSlugs = slugs.stream().filter(s -> s != null && !s.isBlank()).toList();
+    if (orderedSlugs.isEmpty()) {
+      return List.of();
+    }
+
+    // Phase 1: top slugs on .com first (high-signal, preserves prior behavior)
+    int nonComTopSlugs = Math.min(HEURISTIC_NON_COM_TOP_SLUGS, orderedSlugs.size());
+    for (int i = 0; i < nonComTopSlugs; i++) {
+      candidates.add(orderedSlugs.get(i) + ".com");
+    }
+    // Phase 2: same top slugs on ranked non-.com TLDs
+    for (String tld : rankedTlds) {
+      if ("com".equalsIgnoreCase(tld)) {
         continue;
       }
-      for (String tld : HEURISTIC_TLDS) {
-        candidates.add(slug + "." + tld);
+      for (int i = 0; i < nonComTopSlugs; i++) {
+        candidates.add(orderedSlugs.get(i) + "." + tld.toLowerCase(Locale.ROOT));
       }
     }
+    // Phase 3: remaining slugs on .com only
+    for (int i = nonComTopSlugs; i < orderedSlugs.size(); i++) {
+      candidates.add(orderedSlugs.get(i) + ".com");
+    }
     return new ArrayList<>(candidates);
+  }
+
+  private String heuristicResolutionMethodForDomain(String domain) {
+    String tld = topLevelDomain(domain);
+    if (tld == null || tld.isBlank()) {
+      return METHOD_HEURISTIC + "_COM";
+    }
+    return METHOD_HEURISTIC + "_" + tld.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "_");
+  }
+
+  private String topLevelDomain(String hostOrDomain) {
+    if (hostOrDomain == null || hostOrDomain.isBlank()) {
+      return null;
+    }
+    String normalized = hostOrDomain.toLowerCase(Locale.ROOT);
+    int idx = normalized.lastIndexOf('.');
+    if (idx < 0 || idx + 1 >= normalized.length()) {
+      return null;
+    }
+    String tld = normalized.substring(idx + 1);
+    return tld.isBlank() ? null : tld;
   }
 
   private void addHeuristicSlugs(LinkedHashSet<String> slugs, String raw) {
@@ -980,6 +1390,9 @@ public class DomainResolutionService {
     String resolvedDomain = normalizeDomain(fetch.finalUrlOrRequested());
     if (resolvedDomain == null || resolvedDomain.isBlank()) {
       return HeuristicVerdict.reject("no_resolved_domain");
+    }
+    if (isParkedHost(resolvedDomain)) {
+      return HeuristicVerdict.reject("parked_host");
     }
 
     String text = fetch.body().toLowerCase(Locale.ROOT);
@@ -1079,6 +1492,23 @@ public class DomainResolutionService {
         if (root != null && !root.isBlank() && label.equals(root.toLowerCase(Locale.ROOT))) {
           return true;
         }
+      }
+    }
+    return false;
+  }
+
+  private boolean isParkedHost(String host) {
+    if (host == null || host.isBlank()) {
+      return false;
+    }
+    String normalized = host.toLowerCase(Locale.ROOT);
+    for (String suffix : PARKED_HOST_SUFFIXES) {
+      if (suffix == null || suffix.isBlank()) {
+        continue;
+      }
+      String s = suffix.toLowerCase(Locale.ROOT);
+      if (normalized.equals(s) || normalized.endsWith("." + s)) {
+        return true;
       }
     }
     return false;
@@ -1185,19 +1615,54 @@ public class DomainResolutionService {
     }
   }
 
+  private static final class HeuristicBudget {
+    private final long maxTotalDurationMs;
+    private long usedDurationMs;
+    private boolean exhaustedLogged;
+
+    private HeuristicBudget(long maxTotalDurationMs) {
+      this.maxTotalDurationMs = Math.max(0L, maxTotalDurationMs);
+    }
+
+    private boolean allowAttempt() {
+      if (maxTotalDurationMs <= 0L) {
+        return true;
+      }
+      boolean allowed = usedDurationMs < maxTotalDurationMs;
+      if (!allowed && !exhaustedLogged) {
+        exhaustedLogged = true;
+        log.info(
+            "Domain heuristic budget exhausted (used={}ms, max={}ms); skipping remaining heuristic fallback attempts",
+            usedDurationMs,
+            maxTotalDurationMs);
+      }
+      return allowed;
+    }
+
+    private void addDuration(long durationMs) {
+      usedDurationMs += Math.max(0L, durationMs);
+    }
+  }
+
   private static final class ResolutionMetricsCollector {
     private final int companiesInputCount;
     private int companiesAttemptedCount;
     private int cachedSkipCount;
     private int wdqsTitleBatchCount;
     private int wdqsCikBatchCount;
+    private int wikipediaInfoboxTriedCount;
+    private int wikipediaInfoboxResolvedCount;
+    private int wikipediaInfoboxRejectedCount;
     private int heuristicCompaniesTriedCount;
     private int heuristicCandidatesTriedCount;
     private int heuristicFetchSuccessCount;
     private int heuristicResolvedCount;
     private int heuristicRejectedCount;
     private long wdqsDurationMs;
+    private long wikipediaInfoboxDurationMs;
     private long heuristicDurationMs;
+    private final Map<String, Integer> heuristicCandidatesTriedByTld = new LinkedHashMap<>();
+    private final Map<String, Integer> heuristicResolvedByTld = new LinkedHashMap<>();
     private final Map<String, Integer> resolvedByMethod = new LinkedHashMap<>();
     private final Map<String, Integer> heuristicSuccessByReason = new LinkedHashMap<>();
 
@@ -1225,6 +1690,18 @@ public class DomainResolutionService {
       heuristicCompaniesTriedCount++;
     }
 
+    private void incrementWikipediaInfoboxTried() {
+      wikipediaInfoboxTriedCount++;
+    }
+
+    private void incrementWikipediaInfoboxResolved() {
+      wikipediaInfoboxResolvedCount++;
+    }
+
+    private void incrementWikipediaInfoboxRejected() {
+      wikipediaInfoboxRejectedCount++;
+    }
+
     private void incrementHeuristicCandidateTried() {
       heuristicCandidatesTriedCount++;
     }
@@ -1241,12 +1718,27 @@ public class DomainResolutionService {
       heuristicRejectedCount++;
     }
 
+    private void recordHeuristicCandidateTld(String tld) {
+      String key = (tld == null || tld.isBlank()) ? "unknown" : tld.toLowerCase(Locale.ROOT);
+      heuristicCandidatesTriedByTld.put(
+          key, heuristicCandidatesTriedByTld.getOrDefault(key, 0) + 1);
+    }
+
+    private void recordHeuristicResolvedTld(String tld) {
+      String key = (tld == null || tld.isBlank()) ? "unknown" : tld.toLowerCase(Locale.ROOT);
+      heuristicResolvedByTld.put(key, heuristicResolvedByTld.getOrDefault(key, 0) + 1);
+    }
+
     private void addWdqsDuration(long durationMs) {
       wdqsDurationMs += Math.max(0L, durationMs);
     }
 
     private void addHeuristicDuration(long durationMs) {
       heuristicDurationMs += Math.max(0L, durationMs);
+    }
+
+    private void addWikipediaInfoboxDuration(long durationMs) {
+      wikipediaInfoboxDurationMs += Math.max(0L, durationMs);
     }
 
     private void recordResolved(String method) {
@@ -1271,6 +1763,9 @@ public class DomainResolutionService {
           cachedSkipCount,
           wdqsTitleBatchCount,
           wdqsCikBatchCount,
+          wikipediaInfoboxTriedCount,
+          wikipediaInfoboxResolvedCount,
+          wikipediaInfoboxRejectedCount,
           heuristicCompaniesTriedCount,
           heuristicCandidatesTriedCount,
           heuristicFetchSuccessCount,
@@ -1278,7 +1773,10 @@ public class DomainResolutionService {
           heuristicRejectedCount,
           Math.max(0L, totalDurationMs),
           wdqsDurationMs,
+          wikipediaInfoboxDurationMs,
           heuristicDurationMs,
+          Map.copyOf(heuristicCandidatesTriedByTld),
+          Map.copyOf(heuristicResolvedByTld),
           Map.copyOf(resolvedByMethod),
           Map.copyOf(heuristicSuccessByReason));
     }
@@ -1291,6 +1789,16 @@ public class DomainResolutionService {
 
     private static HeuristicVerdict reject(String reason) {
       return new HeuristicVerdict(false, null, reason);
+    }
+  }
+
+  private record InfoboxResolutionAttempt(String resolvedDomain, String status, String errorCategory) {
+    private static InfoboxResolutionAttempt success(String domain) {
+      return new InfoboxResolutionAttempt(domain, STATUS_RESOLVED, null);
+    }
+
+    private static InfoboxResolutionAttempt failure(String status, String errorCategory) {
+      return new InfoboxResolutionAttempt(null, status, errorCategory);
     }
   }
 

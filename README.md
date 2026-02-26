@@ -134,7 +134,9 @@ curl "http://localhost:8080/api/jobs?limit=50&q=software%20engineer"
 - `GET /api/hosts/cooldown`
   - Lists hosts currently in cooldown with `next_allowed_at` timestamps.
 - `POST /api/domains/resolve?limit=N`
-  - Resolves official websites from Wikidata (Wikipedia title first, then CIK) and upserts normalized domains with source metadata.
+  - Resolves official websites from Wikidata (Wikipedia title first, then CIK), then falls back to the company Wikipedia infobox `Website` field, then a conservative heuristic.
+  - Persists source metadata (`WIKIDATA`, `WIKIPEDIA`, `HEURISTIC`) and cached attempt status to avoid retry thrash.
+  - Heuristic fallback supports a small ranked TLD set (`crawler.domain-resolution.heuristic-tlds`, default includes `.com`, `.io`, `.ai`, `.co`, `.net`, `.org`) with strict verification and bounded runtime.
 - `GET /api/diagnostics/missing-domains?limit=N`
   - Lists companies still missing domains with cached resolution reasons and a reason breakdown.
 - `POST /api/careers/discover?limit=N&vendorProbeOnly=true`
@@ -255,7 +257,16 @@ curl http://localhost:8080/api/status
 
 - Missing domains diagnostics: `curl "http://localhost:8080/api/diagnostics/missing-domains?limit=50"`
 - Resolve remaining domains only: `curl -X POST "http://localhost:8080/api/domains/resolve?limit=600"` (rerun until coverage > 98%).
+- SEC ingest + domain resolution smoke check:
+  - `curl -X POST "http://localhost:8080/api/universe/ingest/sec?limit=5000"`
+  - `curl -X POST "http://localhost:8080/api/domains/resolve?limit=1000"`
+  - `curl "http://localhost:8080/api/diagnostics/missing-domains?limit=200"`
+- Heuristic TLD uptake check (shows `.IO/.AI/.CO` method attribution when present):
+  - `docker exec -i delta-job-tracker-postgres psql -U delta -d delta_job_tracker -c "SELECT resolution_method, COUNT(*) FROM company_domains WHERE source='HEURISTIC' GROUP BY resolution_method ORDER BY COUNT(*) DESC, resolution_method;"`
 - Canary latest (type optional): `curl "http://localhost:8080/api/canary/latest"` or `curl "http://localhost:8080/api/canary/latest?type=SEC"`
+- Gated live resolver benchmarks (JUnit, skipped by default):
+  - `RUN_LIVE_DOMAIN_RESOLUTION_CSV_BENCHMARK=true ./gradlew test --tests 'com.delta.jobtracker.crawl.service.DomainResolutionLiveBenchmarkTest.benchmarksLiveDomainResolutionOnSp500UndiscoveredCsvSample'`
+  - `RUN_LIVE_WIKIPEDIA_INFOBOX_DOMAIN_BENCHMARK=true ./gradlew test --tests 'com.delta.jobtracker.crawl.service.DomainResolutionLiveBenchmarkTest.benchmarksLiveWikipediaInfoboxFallback'`
 
 Postgres counts:
 

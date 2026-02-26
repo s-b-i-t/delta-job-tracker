@@ -2,6 +2,7 @@ package com.delta.jobtracker.config;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "crawler")
@@ -378,6 +379,7 @@ public class CrawlerProperties {
     private int wdqsMinDelayMs = 2000;
     private int wdqsTimeoutSeconds = 8;
     private int cacheTtlMinutes = 720;
+    private List<String> heuristicTlds = new ArrayList<>(List.of("com", "io", "ai", "co", "net", "org"));
 
     public int getDefaultLimit() {
       return Math.max(1, defaultLimit);
@@ -417,6 +419,40 @@ public class CrawlerProperties {
 
     public void setCacheTtlMinutes(int cacheTtlMinutes) {
       this.cacheTtlMinutes = Math.max(0, cacheTtlMinutes);
+    }
+
+    public List<String> getHeuristicTlds() {
+      List<String> raw = heuristicTlds == null ? List.of() : heuristicTlds;
+      List<String> normalized = new ArrayList<>();
+      boolean hasCom = false;
+      for (String value : raw) {
+        if (value == null) {
+          continue;
+        }
+        String tld = value.trim().toLowerCase(Locale.ROOT);
+        if (tld.isBlank() || !tld.matches("[a-z0-9-]+")) {
+          continue;
+        }
+        if ("com".equals(tld)) {
+          hasCom = true;
+          continue;
+        }
+        if (!normalized.contains(tld)) {
+          normalized.add(tld);
+        }
+      }
+      List<String> ordered = new ArrayList<>();
+      ordered.add("com");
+      ordered.addAll(normalized);
+      if (!hasCom && raw.isEmpty()) {
+        return List.of("com");
+      }
+      return ordered;
+    }
+
+    public void setHeuristicTlds(List<String> heuristicTlds) {
+      this.heuristicTlds =
+          heuristicTlds == null ? new ArrayList<>() : new ArrayList<>(heuristicTlds);
     }
   }
 
