@@ -1,0 +1,30 @@
+{
+  "key_metrics": [
+    "inputs_and_counts.companies_ingested_count",
+    "inputs_and_counts.companies_with_domain_count_before",
+    "inputs_and_counts.companies_with_domain_count_after",
+    "domain_resolution.domain_resolution_rate",
+    "ats_vendor_probe.ats_discovery_attempted_count",
+    "ats_vendor_probe.ats_discovery_success_count",
+    "ats_vendor_probe.ats_discovery_success_rate",
+    "breakdowns.coverage_ats_endpoints_by_type",
+    "breakdowns.top_failure_categories_diagnostics",
+    "domain_backlog_watch.probe_domain_source_success_summary"
+  ],
+  "required_top_level_fields": [
+    "schema_version",
+    "generated_at",
+    "config",
+    "inputs_and_counts",
+    "domain_resolution",
+    "ats_vendor_probe",
+    "breakdowns",
+    "thresholds",
+    "domain_backlog_watch",
+    "bottleneck_assessment",
+    "optional_full_discovery",
+    "durations_ms",
+    "raw_files"
+  ],
+  "schema_version": "ats-canary-summary-schema-v1"
+}

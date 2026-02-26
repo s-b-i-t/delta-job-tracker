@@ -613,8 +613,6 @@ public class CrawlJdbcRepository {
                         http_status = EXCLUDED.http_status,
                         error_detail = EXCLUDED.error_detail,
                         created_at = NOW()
-                    WHERE discovery_run_id = :runId
-                      AND company_id = :companyId
                     """,
           params);
       return;
@@ -691,7 +689,7 @@ public class CrawlJdbcRepository {
                 FROM careers_discovery_company_results r
                 JOIN companies c ON c.id = r.company_id
                 WHERE r.discovery_run_id = :runId
-                  AND (:status IS NULL OR r.status = :status)
+                  AND (CAST(:status AS text) IS NULL OR r.status = CAST(:status AS text))
                 ORDER BY r.created_at DESC
                 LIMIT :limit
                 """,
@@ -2564,7 +2562,7 @@ public class CrawlJdbcRepository {
                 FROM crawl_run_company_results r
                 JOIN companies c ON c.id = r.company_id
                 WHERE r.crawl_run_id = :crawlRunId
-                  AND (:status IS NULL OR r.status = :status)
+                  AND (CAST(:status AS text) IS NULL OR r.status = CAST(:status AS text))
                 ORDER BY r.started_at DESC
                 LIMIT :limit
                 """,
@@ -2697,7 +2695,7 @@ public class CrawlJdbcRepository {
                 FROM ranked r
                 JOIN companies c ON c.id = r.company_id
                 WHERE r.rn = 1
-                  AND (:status IS NULL OR r.status = :status)
+                  AND (CAST(:status AS text) IS NULL OR r.status = CAST(:status AS text))
                 ORDER BY r.started_at DESC
                 LIMIT :limit
                 """,

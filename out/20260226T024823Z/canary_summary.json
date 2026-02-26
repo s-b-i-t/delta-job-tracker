@@ -1,0 +1,517 @@
+{
+  "ats_vendor_probe": {
+    "ats_discovery_attempted_count": 10,
+    "ats_discovery_success_count": 0,
+    "ats_discovery_success_rate": 0.0,
+    "discovery_run_id": 10,
+    "domain_source_x_ats_success": {
+      "rows": [
+        {
+          "count": 8,
+          "discovery_status": "FAILED",
+          "domain_resolution_method": "HEURISTIC_NAME_COM",
+          "domain_source": "HEURISTIC"
+        },
+        {
+          "count": 2,
+          "discovery_status": "FAILED",
+          "domain_resolution_method": "cik",
+          "domain_source": "WIKIDATA"
+        }
+      ],
+      "summary": [
+        {
+          "attempted_count": 8,
+          "domain_source": "HEURISTIC",
+          "failed_count": 8,
+          "succeeded_count": 0,
+          "success_rate": 0.0
+        },
+        {
+          "attempted_count": 2,
+          "domain_source": "WIKIDATA",
+          "failed_count": 2,
+          "succeeded_count": 0,
+          "success_rate": 0.0
+        }
+      ]
+    },
+    "final_status": {
+      "careersPathsChecked": 0,
+      "companiesConsidered": 10,
+      "companyLimit": 10,
+      "discoveryRunId": 10,
+      "endpointsAdded": 0,
+      "endpointsFoundHomepageByAtsType": {},
+      "endpointsFoundSitemapByAtsType": {},
+      "endpointsFoundVendorProbeByAtsType": {},
+      "failedCount": 10,
+      "failuresByReason": {
+        "HTTP_404": 10
+      },
+      "fetchFailedCount": 76,
+      "finishedAt": "2026-02-26T02:50:25.100746Z",
+      "homepageScanned": 0,
+      "lastError": null,
+      "processedCount": 10,
+      "robotsBlockedCount": 0,
+      "sitemapUrlsChecked": 0,
+      "sitemapsScanned": 0,
+      "startedAt": "2026-02-26T02:48:44.693460Z",
+      "status": "SUCCEEDED",
+      "succeededCount": 0,
+      "timeBudgetExceededCount": 0
+    },
+    "run_failures": {
+      "countsByReason": {
+        "HTTP_404": 10
+      },
+      "failures": [
+        {
+          "companyName": "ALMADEN MINERALS LTD",
+          "createdAt": "2026-02-26T02:50:25.094534Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAUAF"
+        },
+        {
+          "companyName": "American Assets Trust, Inc.",
+          "createdAt": "2026-02-26T02:50:11.630928Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAT"
+        },
+        {
+          "companyName": "Aardvark Therapeutics, Inc.",
+          "createdAt": "2026-02-26T02:49:55.279356Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AARD"
+        },
+        {
+          "companyName": "Apple iSports Group, Inc.",
+          "createdAt": "2026-02-26T02:49:47.083793Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAPI"
+        },
+        {
+          "companyName": "ADVANCE AUTO PARTS INC",
+          "createdAt": "2026-02-26T02:49:37.347668Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAP"
+        },
+        {
+          "companyName": "AAON, INC.",
+          "createdAt": "2026-02-26T02:49:29.070910Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAON"
+        },
+        {
+          "companyName": "APPLIED OPTOELECTRONICS, INC.",
+          "createdAt": "2026-02-26T02:49:22.307645Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAOI"
+        },
+        {
+          "companyName": "Armada Mercantile Ltd",
+          "createdAt": "2026-02-26T02:49:13.251964Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAMTF"
+        },
+        {
+          "companyName": "Acadian Asset Management Inc.",
+          "createdAt": "2026-02-26T02:49:02.335939Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAMI"
+        },
+        {
+          "companyName": "ATLANTIC AMERICAN CORP",
+          "createdAt": "2026-02-26T02:48:54.655775Z",
+          "errorDetail": "http_404",
+          "httpStatus": 404,
+          "reasonCode": "HTTP_404",
+          "stage": "PAGE_SCAN",
+          "ticker": "AAME"
+        }
+      ]
+    }
+  },
+  "bottleneck_assessment": {
+    "discover_processed_fill_rate_vs_requested": 1.0,
+    "likely_domain_limited": false,
+    "next_focus": "ATS discovery improvements",
+    "no_domain_reason_count": 0,
+    "notes": "ATS failures are not dominated by domain absence in this canary based on run reasons/fill rate."
+  },
+  "breakdowns": {
+    "coverage_ats_endpoints_by_method": {
+      "html": 39,
+      "link": 1,
+      "pattern": 5,
+      "vendor_probe": 23
+    },
+    "coverage_ats_endpoints_by_type": {
+      "GREENHOUSE": 4,
+      "LEVER": 1,
+      "SMARTRECRUITERS": 23,
+      "WORKDAY": 40
+    },
+    "discovery_failures_recent_samples": [
+      {
+        "candidateUrl": "https://boards.greenhouse.io/almadenminerals",
+        "companyName": "ALMADEN MINERALS LTD",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:50:25.085491Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAUAF"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/americanassetstrust",
+        "companyName": "American Assets Trust, Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:50:11.622193Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAT"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/aardvarktherapeutics",
+        "companyName": "Aardvark Therapeutics, Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:49:55.262636Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AARD"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/appleisports",
+        "companyName": "Apple iSports Group, Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:49:47.066972Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAPI"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/shop",
+        "companyName": "ADVANCE AUTO PARTS INC",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:49:37.330409Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAP"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/aaon",
+        "companyName": "AAON, INC.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:49:29.062346Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAON"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/ao-inc",
+        "companyName": "APPLIED OPTOELECTRONICS, INC.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:49:22.298984Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAOI"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/armadamercantile",
+        "companyName": "Armada Mercantile Ltd",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:49:13.242973Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAMTF"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/acadian-asset-management-inc",
+        "companyName": "Acadian Asset Management Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:49:02.319337Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAMI"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/atlantic-american",
+        "companyName": "ATLANTIC AMERICAN CORP",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:48:54.647639Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAME"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/almadenminerals",
+        "companyName": "ALMADEN MINERALS LTD",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:48:08.132794Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAUAF"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/americanassetstrust",
+        "companyName": "American Assets Trust, Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:47:59.514821Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAT"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/aardvarktherapeutics",
+        "companyName": "Aardvark Therapeutics, Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:47:48.994199Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AARD"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/appleisports",
+        "companyName": "Apple iSports Group, Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:47:39.099730Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAPI"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/shop",
+        "companyName": "ADVANCE AUTO PARTS INC",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:47:26.926898Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAP"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/aaon",
+        "companyName": "AAON, INC.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:47:18.876519Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAON"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/ao-inc",
+        "companyName": "APPLIED OPTOELECTRONICS, INC.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:47:12.730243Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAOI"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/armadamercantile",
+        "companyName": "Armada Mercantile Ltd",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:47:04.464772Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAMTF"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/acadian-asset-management-inc",
+        "companyName": "Acadian Asset Management Inc.",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:46:55.671164Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAMI"
+      },
+      {
+        "candidateUrl": "https://boards.greenhouse.io/atlantic-american",
+        "companyName": "ATLANTIC AMERICAN CORP",
+        "detail": "http_404",
+        "observedAt": "2026-02-26T02:46:47.697480Z",
+        "reasonCode": "discovery_fetch_failed",
+        "ticker": "AAME"
+      }
+    ],
+    "homepage_endpoints_found_by_vendor": {},
+    "sitemap_endpoints_found_by_vendor": {},
+    "top_failure_categories_diagnostics": [
+      {
+        "count": 207,
+        "key": "discovery_blocked_by_robots"
+      },
+      {
+        "count": 50,
+        "key": "discovery_fetch_failed"
+      },
+      {
+        "count": 14,
+        "key": "discovery_host_cooldown"
+      }
+    ],
+    "top_failure_categories_run": [
+      {
+        "count": 10,
+        "key": "HTTP_404"
+      }
+    ],
+    "vendor_probe_endpoints_found_by_vendor": {}
+  },
+  "config": {
+    "base_url": "http://localhost:8080",
+    "discover_limit": 10,
+    "max_wait_seconds": 1800,
+    "poll_interval_seconds": 5,
+    "resolve_limit": 200,
+    "run_full_if_good": false,
+    "sec_limit": 5000,
+    "vendor_probe_success_threshold": 0.45
+  },
+  "domain_backlog_watch": {
+    "heuristic_overfit_risk_check": "Compare ATS success by domain_source; if HEURISTIC underperforms materially vs WIKIDATA/WIKIPEDIA, inspect brand alias/host quality before expanding domains further.",
+    "probe_domain_source_success_summary": [
+      {
+        "attempted_count": 8,
+        "domain_source": "HEURISTIC",
+        "failed_count": 8,
+        "succeeded_count": 0,
+        "success_rate": 0.0
+      },
+      {
+        "attempted_count": 2,
+        "domain_source": "WIKIDATA",
+        "failed_count": 2,
+        "succeeded_count": 0,
+        "success_rate": 0.0
+      }
+    ]
+  },
+  "domain_resolution": {
+    "domain_resolution_rate": null,
+    "requested_limit": 200,
+    "resolved_count": 0,
+    "result": {
+      "metrics": {
+        "cachedSkipCount": 200,
+        "companiesAttemptedCount": 0,
+        "companiesInputCount": 200,
+        "heuristicCandidatesTriedByTld": {},
+        "heuristicCandidatesTriedCount": 0,
+        "heuristicCompaniesTriedCount": 0,
+        "heuristicDurationMs": 0,
+        "heuristicFetchSuccessCount": 0,
+        "heuristicRejectedCount": 0,
+        "heuristicResolvedByTld": {},
+        "heuristicResolvedCount": 0,
+        "heuristicSuccessByReason": {},
+        "resolvedByMethod": {},
+        "totalDurationMs": 0,
+        "wdqsCikBatchCount": 0,
+        "wdqsDurationMs": 0,
+        "wdqsTitleBatchCount": 0,
+        "wikipediaInfoboxDurationMs": 0,
+        "wikipediaInfoboxRejectedCount": 0,
+        "wikipediaInfoboxResolvedCount": 0,
+        "wikipediaInfoboxTriedCount": 0
+      },
+      "noItemCount": 0,
+      "noP856Count": 0,
+      "noWikipediaTitleCount": 0,
+      "resolvedCount": 0,
+      "sampleErrors": [],
+      "wdqsErrorCount": 0,
+      "wdqsTimeoutCount": 0
+    }
+  },
+  "durations_ms": {
+    "per_step": {
+      "api_status": 47,
+      "ats_discovery_vendor_probe_companies": 6,
+      "ats_discovery_vendor_probe_failures": 4,
+      "ats_discovery_vendor_probe_start": 7,
+      "ats_discovery_vendor_probe_wait": 100110,
+      "coverage_diagnostics": 8,
+      "discovery_failures_diagnostics": 7,
+      "domain_counts_after": 350,
+      "domain_counts_before": 315,
+      "domain_resolve": 6,
+      "probe_domain_source_x_ats_success": 322,
+      "sec_ingest": 20610
+    },
+    "total_wall_clock_ms": 121792
+  },
+  "generated_at": "2026-02-26T02:50:25.468403+00:00",
+  "inputs_and_counts": {
+    "companies_ingested_count": 5000,
+    "companies_with_domain_by_source_after": [
+      {
+        "count": 1358,
+        "source": "WIKIDATA"
+      },
+      {
+        "count": 126,
+        "source": "HEURISTIC"
+      },
+      {
+        "count": 21,
+        "source": "MANUAL"
+      }
+    ],
+    "companies_with_domain_by_source_before": [
+      {
+        "count": 1358,
+        "source": "WIKIDATA"
+      },
+      {
+        "count": 126,
+        "source": "HEURISTIC"
+      },
+      {
+        "count": 21,
+        "source": "MANUAL"
+      }
+    ],
+    "companies_with_domain_count_after": 1505,
+    "companies_with_domain_count_before": 1505,
+    "companies_with_domain_net_new": 0,
+    "sec_ingest_inserted": 0,
+    "sec_ingest_updated": 5000,
+    "sec_universe_total_reported": 5000
+  },
+  "optional_full_discovery": {
+    "executed": false,
+    "result": null,
+    "skipped_reason": "disabled_by_flag"
+  },
+  "raw_files": [
+    "api_status.json",
+    "ats_discovery_vendor_probe_companies.json",
+    "ats_discovery_vendor_probe_failures.json",
+    "ats_discovery_vendor_probe_final_status.json",
+    "ats_discovery_vendor_probe_run_status_snapshots.json",
+    "ats_discovery_vendor_probe_start.json",
+    "coverage_diagnostics.json",
+    "discovery_failures_diagnostics.json",
+    "domain_counts_after.json",
+    "domain_counts_before.json",
+    "domain_resolve_response.json",
+    "probe_domain_source_x_ats_success.json",
+    "sec_ingest_response.json"
+  ],
+  "schema_version": "ats-canary-summary-v1",
+  "thresholds": {
+    "justification": "Initial threshold is set to 45% because vendorProbeOnly is a precision-first ATS endpoint detection pass and should clear a meaningful fraction of domain-qualified companies before investing in deeper discovery.",
+    "vendor_probe_success_rate_actual": 0.0,
+    "vendor_probe_success_rate_gte": 0.45,
+    "vendor_probe_success_rate_pass": false
+  }
+}

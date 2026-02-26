@@ -232,6 +232,33 @@ If you previously edited an applied migration (for example `V16__crawl_run_compa
 The script starts Postgres, starts the backend, runs ingest/resolve/discover/crawl, and prints `/api/status`.
 Use `RESET_DB=1 ./scripts/run_full_cycle.sh` if you need a clean local Postgres volume.
 
+## ATS validation canary (metrics-first)
+
+Run a bounded ingest -> domain resolve -> ATS discovery (`vendorProbeOnly=true`) canary and save raw JSON + a derived summary under `out/<timestamp>/`:
+
+```bash
+python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 1000 --discover-limit 1000
+```
+
+Smaller/faster local baseline:
+
+```bash
+python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 200 --discover-limit 10
+```
+
+Outputs:
+
+- `out/<timestamp>/canary_summary.json` (go/no-go metrics + bottleneck assessment)
+- `out/<timestamp>/canary_summary_schema.json`
+- raw endpoint captures (`/api/domains/resolve`, discovery run status/failures, diagnostics)
+
+Validation queries after a canary:
+
+- Heuristic TLD/domain method uptake:
+  - `docker exec -i delta-job-tracker-postgres psql -U delta -d delta_job_tracker -c "SELECT resolution_method, COUNT(*) FROM company_domains WHERE source='HEURISTIC' GROUP BY resolution_method ORDER BY COUNT(*) DESC, resolution_method;"`
+- Domain source vs ATS discovery success for a run (replace `<RUN_ID>`):
+  - `docker exec -i delta-job-tracker-postgres psql -U delta -d delta_job_tracker -c "WITH latest_domains AS (SELECT DISTINCT ON (company_id) company_id, source, resolution_method, resolved_at, id FROM company_domains ORDER BY company_id, resolved_at DESC NULLS LAST, id DESC) SELECT COALESCE(ld.source,'NONE') AS domain_source, r.status, COUNT(*) FROM careers_discovery_company_results r LEFT JOIN latest_domains ld ON ld.company_id=r.company_id WHERE r.discovery_run_id=<RUN_ID> GROUP BY 1,2 ORDER BY 1,2;"`
+
 ## Real Postgres smoke
 
 Terminal 1:
