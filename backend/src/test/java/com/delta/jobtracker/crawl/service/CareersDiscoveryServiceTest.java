@@ -3,6 +3,7 @@ package com.delta.jobtracker.crawl.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -50,6 +51,7 @@ class CareersDiscoveryServiceTest {
   private CareersDiscoveryService service;
   private AtsFingerprintFromHtmlLinksDetector homepageDetector;
   private AtsFingerprintFromSitemapsDetector sitemapDetector;
+  private CareersLandingPageDiscoveryService landingDiscoveryService;
 
   @BeforeEach
   void setUp() {
@@ -60,6 +62,9 @@ class CareersDiscoveryServiceTest {
     properties.getCareersDiscovery().setFailureBackoffMinutes(List.of(5, 15));
     homepageDetector = new AtsFingerprintFromHtmlLinksDetector(new AtsEndpointExtractor());
     sitemapDetector = new AtsFingerprintFromSitemapsDetector(new AtsEndpointExtractor());
+    landingDiscoveryService =
+        new CareersLandingPageDiscoveryService(
+            httpClient, robotsTxtService, new CareersLandingLinkExtractor(), atsDetector);
     lenient()
         .when(robotsTxtService.getRulesForHost(anyString()))
         .thenReturn(RobotsRules.allowAll());
@@ -67,6 +72,7 @@ class CareersDiscoveryServiceTest {
     lenient()
         .when(sitemapService.discover(any(), anyInt(), anyInt(), anyInt()))
         .thenReturn(new SitemapDiscoveryResult(List.of(), List.of(), Map.of()));
+    lenient().when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
     service =
         new CareersDiscoveryService(
             properties,
@@ -78,7 +84,8 @@ class CareersDiscoveryServiceTest {
             sitemapService,
             homepageDetector,
             sitemapDetector,
-            hostCrawlStateService);
+            hostCrawlStateService,
+            landingDiscoveryService);
   }
 
   @Test
@@ -112,8 +119,13 @@ class CareersDiscoveryServiceTest {
   void vendorProbeOnlyPersistsEndpoint() {
     CompanyTarget company = new CompanyTarget(2L, "ACME", "Acme Corp", null, "acme.com", null);
     String vendorUrl = "https://boards.greenhouse.io/acme";
+    String homepage = "https://acme.com/";
     when(repository.findCareersDiscoveryState(2L)).thenReturn(null);
-    when(httpClient.get(eq(vendorUrl), anyString()))
+    lenient()
+        .when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<html>No careers link</html>"));
+    lenient()
+        .when(httpClient.get(eq(vendorUrl), anyString()))
         .thenReturn(successHtml(vendorUrl, "<html>Greenhouse Jobs</html>"));
 
     CareersDiscoveryService.DiscoveryOutcome outcome =
@@ -130,7 +142,7 @@ class CareersDiscoveryServiceTest {
             any(Instant.class),
             eq("vendor_probe"),
             eq(true));
-    verify(httpClient, never()).get(eq("https://acme.com/"), anyString(), anyInt());
+    verify(httpClient).get(eq("https://acme.com/"), anyString(), anyInt());
   }
 
   @Test
@@ -138,7 +150,8 @@ class CareersDiscoveryServiceTest {
     CompanyTarget company = new CompanyTarget(4L, "SITE", "Site Corp", null, "sitemapco.com", null);
     String homepage = "https://sitemapco.com/";
     when(repository.findCareersDiscoveryState(4L)).thenReturn(null);
-    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+    lenient()
+        .when(httpClient.get(eq(homepage), anyString(), anyInt()))
         .thenReturn(successHtml(homepage, "<html><body>No links</body></html>"));
     SitemapDiscoveryResult sitemapResult =
         new SitemapDiscoveryResult(
@@ -173,8 +186,9 @@ class CareersDiscoveryServiceTest {
     when(repository.findCareersDiscoveryState(3L)).thenReturn(null);
     when(robotsTxtService.isAllowed(homepage)).thenReturn(true);
     when(robotsTxtService.isAllowed("https://acme.com/careers")).thenReturn(false);
-    when(httpClient.get(anyString(), anyString())).thenReturn(failureFetch(homepage));
-    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+    lenient().when(httpClient.get(anyString(), anyString())).thenReturn(failureFetch(homepage));
+    lenient()
+        .when(httpClient.get(eq(homepage), anyString(), anyInt()))
         .thenReturn(successHtml(homepage, "<html>No ATS</html>"));
 
     service.discoverForCompany(company, null, null, null, false);

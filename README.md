@@ -232,25 +232,105 @@ If you previously edited an applied migration (for example `V16__crawl_run_compa
 The script starts Postgres, starts the backend, runs ingest/resolve/discover/crawl, and prints `/api/status`.
 Use `RESET_DB=1 ./scripts/run_full_cycle.sh` if you need a clean local Postgres volume.
 
-## ATS validation canary (metrics-first)
+## ATS validation canary (metrics-first, stage-aware)
 
 Run a bounded ingest -> domain resolve -> ATS discovery (`vendorProbeOnly=true`) canary and save raw JSON + a derived summary under `out/<timestamp>/`:
 
+Quick baseline (fast local sanity):
+
 ```bash
+python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 200 --discover-limit 50
+```
+
+Unattended larger run:
+
+```bash
+python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 1000 --discover-limit 500
+# or
 python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 1000 --discover-limit 1000
 ```
 
-Smaller/faster local baseline:
+Fresh domain cohort run (avoids misleading cache-skip-only domain resolution summaries):
 
 ```bash
-python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 200 --discover-limit 10
+python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 200 --discover-limit 50 --domain-fresh-cohort
 ```
 
 Outputs:
 
-- `out/<timestamp>/canary_summary.json` (go/no-go metrics + bottleneck assessment)
+- `out/<timestamp>/canary_summary.json` (funnel metrics, stage failures, URL evidence, bottleneck assessment)
 - `out/<timestamp>/canary_summary_schema.json`
-- raw endpoint captures (`/api/domains/resolve`, discovery run status/failures, diagnostics)
+- `out/<timestamp>/probe_attempt_url_samples.json` (sample attempted URLs grouped by stage)
+- `out/<timestamp>/probe_top_failing_url_patterns.json`
+- raw endpoint captures (`/api/domains/resolve`, ATS run status/failures, diagnostics)
+
+## Overnight unattended runner
+
+Run SEC ingest -> domain resolve -> ATS vendor-probe batches -> optional ATS full batches, and write artifacts to `out/<timestamp>/`:
+
+Quick test:
+
+```bash
+python3 scripts/run_overnight_crawler.py --sec-limit 5000 --resolve-limit 500 --discover-batch-size 50 --num-batches 2 --sleep-between-batches 5
+```
+
+Overnight run (large cohorts):
+
+```bash
+python3 scripts/run_overnight_crawler.py --sec-limit 10000 --resolve-limit 3000 --discover-batch-size 1000 --num-batches 10 --sleep-between-batches 30 --run-full-mode
+```
+
+Alternate backend port (`8082`):
+
+```bash
+python3 scripts/run_overnight_crawler.py --base-url http://localhost:8082 --sec-limit 10000 --resolve-limit 3000 --discover-batch-size 1000 --num-batches 10
+```
+
+Dry run preflight only (`/api/status` + Postgres connectivity):
+
+```bash
+python3 scripts/run_overnight_crawler.py --dry-run
+```
+
+Key artifacts:
+
+- `out/<timestamp>/overnight_summary.json`
+- `out/<timestamp>/runs_started.json`
+- `out/<timestamp>/final_run_statuses.json`
+- `out/<timestamp>/canary_summary.json`
+
+Example summary structure (trimmed):
+
+```json
+{
+  "schema_version": "ats-canary-summary-v2",
+  "domain_resolution": {
+    "domain_resolution_rate": 0.18,
+    "fresh_domain_cohort": {
+      "cohort_size": 200,
+      "resolution_rate_in_cohort": 0.17,
+      "resolved_by_method_in_cohort": {"WIKIDATA": 31, "HEURISTIC_NAME_COM": 3}
+    }
+  },
+  "ats_vendor_probe": {
+    "funnel": {
+      "requested_discover_count": 50,
+      "careers_url_found_count": 31,
+      "vendor_detected_count": 14,
+      "endpoint_extracted_count": 11,
+      "careers_url_found_rate": 0.62
+    },
+    "stage_failure_buckets": {
+      "NO_CAREERS_LINK_ON_HOMEPAGE": 12,
+      "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE": 9
+    }
+  },
+  "actionable_failure_evidence": {
+    "attempt_url_samples_by_stage": {"fallback_path_attempts": []},
+    "top_failing_url_patterns": []
+  }
+}
+```
 
 Validation queries after a canary:
 
@@ -258,6 +338,8 @@ Validation queries after a canary:
   - `docker exec -i delta-job-tracker-postgres psql -U delta -d delta_job_tracker -c "SELECT resolution_method, COUNT(*) FROM company_domains WHERE source='HEURISTIC' GROUP BY resolution_method ORDER BY COUNT(*) DESC, resolution_method;"`
 - Domain source vs ATS discovery success for a run (replace `<RUN_ID>`):
   - `docker exec -i delta-job-tracker-postgres psql -U delta -d delta_job_tracker -c "WITH latest_domains AS (SELECT DISTINCT ON (company_id) company_id, source, resolution_method, resolved_at, id FROM company_domains ORDER BY company_id, resolved_at DESC NULLS LAST, id DESC) SELECT COALESCE(ld.source,'NONE') AS domain_source, r.status, COUNT(*) FROM careers_discovery_company_results r LEFT JOIN latest_domains ld ON ld.company_id=r.company_id WHERE r.discovery_run_id=<RUN_ID> GROUP BY 1,2 ORDER BY 1,2;"`
+- Domain source x ATS funnel cross-tab (replace `<RUN_ID>`):
+  - `docker exec -i delta-job-tracker-postgres psql --csv -U delta -d delta_job_tracker -c "WITH latest_domains AS (SELECT DISTINCT ON (company_id) company_id, source, resolution_method, resolved_at, id FROM company_domains ORDER BY company_id, resolved_at DESC NULLS LAST, id DESC) SELECT COALESCE(ld.source,'NONE') AS domain_source, r.careers_url_found, r.vendor_detected, r.endpoint_extracted, COUNT(*) FROM careers_discovery_company_results r LEFT JOIN latest_domains ld ON ld.company_id=r.company_id WHERE r.discovery_run_id=<RUN_ID> GROUP BY 1,2,3,4 ORDER BY 1,2,3,4;"`
 
 ## Real Postgres smoke
 

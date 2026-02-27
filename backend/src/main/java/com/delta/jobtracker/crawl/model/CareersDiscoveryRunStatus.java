@@ -25,4 +25,8 @@ public record CareersDiscoveryRunStatus(
     int robotsBlockedCount,
     int fetchFailedCount,
     int timeBudgetExceededCount,
-    Map<String, Long> failuresByReason) {}
+    Map<String, Long> failuresByReason,
+    int careersUrlFoundCount,
+    int vendorDetectedCount,
+    int endpointExtractedCount,
+    Map<String, Long> careersStageFailuresByReason) {}

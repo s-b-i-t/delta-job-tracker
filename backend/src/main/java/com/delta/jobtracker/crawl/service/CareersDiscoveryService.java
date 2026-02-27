@@ -80,6 +80,7 @@ public class CareersDiscoveryService {
   private final AtsFingerprintFromHtmlLinksDetector homepageLinksDetector;
   private final AtsFingerprintFromSitemapsDetector sitemapDetector;
   private final HostCrawlStateService hostCrawlStateService;
+  private final CareersLandingPageDiscoveryService careersLandingPageDiscoveryService;
 
   public CareersDiscoveryService(
       CrawlerProperties properties,
@@ -91,7 +92,8 @@ public class CareersDiscoveryService {
       SitemapService sitemapService,
       AtsFingerprintFromHtmlLinksDetector homepageLinksDetector,
       AtsFingerprintFromSitemapsDetector sitemapDetector,
-      HostCrawlStateService hostCrawlStateService) {
+      HostCrawlStateService hostCrawlStateService,
+      CareersLandingPageDiscoveryService careersLandingPageDiscoveryService) {
     this.properties = properties;
     this.repository = repository;
     this.httpClient = httpClient;
@@ -102,6 +104,7 @@ public class CareersDiscoveryService {
     this.homepageLinksDetector = homepageLinksDetector;
     this.sitemapDetector = sitemapDetector;
     this.hostCrawlStateService = hostCrawlStateService;
+    this.careersLandingPageDiscoveryService = careersLandingPageDiscoveryService;
   }
 
   public CareersDiscoveryResult discover(Integer requestedLimit) {
@@ -256,22 +259,54 @@ public class CareersDiscoveryService {
     Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
     List<DiscoveryFailure> failures = new ArrayList<>();
     AtomicInteger cooldownSkips = new AtomicInteger(0);
+    boolean careersUrlFound = false;
+    String careersUrlInitial = null;
+    String careersUrlFinal = null;
+    String careersDiscoveryMethod = null;
+    String careersStageFailure = null;
+    boolean vendorDetected = false;
+    String vendorName = null;
+    boolean endpointExtracted = false;
+    String endpointUrl = null;
+    Integer httpStatusFirstFailure = null;
+    int requestCount = 0;
 
     if (company == null) {
       DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
-      return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, false);
+      return new DiscoveryOutcome(
+          countsByType,
+          failure,
+          cooldownSkips.get(),
+          false,
+          false,
+          new DiscoveryFunnel(
+              false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     boolean hasDomain = company.domain() != null && !company.domain().isBlank();
     if (!hasDomain && !vendorProbeOnly) {
       DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
-      return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, false);
+      return new DiscoveryOutcome(
+          countsByType,
+          failure,
+          cooldownSkips.get(),
+          false,
+          false,
+          new DiscoveryFunnel(
+              false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (isCompanyCoolingDown(company.companyId())) {
       cooldownSkips.incrementAndGet();
       DiscoveryFailure failure = new DiscoveryFailure("discovery_company_cooldown", null, null);
-      return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), true, false);
+      return new DiscoveryOutcome(
+          countsByType,
+          failure,
+          cooldownSkips.get(),
+          true,
+          false,
+          new DiscoveryFunnel(
+              false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (deadlineExceeded(deadline)) {
@@ -280,7 +315,14 @@ public class CareersDiscoveryService {
         metrics.incrementTimeBudgetExceeded();
       }
       updateDiscoveryState(company, failure);
-      return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
+      return new DiscoveryOutcome(
+          countsByType,
+          failure,
+          cooldownSkips.get(),
+          false,
+          true,
+          new DiscoveryFunnel(
+              false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (!vendorProbeOnly && hasDomain) {
@@ -340,6 +382,87 @@ public class CareersDiscoveryService {
       }
     }
 
+    if (hasDomain && careersLandingPageDiscoveryService != null) {
+      CareersLandingPageDiscoveryService.DiscoveryResult landing =
+          careersLandingPageDiscoveryService.discover(company.domain());
+      if (landing != null) {
+        requestCount = landing.requestCount();
+        careersUrlFound = landing.careersUrlFound();
+        careersUrlInitial = landing.careersUrlInitial();
+        careersUrlFinal = landing.careersUrlFinal();
+        careersDiscoveryMethod =
+            landing.method() == null ? null : landing.method().name();
+        httpStatusFirstFailure = landing.httpStatusFirstFailure();
+        if (landing.failureReason() != null) {
+          careersStageFailure = landing.failureReason().name();
+          if (metrics != null) {
+            metrics.incrementCareersStageFailure(careersStageFailure);
+          }
+        }
+        if (landing.careersUrlFound()) {
+          if (metrics != null) {
+            metrics.incrementCareersUrlFound();
+          }
+          List<AtsDetectionRecord> extracted =
+              atsEndpointExtractor.extract(landing.careersUrlFinal(), landing.responseBody());
+          if (!extracted.isEmpty()) {
+            AtsDetectionRecord first = extracted.getFirst();
+            vendorDetected = true;
+            vendorName = first.atsType().name();
+            endpointExtracted = true;
+            endpointUrl = first.atsUrl();
+            registerEndpoints(
+                company,
+                landing.careersUrlFinal(),
+                extracted,
+                "careers_landing",
+                0.9,
+                true,
+                seen,
+                countsByType);
+            if (metrics != null) {
+              metrics.incrementVendorDetected();
+              metrics.incrementEndpointExtracted();
+            }
+            updateDiscoveryStateSuccess(company);
+            return new DiscoveryOutcome(
+                countsByType,
+                null,
+                cooldownSkips.get(),
+                false,
+                false,
+                new DiscoveryFunnel(
+                    careersUrlFound,
+                    careersUrlInitial,
+                    careersUrlFinal,
+                    careersDiscoveryMethod,
+                    careersStageFailure,
+                    vendorDetected,
+                    vendorName,
+                    endpointExtracted,
+                    endpointUrl,
+                    httpStatusFirstFailure,
+                    requestCount));
+          }
+          AtsType detectedFromLanding = atsDetector.detect(landing.careersUrlFinal(), landing.responseBody());
+          if (detectedFromLanding != AtsType.UNKNOWN) {
+            vendorDetected = true;
+            vendorName = detectedFromLanding.name();
+            if (metrics != null) {
+              metrics.incrementVendorDetected();
+            }
+          } else {
+            careersStageFailure =
+                CareersLandingPageDiscoveryService.FailureReason.CAREERS_PAGE_200_NO_VENDOR_SIGNATURE
+                    .name();
+            if (metrics != null) {
+              metrics.incrementCareersStageFailure(careersStageFailure);
+            }
+          }
+        }
+      }
+    }
+
     if (!vendorProbeOnly && hasDomain) {
       if (deadlineExceeded(deadline)) {
         DiscoveryFailure failure =
@@ -393,9 +516,32 @@ public class CareersDiscoveryService {
             countsByType);
         if (metrics != null) {
           metrics.incrementVendorFound(vendorEndpoint);
+          metrics.incrementVendorDetected();
+          metrics.incrementEndpointExtracted();
         }
+        vendorDetected = true;
+        vendorName = vendorEndpoint.atsType().name();
+        endpointExtracted = true;
+        endpointUrl = vendorEndpoint.atsUrl();
         updateDiscoveryStateSuccess(company);
-        return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+        return new DiscoveryOutcome(
+            countsByType,
+            null,
+            cooldownSkips.get(),
+            false,
+            false,
+            new DiscoveryFunnel(
+                careersUrlFound,
+                careersUrlInitial,
+                careersUrlFinal,
+                careersDiscoveryMethod,
+                careersStageFailure,
+                vendorDetected,
+                vendorName,
+                endpointExtracted,
+                endpointUrl,
+                httpStatusFirstFailure,
+                requestCount));
       }
     }
 
@@ -448,8 +594,37 @@ public class CareersDiscoveryService {
         if (!extracted.isEmpty()) {
           registerEndpoints(
               company, candidate, extracted, "careers_path", 0.85, true, seen, countsByType);
+          if (metrics != null) {
+            metrics.incrementEndpointExtracted();
+          }
+          if (!extracted.isEmpty()) {
+            vendorDetected = true;
+            vendorName = extracted.getFirst().atsType().name();
+            endpointExtracted = true;
+            endpointUrl = extracted.getFirst().atsUrl();
+            if (metrics != null) {
+              metrics.incrementVendorDetected();
+            }
+          }
           updateDiscoveryStateSuccess(company);
-          return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+          return new DiscoveryOutcome(
+              countsByType,
+              null,
+              cooldownSkips.get(),
+              false,
+              false,
+              new DiscoveryFunnel(
+                  careersUrlFound,
+                  careersUrlInitial,
+                  careersUrlFinal,
+                  careersDiscoveryMethod,
+                  careersStageFailure,
+                  vendorDetected,
+                  vendorName,
+                  endpointExtracted,
+                  endpointUrl,
+                  httpStatusFirstFailure,
+                  requestCount));
         }
       }
     }
@@ -464,7 +639,24 @@ public class CareersDiscoveryService {
           Instant.now());
       updateDiscoveryState(company, failure);
     }
-    return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, false);
+    return new DiscoveryOutcome(
+        countsByType,
+        failure,
+        cooldownSkips.get(),
+        false,
+        false,
+        new DiscoveryFunnel(
+            careersUrlFound,
+            careersUrlInitial,
+            careersUrlFinal,
+            careersDiscoveryMethod,
+            careersStageFailure,
+            vendorDetected,
+            vendorName,
+            endpointExtracted,
+            endpointUrl,
+            httpStatusFirstFailure,
+            requestCount));
   }
 
   private List<String> discoverLinksFromHomepage(
@@ -1299,7 +1491,17 @@ public class CareersDiscoveryService {
       DiscoveryFailure failure,
       int cooldownSkips,
       boolean skipped,
-      boolean timeBudgetExceeded) {
+      boolean timeBudgetExceeded,
+      DiscoveryFunnel funnel) {
+    DiscoveryOutcome(
+        Map<AtsType, Integer> countsByType,
+        DiscoveryFailure failure,
+        int cooldownSkips,
+        boolean skipped,
+        boolean timeBudgetExceeded) {
+      this(countsByType, failure, cooldownSkips, skipped, timeBudgetExceeded, DiscoveryFunnel.empty());
+    }
+
     boolean hasEndpoints() {
       return countsByType != null && !countsByType.isEmpty();
     }
@@ -1317,9 +1519,13 @@ public class CareersDiscoveryService {
     private int timeBudgetExceededCount;
     private int sitemapsScanned;
     private int sitemapUrlsChecked;
+    private int careersUrlFoundCount;
+    private int vendorDetectedCount;
+    private int endpointExtractedCount;
     private final Map<AtsType, Integer> endpointsFoundHomepage = new LinkedHashMap<>();
     private final Map<AtsType, Integer> endpointsFoundVendorProbe = new LinkedHashMap<>();
     private final Map<AtsType, Integer> endpointsFoundSitemap = new LinkedHashMap<>();
+    private final Map<String, Integer> careersStageFailures = new LinkedHashMap<>();
 
     void incrementHomepageScanned() {
       homepageScanned++;
@@ -1371,6 +1577,25 @@ public class CareersDiscoveryService {
           record.atsType(), endpointsFoundVendorProbe.getOrDefault(record.atsType(), 0) + 1);
     }
 
+    void incrementCareersUrlFound() {
+      careersUrlFoundCount++;
+    }
+
+    void incrementVendorDetected() {
+      vendorDetectedCount++;
+    }
+
+    void incrementEndpointExtracted() {
+      endpointExtractedCount++;
+    }
+
+    void incrementCareersStageFailure(String reason) {
+      if (reason == null || reason.isBlank()) {
+        return;
+      }
+      careersStageFailures.put(reason, careersStageFailures.getOrDefault(reason, 0) + 1);
+    }
+
     int homepageScanned() {
       return homepageScanned;
     }
@@ -1410,6 +1635,22 @@ public class CareersDiscoveryService {
     Map<AtsType, Integer> endpointsFoundSitemap() {
       return endpointsFoundSitemap;
     }
+
+    int careersUrlFoundCount() {
+      return careersUrlFoundCount;
+    }
+
+    int vendorDetectedCount() {
+      return vendorDetectedCount;
+    }
+
+    int endpointExtractedCount() {
+      return endpointExtractedCount;
+    }
+
+    Map<String, Integer> careersStageFailures() {
+      return careersStageFailures;
+    }
   }
 
   interface VendorProbeLimiter {
@@ -1417,4 +1658,21 @@ public class CareersDiscoveryService {
   }
 
   record DiscoveryFailure(String reasonCode, String candidateUrl, String detail) {}
+
+  record DiscoveryFunnel(
+      boolean careersUrlFound,
+      String careersUrlInitial,
+      String careersUrlFinal,
+      String careersDiscoveryMethod,
+      String careersDiscoveryStageFailure,
+      boolean vendorDetected,
+      String vendorName,
+      boolean endpointExtracted,
+      String endpointUrl,
+      Integer httpStatusFirstFailure,
+      int requestCount) {
+    static DiscoveryFunnel empty() {
+      return new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0);
+    }
+  }
 }

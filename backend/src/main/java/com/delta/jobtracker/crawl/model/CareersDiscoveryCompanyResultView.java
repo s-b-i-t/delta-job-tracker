@@ -13,4 +13,15 @@ public record CareersDiscoveryCompanyResultView(
     Long durationMs,
     Integer httpStatus,
     String errorDetail,
-    Instant createdAt) {}
+    Instant createdAt,
+    boolean careersUrlFound,
+    String careersUrlInitial,
+    String careersUrlFinal,
+    String careersDiscoveryMethod,
+    String careersDiscoveryStageFailure,
+    boolean vendorDetected,
+    String vendorName,
+    boolean endpointExtracted,
+    String endpointUrl,
+    Integer httpStatusFirstFailure,
+    Integer requestCount) {}

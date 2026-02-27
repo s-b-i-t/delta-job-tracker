@@ -46,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -494,6 +495,10 @@ public class CrawlJdbcRepository {
                     rs.getInt("robots_blocked_count"),
                     rs.getInt("fetch_failed_count"),
                     rs.getInt("time_budget_exceeded_count"),
+                    Map.of(),
+                    0,
+                    0,
+                    0,
                     Map.of()));
     return rows.isEmpty() ? null : rows.getFirst();
   }
@@ -551,6 +556,10 @@ public class CrawlJdbcRepository {
                     rs.getInt("robots_blocked_count"),
                     rs.getInt("fetch_failed_count"),
                     rs.getInt("time_budget_exceeded_count"),
+                    Map.of(),
+                    0,
+                    0,
+                    0,
                     Map.of()));
     return rows.isEmpty() ? null : rows.getFirst();
   }
@@ -565,6 +574,50 @@ public class CrawlJdbcRepository {
       Long durationMs,
       Integer httpStatus,
       String errorDetail) {
+    upsertCareersDiscoveryCompanyResult(
+        runId,
+        companyId,
+        status,
+        reasonCode,
+        stage,
+        foundEndpointsCount,
+        durationMs,
+        httpStatus,
+        errorDetail,
+        false,
+        null,
+        null,
+        null,
+        null,
+        false,
+        null,
+        false,
+        null,
+        null,
+        null);
+  }
+
+  public void upsertCareersDiscoveryCompanyResult(
+      long runId,
+      long companyId,
+      String status,
+      String reasonCode,
+      String stage,
+      int foundEndpointsCount,
+      Long durationMs,
+      Integer httpStatus,
+      String errorDetail,
+      boolean careersUrlFound,
+      String careersUrlInitial,
+      String careersUrlFinal,
+      String careersDiscoveryMethod,
+      String careersDiscoveryStageFailure,
+      boolean vendorDetected,
+      String vendorName,
+      boolean endpointExtracted,
+      String endpointUrl,
+      Integer httpStatusFirstFailure,
+      Integer requestCount) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("runId", runId)
@@ -575,7 +628,18 @@ public class CrawlJdbcRepository {
             .addValue("foundEndpointsCount", foundEndpointsCount)
             .addValue("durationMs", durationMs)
             .addValue("httpStatus", httpStatus)
-            .addValue("errorDetail", truncateErrorDetail(errorDetail));
+            .addValue("errorDetail", truncateErrorDetail(errorDetail))
+            .addValue("careersUrlFound", careersUrlFound)
+            .addValue("careersUrlInitial", careersUrlInitial)
+            .addValue("careersUrlFinal", careersUrlFinal)
+            .addValue("careersDiscoveryMethod", careersDiscoveryMethod)
+            .addValue("careersDiscoveryStageFailure", careersDiscoveryStageFailure)
+            .addValue("vendorDetected", vendorDetected)
+            .addValue("vendorName", vendorName)
+            .addValue("endpointExtracted", endpointExtracted)
+            .addValue("endpointUrl", endpointUrl)
+            .addValue("httpStatusFirstFailure", httpStatusFirstFailure)
+            .addValue("requestCount", requestCount);
     if (postgres) {
       jdbc.update(
           """
@@ -589,6 +653,17 @@ public class CrawlJdbcRepository {
                         duration_ms,
                         http_status,
                         error_detail,
+                        careers_url_found,
+                        careers_url_initial,
+                        careers_url_final,
+                        careers_discovery_method,
+                        careers_discovery_stage_failure,
+                        vendor_detected,
+                        vendor_name,
+                        endpoint_extracted,
+                        endpoint_url,
+                        http_status_first_failure,
+                        request_count,
                         created_at
                     )
                     VALUES (
@@ -601,6 +676,17 @@ public class CrawlJdbcRepository {
                         :durationMs,
                         :httpStatus,
                         :errorDetail,
+                        :careersUrlFound,
+                        :careersUrlInitial,
+                        :careersUrlFinal,
+                        :careersDiscoveryMethod,
+                        :careersDiscoveryStageFailure,
+                        :vendorDetected,
+                        :vendorName,
+                        :endpointExtracted,
+                        :endpointUrl,
+                        :httpStatusFirstFailure,
+                        :requestCount,
                         NOW()
                     )
                     ON CONFLICT (discovery_run_id, company_id)
@@ -612,6 +698,17 @@ public class CrawlJdbcRepository {
                         duration_ms = EXCLUDED.duration_ms,
                         http_status = EXCLUDED.http_status,
                         error_detail = EXCLUDED.error_detail,
+                        careers_url_found = EXCLUDED.careers_url_found,
+                        careers_url_initial = EXCLUDED.careers_url_initial,
+                        careers_url_final = EXCLUDED.careers_url_final,
+                        careers_discovery_method = EXCLUDED.careers_discovery_method,
+                        careers_discovery_stage_failure = EXCLUDED.careers_discovery_stage_failure,
+                        vendor_detected = EXCLUDED.vendor_detected,
+                        vendor_name = EXCLUDED.vendor_name,
+                        endpoint_extracted = EXCLUDED.endpoint_extracted,
+                        endpoint_url = EXCLUDED.endpoint_url,
+                        http_status_first_failure = EXCLUDED.http_status_first_failure,
+                        request_count = EXCLUDED.request_count,
                         created_at = NOW()
                     """,
           params);
@@ -628,6 +725,17 @@ public class CrawlJdbcRepository {
                     duration_ms = :durationMs,
                     http_status = :httpStatus,
                     error_detail = :errorDetail,
+                    careers_url_found = :careersUrlFound,
+                    careers_url_initial = :careersUrlInitial,
+                    careers_url_final = :careersUrlFinal,
+                    careers_discovery_method = :careersDiscoveryMethod,
+                    careers_discovery_stage_failure = :careersDiscoveryStageFailure,
+                    vendor_detected = :vendorDetected,
+                    vendor_name = :vendorName,
+                    endpoint_extracted = :endpointExtracted,
+                    endpoint_url = :endpointUrl,
+                    http_status_first_failure = :httpStatusFirstFailure,
+                    request_count = :requestCount,
                     created_at = NOW()
                 WHERE discovery_run_id = :runId
                   AND company_id = :companyId
@@ -648,6 +756,17 @@ public class CrawlJdbcRepository {
                 duration_ms,
                 http_status,
                 error_detail,
+                careers_url_found,
+                careers_url_initial,
+                careers_url_final,
+                careers_discovery_method,
+                careers_discovery_stage_failure,
+                vendor_detected,
+                vendor_name,
+                endpoint_extracted,
+                endpoint_url,
+                http_status_first_failure,
+                request_count,
                 created_at
             )
             VALUES (
@@ -660,6 +779,17 @@ public class CrawlJdbcRepository {
                 :durationMs,
                 :httpStatus,
                 :errorDetail,
+                :careersUrlFound,
+                :careersUrlInitial,
+                :careersUrlFinal,
+                :careersDiscoveryMethod,
+                :careersDiscoveryStageFailure,
+                :vendorDetected,
+                :vendorName,
+                :endpointExtracted,
+                :endpointUrl,
+                :httpStatusFirstFailure,
+                :requestCount,
                 NOW()
             )
             """,
@@ -685,7 +815,18 @@ public class CrawlJdbcRepository {
                        r.duration_ms,
                        r.http_status,
                        r.error_detail,
-                       r.created_at
+                       r.created_at,
+                       r.careers_url_found,
+                       r.careers_url_initial,
+                       r.careers_url_final,
+                       r.careers_discovery_method,
+                       r.careers_discovery_stage_failure,
+                       r.vendor_detected,
+                       r.vendor_name,
+                       r.endpoint_extracted,
+                       r.endpoint_url,
+                       r.http_status_first_failure,
+                       r.request_count
                 FROM careers_discovery_company_results r
                 JOIN companies c ON c.id = r.company_id
                 WHERE r.discovery_run_id = :runId
@@ -706,7 +847,58 @@ public class CrawlJdbcRepository {
                 rs.getObject("duration_ms", Long.class),
                 rs.getObject("http_status", Integer.class),
                 rs.getString("error_detail"),
-                toInstant(rs.getTimestamp("created_at"))));
+                toInstant(rs.getTimestamp("created_at")),
+                rs.getBoolean("careers_url_found"),
+                rs.getString("careers_url_initial"),
+                rs.getString("careers_url_final"),
+                rs.getString("careers_discovery_method"),
+                rs.getString("careers_discovery_stage_failure"),
+                rs.getBoolean("vendor_detected"),
+                rs.getString("vendor_name"),
+                rs.getBoolean("endpoint_extracted"),
+                rs.getString("endpoint_url"),
+                rs.getObject("http_status_first_failure", Integer.class),
+                rs.getObject("request_count", Integer.class)));
+  }
+
+  public Map<String, Long> countCareersDiscoveryStageFailures(long runId) {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId);
+    jdbc.query(
+        """
+                SELECT careers_discovery_stage_failure, COUNT(*) AS total
+                FROM careers_discovery_company_results
+                WHERE discovery_run_id = :runId
+                  AND careers_discovery_stage_failure IS NOT NULL
+                GROUP BY careers_discovery_stage_failure
+                ORDER BY total DESC, careers_discovery_stage_failure
+        """,
+        params,
+        (RowCallbackHandler)
+            rs ->
+                counts.put(
+                    rs.getString("careers_discovery_stage_failure"), rs.getLong("total")));
+    return counts;
+  }
+
+  public CareersDiscoveryRunFunnelCounts countCareersDiscoveryRunFunnels(long runId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId);
+    CareersDiscoveryRunFunnelCounts counts =
+        jdbc.queryForObject(
+            """
+                SELECT COALESCE(SUM(CASE WHEN careers_url_found THEN 1 ELSE 0 END), 0) AS careers_url_found_count,
+                       COALESCE(SUM(CASE WHEN vendor_detected THEN 1 ELSE 0 END), 0) AS vendor_detected_count,
+                       COALESCE(SUM(CASE WHEN endpoint_extracted THEN 1 ELSE 0 END), 0) AS endpoint_extracted_count
+                FROM careers_discovery_company_results
+                WHERE discovery_run_id = :runId
+                """,
+            params,
+            (rs, rowNum) ->
+                new CareersDiscoveryRunFunnelCounts(
+                    rs.getInt("careers_url_found_count"),
+                    rs.getInt("vendor_detected_count"),
+                    rs.getInt("endpoint_extracted_count")));
+    return counts == null ? new CareersDiscoveryRunFunnelCounts(0, 0, 0) : counts;
   }
 
   public Map<String, Long> countCareersDiscoveryCompanyFailures(long runId) {
@@ -3697,4 +3889,7 @@ public class CrawlJdbcRepository {
     }
     return trimmed;
   }
+
+  public record CareersDiscoveryRunFunnelCounts(
+      int careersUrlFoundCount, int vendorDetectedCount, int endpointExtractedCount) {}
 }

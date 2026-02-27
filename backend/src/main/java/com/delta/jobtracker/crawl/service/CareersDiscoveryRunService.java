@@ -63,7 +63,11 @@ public class CareersDiscoveryRunService {
       return null;
     }
     Map<String, Long> failuresByReason = repository.countCareersDiscoveryCompanyFailures(runId);
-    return withFailures(status, failuresByReason);
+    return withFailures(
+        status,
+        failuresByReason,
+        repository.countCareersDiscoveryRunFunnels(runId),
+        repository.countCareersDiscoveryStageFailures(runId));
   }
 
   public CareersDiscoveryRunStatus getLatestRunStatus() {
@@ -73,7 +77,11 @@ public class CareersDiscoveryRunService {
     }
     Map<String, Long> failuresByReason =
         repository.countCareersDiscoveryCompanyFailures(status.discoveryRunId());
-    return withFailures(status, failuresByReason);
+    return withFailures(
+        status,
+        failuresByReason,
+        repository.countCareersDiscoveryRunFunnels(status.discoveryRunId()),
+        repository.countCareersDiscoveryStageFailures(status.discoveryRunId()));
   }
 
   public List<CareersDiscoveryCompanyResultView> getCompanyResults(
@@ -123,6 +131,7 @@ public class CareersDiscoveryRunService {
           int foundEndpoints = 0;
           Integer httpStatus = null;
           String errorDetail = null;
+          CareersDiscoveryService.DiscoveryOutcome outcome = null;
           companiesConsidered++;
 
           try {
@@ -132,7 +141,7 @@ public class CareersDiscoveryRunService {
               stage = "DOMAIN";
             } else {
               int beforeCount = repository.countAtsEndpointsForCompany(company.companyId());
-              CareersDiscoveryService.DiscoveryOutcome outcome =
+              outcome =
                   discoveryService.discoverForCompany(
                       company, deadline, metrics, vendorProbeLimiter, vendorProbeOnly);
               int afterCount = repository.countAtsEndpointsForCompany(company.companyId());
@@ -192,7 +201,22 @@ public class CareersDiscoveryRunService {
               foundEndpoints,
               durationMs,
               httpStatus,
-              errorDetail);
+              errorDetail,
+              outcome != null && outcome.funnel() != null && outcome.funnel().careersUrlFound(),
+              outcome == null || outcome.funnel() == null ? null : outcome.funnel().careersUrlInitial(),
+              outcome == null || outcome.funnel() == null ? null : outcome.funnel().careersUrlFinal(),
+              outcome == null || outcome.funnel() == null ? null : outcome.funnel().careersDiscoveryMethod(),
+              outcome == null || outcome.funnel() == null
+                  ? null
+                  : outcome.funnel().careersDiscoveryStageFailure(),
+              outcome != null && outcome.funnel() != null && outcome.funnel().vendorDetected(),
+              outcome == null || outcome.funnel() == null ? null : outcome.funnel().vendorName(),
+              outcome != null && outcome.funnel() != null && outcome.funnel().endpointExtracted(),
+              outcome == null || outcome.funnel() == null ? null : outcome.funnel().endpointUrl(),
+              outcome == null || outcome.funnel() == null
+                  ? null
+                  : outcome.funnel().httpStatusFirstFailure(),
+              outcome == null || outcome.funnel() == null ? null : outcome.funnel().requestCount());
           processed++;
           if ("SUCCEEDED".equals(status)) {
             succeeded++;
@@ -334,7 +358,10 @@ public class CareersDiscoveryRunService {
   }
 
   private CareersDiscoveryRunStatus withFailures(
-      CareersDiscoveryRunStatus status, Map<String, Long> failuresByReason) {
+      CareersDiscoveryRunStatus status,
+      Map<String, Long> failuresByReason,
+      CrawlJdbcRepository.CareersDiscoveryRunFunnelCounts funnelCounts,
+      Map<String, Long> careersStageFailuresByReason) {
     return new CareersDiscoveryRunStatus(
         status.discoveryRunId(),
         status.startedAt(),
@@ -357,7 +384,11 @@ public class CareersDiscoveryRunService {
         status.robotsBlockedCount(),
         status.fetchFailedCount(),
         status.timeBudgetExceededCount(),
-        failuresByReason == null ? Map.of() : failuresByReason);
+        failuresByReason == null ? Map.of() : failuresByReason,
+        funnelCounts == null ? 0 : funnelCounts.careersUrlFoundCount(),
+        funnelCounts == null ? 0 : funnelCounts.vendorDetectedCount(),
+        funnelCounts == null ? 0 : funnelCounts.endpointExtractedCount(),
+        careersStageFailuresByReason == null ? Map.of() : careersStageFailuresByReason);
   }
 
   private CareersDiscoveryService.VendorProbeLimiter buildVendorProbeLimiter() {
