@@ -39,14 +39,20 @@ for _ in $(seq 1 120); do
     READY=1
     break
   fi
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    break
+  fi
   sleep 1
 done
 
 if [[ "$READY" -ne 1 ]]; then
   echo "Backend did not become ready in time. Tail of log:"
-  tail -n 80 "$BACKEND_LOG" || true
-  if grep -q "Migration checksum mismatch" "$BACKEND_LOG" 2>/dev/null; then
+  tail -n 120 "$BACKEND_LOG" || true
+  if grep -Eqi "Migration checksum mismatch|checksum mismatch|failed validation|Validate failed" "$BACKEND_LOG" 2>/dev/null; then
     echo "Detected Flyway checksum mismatch. Re-run with RESET_DB=1 for a clean local volume."
+  fi
+  if grep -Eqi "Port [0-9]+ was already in use|Address already in use|BindException" "$BACKEND_LOG" 2>/dev/null; then
+    echo "Detected port conflict. Stop the existing process or set API_BASE_URL to another port."
   fi
   exit 1
 fi

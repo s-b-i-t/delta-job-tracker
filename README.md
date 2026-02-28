@@ -266,34 +266,41 @@ Outputs:
 
 ## Overnight unattended runner
 
-Run SEC ingest -> domain resolve -> ATS vendor-probe batches -> optional ATS full batches, and write artifacts to `out/<timestamp>/`:
+Single-command stack bring-up + run + evidence capture (starts Postgres, starts backend, waits for `/api/status`, runs overnight crawler):
 
 Quick test:
 
 ```bash
-python3 scripts/run_overnight_crawler.py --sec-limit 5000 --resolve-limit 500 --discover-batch-size 50 --num-batches 2 --sleep-between-batches 5
+./scripts/run_overnight_stack.sh --sec-limit 5000 --resolve-limit 500 --discover-batch-size 50 --num-batches 2 --sleep-between-batches 5
 ```
 
 Overnight run (large cohorts):
 
 ```bash
-python3 scripts/run_overnight_crawler.py --sec-limit 10000 --resolve-limit 3000 --discover-batch-size 1000 --num-batches 10 --sleep-between-batches 30 --run-full-mode
+./scripts/run_overnight_stack.sh --sec-limit 10000 --resolve-limit 3000 --discover-batch-size 1000 --num-batches 10 --sleep-between-batches 30 --run-full-mode
 ```
 
 Alternate backend port (`8082`):
 
 ```bash
-python3 scripts/run_overnight_crawler.py --base-url http://localhost:8082 --sec-limit 10000 --resolve-limit 3000 --discover-batch-size 1000 --num-batches 10
+./scripts/run_overnight_stack.sh --base-url http://localhost:8082 --sec-limit 10000 --resolve-limit 3000 --discover-batch-size 1000 --num-batches 10
 ```
 
-Dry run preflight only (`/api/status` + Postgres connectivity):
+Stop backend automatically on exit:
+
+```bash
+./scripts/run_overnight_stack.sh --stop-backend --sec-limit 5000 --resolve-limit 500 --discover-batch-size 50 --num-batches 2
+```
+
+Runner-only dry run preflight (`/api/status` + Postgres connectivity, assumes backend already running):
 
 ```bash
 python3 scripts/run_overnight_crawler.py --dry-run
 ```
 
-Key artifacts:
+Key artifacts (same directory):
 
+- `out/<timestamp>/backend.log`
 - `out/<timestamp>/overnight_summary.json`
 - `out/<timestamp>/runs_started.json`
 - `out/<timestamp>/final_run_statuses.json`
