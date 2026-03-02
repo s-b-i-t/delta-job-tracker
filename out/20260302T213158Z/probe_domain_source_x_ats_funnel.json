@@ -1,0 +1,66 @@
+{
+  "rows": [
+    {
+      "careers_url_found": false,
+      "count": 4,
+      "discovery_status": "FAILED",
+      "domain_resolution_method": "HEURISTIC_NAME_COM",
+      "domain_source": "HEURISTIC",
+      "endpoint_extracted": false,
+      "vendor_detected": false
+    },
+    {
+      "careers_url_found": true,
+      "count": 4,
+      "discovery_status": "FAILED",
+      "domain_resolution_method": "HEURISTIC_NAME_COM",
+      "domain_source": "HEURISTIC",
+      "endpoint_extracted": false,
+      "vendor_detected": false
+    },
+    {
+      "careers_url_found": false,
+      "count": 1,
+      "discovery_status": "SKIPPED",
+      "domain_resolution_method": "HEURISTIC_NAME_COM",
+      "domain_source": "HEURISTIC",
+      "endpoint_extracted": false,
+      "vendor_detected": false
+    },
+    {
+      "careers_url_found": false,
+      "count": 1,
+      "discovery_status": "SKIPPED",
+      "domain_resolution_method": "cik",
+      "domain_source": "WIKIDATA",
+      "endpoint_extracted": false,
+      "vendor_detected": false
+    }
+  ],
+  "summary": [
+    {
+      "attempted_count": 9,
+      "careers_url_found_count": 4,
+      "careers_url_found_rate": 0.4444,
+      "domain_source": "HEURISTIC",
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "failed_count": 8,
+      "succeeded_count": 0,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": 0.0
+    },
+    {
+      "attempted_count": 1,
+      "careers_url_found_count": 0,
+      "careers_url_found_rate": 0.0,
+      "domain_source": "WIKIDATA",
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "failed_count": 0,
+      "succeeded_count": 0,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": null
+    }
+  ]
+}

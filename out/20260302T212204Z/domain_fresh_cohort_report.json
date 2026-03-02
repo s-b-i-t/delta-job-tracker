@@ -1,0 +1,172 @@
+{
+  "attempted_count_assumed": 3000,
+  "cohort_size": 3000,
+  "latency_distribution": {
+    "approx_avg_ms_per_attempt": 255.48,
+    "available": false,
+    "reason": "Per-company domain resolution latency is not persisted; reporting step-level timing and aggregate resolver metrics instead.",
+    "step_duration_ms": 385772
+  },
+  "resolution_rate_in_cohort": 0.0013,
+  "resolved_by_method_in_cohort": {
+    "HEURISTIC_NAME_AI": 1,
+    "HEURISTIC_NAME_COM": 3
+  },
+  "resolved_count_in_cohort_after_run": 4,
+  "sample_resolved": [
+    {
+      "company_id": 1935,
+      "domain": "cleanspark.com",
+      "resolution_method": "HEURISTIC_NAME_COM",
+      "resolved_at": "2026-03-02 21:23:21.307773+00",
+      "source": "HEURISTIC",
+      "ticker": "CLSK"
+    },
+    {
+      "company_id": 7810,
+      "domain": "cluster.ai",
+      "resolution_method": "HEURISTIC_NAME_AI",
+      "resolved_at": "2026-03-02 21:24:49.160265+00",
+      "source": "HEURISTIC",
+      "ticker": "CLUS"
+    },
+    {
+      "company_id": 8291,
+      "domain": "clearsidebiomedical.com",
+      "resolution_method": "HEURISTIC_NAME_COM",
+      "resolved_at": "2026-03-02 21:23:18.57387+00",
+      "source": "HEURISTIC",
+      "ticker": "CLSDQ"
+    },
+    {
+      "company_id": 8514,
+      "domain": "cleanspark.com",
+      "resolution_method": "HEURISTIC_NAME_COM",
+      "resolved_at": "2026-03-02 21:23:21.3283+00",
+      "source": "HEURISTIC",
+      "ticker": "CLSKW"
+    }
+  ],
+  "sample_unresolved": [
+    {
+      "company_id": 77,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.754744+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BF.B"
+    },
+    {
+      "company_id": 509,
+      "domain_resolution_attempted_at": "2026-03-02 21:28:10.207363+00",
+      "domain_resolution_status": "NO_IDENTIFIER",
+      "ticker": "DAY"
+    },
+    {
+      "company_id": 512,
+      "domain_resolution_attempted_at": "2026-03-02 21:28:35.93163+00",
+      "domain_resolution_status": "NO_IDENTIFIER",
+      "ticker": "FI"
+    },
+    {
+      "company_id": 527,
+      "domain_resolution_attempted_at": "2026-03-02 21:28:07.133051+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "CYATY"
+    },
+    {
+      "company_id": 534,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:42.105088+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BHP"
+    },
+    {
+      "company_id": 535,
+      "domain_resolution_attempted_at": "2026-03-02 21:28:20.27429+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "DTEGY"
+    },
+    {
+      "company_id": 550,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.578453+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ARM"
+    },
+    {
+      "company_id": 552,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:43.263072+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BTI"
+    },
+    {
+      "company_id": 556,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.936181+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ATEYY"
+    },
+    {
+      "company_id": 557,
+      "domain_resolution_attempted_at": "2026-03-02 21:29:02.863168+00",
+      "domain_resolution_status": "NO_P856",
+      "ticker": "GLD"
+    },
+    {
+      "company_id": 558,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.077112+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AEM"
+    },
+    {
+      "company_id": 566,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:42.579171+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BMO"
+    },
+    {
+      "company_id": 573,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:42.704578+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BNS"
+    },
+    {
+      "company_id": 575,
+      "domain_resolution_attempted_at": "2026-03-02 21:27:32.791374+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "CM"
+    },
+    {
+      "company_id": 577,
+      "domain_resolution_attempted_at": "2026-03-02 21:27:34.634908+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "CNQ"
+    },
+    {
+      "company_id": 578,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.684602+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BCS"
+    },
+    {
+      "company_id": 579,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.414853+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BAESY"
+    },
+    {
+      "company_id": 581,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.345378+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "B"
+    },
+    {
+      "company_id": 585,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.436519+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BAM"
+    },
+    {
+      "company_id": 588,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.102006+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AMX"
+    }
+  ]
+}

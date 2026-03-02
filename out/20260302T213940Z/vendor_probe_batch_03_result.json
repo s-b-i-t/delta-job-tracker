@@ -1,0 +1,241 @@
+{
+  "batch": 3,
+  "companies": [
+    {
+      "careersDiscoveryMethod": null,
+      "careersDiscoveryStageFailure": null,
+      "careersUrlFinal": null,
+      "careersUrlFound": false,
+      "careersUrlInitial": null,
+      "companyId": 1667,
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "createdAt": "2026-03-02T21:45:30.518373Z",
+      "durationMs": 12151,
+      "endpointExtracted": false,
+      "endpointUrl": null,
+      "errorDetail": null,
+      "foundEndpointsCount": 0,
+      "httpStatus": null,
+      "httpStatusFirstFailure": null,
+      "reasonCode": "TIMEOUT",
+      "requestCount": 0,
+      "stage": "BUDGET",
+      "status": "FAILED",
+      "ticker": "AAOI",
+      "vendorDetected": false,
+      "vendorName": null
+    },
+    {
+      "careersDiscoveryMethod": "HOMEPAGE_LINK",
+      "careersDiscoveryStageFailure": "NO_CAREERS_LINK_ON_HOMEPAGE",
+      "careersUrlFinal": "https://armadamercantile.com/",
+      "careersUrlFound": false,
+      "careersUrlInitial": "https://armadamercantile.com/",
+      "companyId": 6507,
+      "companyName": "Armada Mercantile Ltd",
+      "createdAt": "2026-03-02T21:45:18.356322Z",
+      "durationMs": 13383,
+      "endpointExtracted": false,
+      "endpointUrl": null,
+      "errorDetail": "http_404",
+      "foundEndpointsCount": 0,
+      "httpStatus": 404,
+      "httpStatusFirstFailure": null,
+      "reasonCode": "HTTP_404",
+      "requestCount": 7,
+      "stage": "PAGE_SCAN",
+      "status": "FAILED",
+      "ticker": "AAMTF",
+      "vendorDetected": false,
+      "vendorName": null
+    },
+    {
+      "careersDiscoveryMethod": "PATH_GUESS",
+      "careersDiscoveryStageFailure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "careersUrlFinal": "https://acadian-asset-management-inc.com/careers",
+      "careersUrlFound": true,
+      "careersUrlInitial": "https://acadian-asset-management-inc.com/careers",
+      "companyId": 2155,
+      "companyName": "Acadian Asset Management Inc.",
+      "createdAt": "2026-03-02T21:45:04.965112Z",
+      "durationMs": 9534,
+      "endpointExtracted": false,
+      "endpointUrl": null,
+      "errorDetail": "http_404",
+      "foundEndpointsCount": 0,
+      "httpStatus": 404,
+      "httpStatusFirstFailure": 200,
+      "reasonCode": "HTTP_404",
+      "requestCount": 2,
+      "stage": "PAGE_SCAN",
+      "status": "FAILED",
+      "ticker": "AAMI",
+      "vendorDetected": false,
+      "vendorName": null
+    },
+    {
+      "careersDiscoveryMethod": "PATH_GUESS",
+      "careersDiscoveryStageFailure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "careersUrlFinal": "https://atlantic-american.com/careers",
+      "careersUrlFound": true,
+      "careersUrlInitial": "https://atlantic-american.com/careers",
+      "companyId": 5244,
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "createdAt": "2026-03-02T21:44:55.421616Z",
+      "durationMs": 26825,
+      "endpointExtracted": false,
+      "endpointUrl": null,
+      "errorDetail": "http_404",
+      "foundEndpointsCount": 0,
+      "httpStatus": 404,
+      "httpStatusFirstFailure": 200,
+      "reasonCode": "HTTP_404",
+      "requestCount": 2,
+      "stage": "PAGE_SCAN",
+      "status": "FAILED",
+      "ticker": "AAME",
+      "vendorDetected": false,
+      "vendorName": null
+    }
+  ],
+  "failure_attempts": [
+    {
+      "candidate_url": "https://boards.greenhouse.io/armadamercantile",
+      "careers_discovery_method": "HOMEPAGE_LINK",
+      "careers_discovery_stage_failure": "NO_CAREERS_LINK_ON_HOMEPAGE",
+      "company_name": "Armada Mercantile Ltd",
+      "detail": "http_404",
+      "observed_at": "2026-03-02 21:45:18.278573+00",
+      "reason_code": "discovery_fetch_failed",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMTF"
+    },
+    {
+      "candidate_url": "https://boards.greenhouse.io/acadian-asset-management-inc",
+      "careers_discovery_method": "PATH_GUESS",
+      "careers_discovery_stage_failure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "company_name": "Acadian Asset Management Inc.",
+      "detail": "http_404",
+      "observed_at": "2026-03-02 21:45:04.946848+00",
+      "reason_code": "discovery_fetch_failed",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMI"
+    },
+    {
+      "candidate_url": "https://boards.greenhouse.io/atlantic-american",
+      "careers_discovery_method": "PATH_GUESS",
+      "careers_discovery_stage_failure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "company_name": "ATLANTIC AMERICAN CORP",
+      "detail": "http_404",
+      "observed_at": "2026-03-02 21:44:55.412049+00",
+      "reason_code": "discovery_fetch_failed",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAME"
+    }
+  ],
+  "failures": {
+    "countsByReason": {
+      "HTTP_404": 3,
+      "TIMEOUT": 1
+    },
+    "failures": [
+      {
+        "companyName": "APPLIED OPTOELECTRONICS, INC.",
+        "createdAt": "2026-03-02T21:45:30.518373Z",
+        "errorDetail": null,
+        "httpStatus": null,
+        "reasonCode": "TIMEOUT",
+        "stage": "BUDGET",
+        "ticker": "AAOI"
+      },
+      {
+        "companyName": "Armada Mercantile Ltd",
+        "createdAt": "2026-03-02T21:45:18.356322Z",
+        "errorDetail": "http_404",
+        "httpStatus": 404,
+        "reasonCode": "HTTP_404",
+        "stage": "PAGE_SCAN",
+        "ticker": "AAMTF"
+      },
+      {
+        "companyName": "Acadian Asset Management Inc.",
+        "createdAt": "2026-03-02T21:45:04.965112Z",
+        "errorDetail": "http_404",
+        "httpStatus": 404,
+        "reasonCode": "HTTP_404",
+        "stage": "PAGE_SCAN",
+        "ticker": "AAMI"
+      },
+      {
+        "companyName": "ATLANTIC AMERICAN CORP",
+        "createdAt": "2026-03-02T21:44:55.421616Z",
+        "errorDetail": "http_404",
+        "httpStatus": 404,
+        "reasonCode": "HTTP_404",
+        "stage": "PAGE_SCAN",
+        "ticker": "AAME"
+      }
+    ]
+  },
+  "final": {
+    "careersPathsChecked": 0,
+    "careersStageFailuresByReason": {
+      "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE": 2,
+      "NO_CAREERS_LINK_ON_HOMEPAGE": 1
+    },
+    "careersUrlFoundCount": 2,
+    "companiesConsidered": 4,
+    "companyLimit": 300,
+    "discoveryRunId": 19,
+    "endpointExtractedCount": 0,
+    "endpointsAdded": 0,
+    "endpointsFoundHomepageByAtsType": {},
+    "endpointsFoundSitemapByAtsType": {},
+    "endpointsFoundVendorProbeByAtsType": {},
+    "failedCount": 4,
+    "failuresByReason": {
+      "HTTP_404": 3,
+      "TIMEOUT": 1
+    },
+    "fetchFailedCount": 28,
+    "finishedAt": "2026-03-02T21:45:30.525953Z",
+    "homepageScanned": 0,
+    "lastError": "time_budget_exceeded",
+    "processedCount": 4,
+    "robotsBlockedCount": 0,
+    "sitemapUrlsChecked": 0,
+    "sitemapsScanned": 0,
+    "startedAt": "2026-03-02T21:44:28.582255Z",
+    "status": "ABORTED",
+    "succeededCount": 0,
+    "timeBudgetExceededCount": 1,
+    "vendorDetectedCount": 0
+  },
+  "mode": "vendor_probe",
+  "resumed": false,
+  "run_id": 19,
+  "stage_durations": [
+    {
+      "avg_duration_ms": 16580.67,
+      "count": 3,
+      "max_duration_ms": 26825,
+      "min_duration_ms": 9534,
+      "stage": "PAGE_SCAN",
+      "total_duration_ms": 49742
+    },
+    {
+      "avg_duration_ms": 12151.0,
+      "count": 1,
+      "max_duration_ms": 12151,
+      "min_duration_ms": 12151,
+      "stage": "BUDGET",
+      "total_duration_ms": 12151
+    }
+  ],
+  "start": {
+    "discoveryRunId": 19,
+    "status": "RUNNING",
+    "statusUrl": "/api/careers/discover/run/19"
+  },
+  "wait_duration_ms": 70071
+}

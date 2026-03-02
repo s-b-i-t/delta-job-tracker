@@ -1,0 +1,20 @@
+[
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/acadian-asset-management-inc",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/acadian-asset-management-inc"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/armadamercantile",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/armadamercantile"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/atlantic-american",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/atlantic-american"
+  }
+]

@@ -1,0 +1,147 @@
+{
+  "attempted_count_assumed": 3000,
+  "cohort_size": 3000,
+  "latency_distribution": {
+    "approx_avg_ms_per_attempt": 26606.43,
+    "available": false,
+    "reason": "Per-company domain resolution latency is not persisted; reporting step-level timing and aggregate resolver metrics instead.",
+    "step_duration_ms": 186245
+  },
+  "resolution_rate_in_cohort": 0.0003,
+  "resolved_by_method_in_cohort": {
+    "HEURISTIC_NAME_COM": 1
+  },
+  "resolved_count_in_cohort_after_run": 1,
+  "sample_resolved": [
+    {
+      "company_id": 512,
+      "domain": "fiserv.com",
+      "resolution_method": "HEURISTIC_NAME_COM",
+      "resolved_at": "2026-03-02 21:34:35.887319+00",
+      "source": "HEURISTIC",
+      "ticker": "FI"
+    }
+  ],
+  "sample_unresolved": [
+    {
+      "company_id": 77,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.754744+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BF.B"
+    },
+    {
+      "company_id": 509,
+      "domain_resolution_attempted_at": "2026-03-02 21:33:32.363852+00",
+      "domain_resolution_status": "NO_IDENTIFIER",
+      "ticker": "DAY"
+    },
+    {
+      "company_id": 527,
+      "domain_resolution_attempted_at": "2026-03-02 21:33:32.356475+00",
+      "domain_resolution_status": "WDQS_TIMEOUT",
+      "ticker": "CYATY"
+    },
+    {
+      "company_id": 534,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:42.105088+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BHP"
+    },
+    {
+      "company_id": 535,
+      "domain_resolution_attempted_at": "2026-03-02 21:28:20.27429+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "DTEGY"
+    },
+    {
+      "company_id": 550,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.578453+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ARM"
+    },
+    {
+      "company_id": 552,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:43.263072+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BTI"
+    },
+    {
+      "company_id": 556,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.936181+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ATEYY"
+    },
+    {
+      "company_id": 557,
+      "domain_resolution_attempted_at": "2026-03-02 21:29:02.863168+00",
+      "domain_resolution_status": "NO_P856",
+      "ticker": "GLD"
+    },
+    {
+      "company_id": 558,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.077112+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AEM"
+    },
+    {
+      "company_id": 566,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:42.579171+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BMO"
+    },
+    {
+      "company_id": 573,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:42.704578+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BNS"
+    },
+    {
+      "company_id": 575,
+      "domain_resolution_attempted_at": "2026-03-02 21:27:32.791374+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "CM"
+    },
+    {
+      "company_id": 577,
+      "domain_resolution_attempted_at": "2026-03-02 21:27:34.634908+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "CNQ"
+    },
+    {
+      "company_id": 578,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.684602+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BCS"
+    },
+    {
+      "company_id": 579,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.414853+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BAESY"
+    },
+    {
+      "company_id": 581,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.345378+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "B"
+    },
+    {
+      "company_id": 585,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:41.436519+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "BAM"
+    },
+    {
+      "company_id": 588,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.102006+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AMX"
+    },
+    {
+      "company_id": 595,
+      "domain_resolution_attempted_at": "2026-03-02 21:28:12.587377+00",
+      "domain_resolution_status": "NO_ITEM",
+      "ticker": "DB"
+    }
+  ]
+}

@@ -158,6 +158,16 @@ def poll_discovery_run(api: ApiClient, run_id: int, max_wait_seconds: int, poll_
     deadline = time.monotonic() + max_wait_seconds
     snaps: List[Dict[str, Any]] = []
     last = None
+    started = time.monotonic()
+    periodic_interval = max(30, poll_interval_seconds * 6)
+    next_periodic_at = started + periodic_interval
+
+    def _to_int(value: Any) -> int:
+        try:
+            return int(value)
+        except Exception:
+            return 0
+
     while True:
         status = api.get_json(f"/api/careers/discover/run/{run_id}")
         snaps.append(status)
@@ -165,9 +175,26 @@ def poll_discovery_run(api: ApiClient, run_id: int, max_wait_seconds: int, poll_
         if state != last:
             print(f"[{prefix}] status={state}", file=sys.stderr)
             last = state
+        now = time.monotonic()
+        if state not in TERMINAL_STATUSES and now >= next_periodic_at:
+            processed = _to_int(status.get("processedCount"))
+            succeeded = _to_int(status.get("succeededCount"))
+            failed = _to_int(status.get("failedCount"))
+            careers_found = _to_int(status.get("careersUrlFoundCount"))
+            vendor_detected = _to_int(status.get("vendorDetectedCount"))
+            endpoint_extracted = _to_int(status.get("endpointExtractedCount"))
+            remaining = max(0, int(deadline - now))
+            elapsed = int(now - started)
+            print(
+                f"[{prefix}] run_id={run_id} status={state} processed={processed} succeeded={succeeded} failed={failed} "
+                f"careers_url_found={careers_found} vendor_detected={vendor_detected} endpoint_extracted={endpoint_extracted} "
+                f"elapsed={elapsed}s remaining={remaining}s",
+                file=sys.stderr,
+            )
+            next_periodic_at = now + periodic_interval
         if state in TERMINAL_STATUSES:
             break
-        if time.monotonic() >= deadline:
+        if now >= deadline:
             raise RuntimeError(f"Timed out waiting for discovery run {run_id}")
         time.sleep(poll_interval_seconds)
     write_json(out_dir / f"{prefix}_run_status_snapshots.json", snaps)

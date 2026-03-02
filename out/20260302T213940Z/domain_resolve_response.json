@@ -1,0 +1,40 @@
+{
+  "metrics": {
+    "cachedSkipCount": 2997,
+    "companiesAttemptedCount": 3,
+    "companiesInputCount": 3000,
+    "heuristicCandidatesTriedByTld": {
+      "ai": 6,
+      "com": 6,
+      "io": 6
+    },
+    "heuristicCandidatesTriedCount": 18,
+    "heuristicCompaniesTriedCount": 3,
+    "heuristicDurationMs": 89029,
+    "heuristicFetchSuccessCount": 2,
+    "heuristicRejectedCount": 18,
+    "heuristicResolvedByTld": {},
+    "heuristicResolvedCount": 0,
+    "heuristicSuccessByReason": {},
+    "resolvedByMethod": {},
+    "totalDurationMs": 89697,
+    "wdqsCikBatchCount": 2,
+    "wdqsDurationMs": 420,
+    "wdqsTitleBatchCount": 0,
+    "wikipediaInfoboxDurationMs": 128,
+    "wikipediaInfoboxRejectedCount": 1,
+    "wikipediaInfoboxResolvedCount": 0,
+    "wikipediaInfoboxTriedCount": 1
+  },
+  "noItemCount": 2,
+  "noP856Count": 0,
+  "noWikipediaTitleCount": 1,
+  "resolvedCount": 0,
+  "sampleErrors": [
+    "CYATY (Contemporary Amperex Technology Co., Limited/ADR): no_item",
+    "DAY (Dayforce): no_identifier",
+    "GLVHF (GLENVEAGH PROPERTIES PLC/ADR): no_item"
+  ],
+  "wdqsErrorCount": 0,
+  "wdqsTimeoutCount": 0
+}

@@ -1,0 +1,57 @@
+{
+  "metrics": {
+    "cachedSkipCount": 1490,
+    "companiesAttemptedCount": 1510,
+    "companiesInputCount": 3000,
+    "heuristicCandidatesTriedByTld": {
+      "ai": 9,
+      "co": 2,
+      "com": 13,
+      "io": 10,
+      "net": 2,
+      "org": 2
+    },
+    "heuristicCandidatesTriedCount": 38,
+    "heuristicCompaniesTriedCount": 9,
+    "heuristicDurationMs": 267257,
+    "heuristicFetchSuccessCount": 3,
+    "heuristicRejectedCount": 34,
+    "heuristicResolvedByTld": {
+      "ai": 1,
+      "com": 3
+    },
+    "heuristicResolvedCount": 4,
+    "heuristicSuccessByReason": {
+      "no_item": 4
+    },
+    "resolvedByMethod": {
+      "HEURISTIC": 4
+    },
+    "totalDurationMs": 357937,
+    "wdqsCikBatchCount": 32,
+    "wdqsDurationMs": 85681,
+    "wdqsTitleBatchCount": 1,
+    "wikipediaInfoboxDurationMs": 446,
+    "wikipediaInfoboxRejectedCount": 1,
+    "wikipediaInfoboxResolvedCount": 0,
+    "wikipediaInfoboxTriedCount": 1
+  },
+  "noItemCount": 1496,
+  "noP856Count": 8,
+  "noWikipediaTitleCount": 2,
+  "resolvedCount": 4,
+  "sampleErrors": [
+    "CLRUF (ClimateRock): no_item",
+    "CLRWF (ClimateRock): no_item",
+    "CLSO (Climate Transition Special Opportunities SPAC I): no_item",
+    "CLST (Catalyst Bancorp, Inc.): no_item",
+    "CLVT (CLARIVATE PLC): no_item",
+    "CLWT (EURO TECH HOLDINGS CO LTD): no_item",
+    "CLYM (Climb Bio, Inc.): no_item",
+    "CM (CANADIAN IMPERIAL BANK OF COMMERCE /CAN/): no_item",
+    "CMBT (CMB.TECH NV): no_item",
+    "CMC (COMMERCIAL METALS Co): no_item"
+  ],
+  "wdqsErrorCount": 0,
+  "wdqsTimeoutCount": 0
+}

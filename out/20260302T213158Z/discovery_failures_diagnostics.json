@@ -1,0 +1,173 @@
+{
+  "countsByReason": {
+    "discovery_blocked_by_robots": 207,
+    "discovery_fetch_failed": 50,
+    "discovery_homepage_blocked_by_robots": 7,
+    "discovery_host_cooldown": 14,
+    "discovery_no_match": 1,
+    "discovery_sitemap_blocked_by_robots": 2,
+    "discovery_time_budget_exceeded": 1
+  },
+  "recentFailures": [
+    {
+      "candidateUrl": "https://boards.greenhouse.io/alliedgold",
+      "companyName": "Allied Gold Corp",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:38:16.689866Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAUC"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/almadenminerals",
+      "companyName": "ALMADEN MINERALS LTD",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:37:53.285995Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAUAF"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/americanassetstrust",
+      "companyName": "American Assets Trust, Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:37:33.327065Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAT"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/aardvarktherapeutics",
+      "companyName": "Aardvark Therapeutics, Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:37:01.515961Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AARD"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/ao-inc",
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:36:41.400692Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAOI"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/armadamercantile",
+      "companyName": "Armada Mercantile Ltd",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:36:26.324625Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAMTF"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/acadian-asset-management-inc",
+      "companyName": "Acadian Asset Management Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:36:05.078798Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAMI"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/atlantic-american",
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:35:58.650083Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAME"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/almadenminerals",
+      "companyName": "ALMADEN MINERALS LTD",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:31:44.773762Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAUAF"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/americanassetstrust",
+      "companyName": "American Assets Trust, Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:31:24.441518Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAT"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/aardvarktherapeutics",
+      "companyName": "Aardvark Therapeutics, Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:30:46.824440Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AARD"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/ao-inc",
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:30:23.534036Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAOI"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/armadamercantile",
+      "companyName": "Armada Mercantile Ltd",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:29:59.914681Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAMTF"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/acadian-asset-management-inc",
+      "companyName": "Acadian Asset Management Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:29:35.398902Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAMI"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/atlantic-american",
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T21:29:12.286030Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAME"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/alliedgold",
+      "companyName": "Allied Gold Corp",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:29:09.663460Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAUC"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/almadenminerals",
+      "companyName": "ALMADEN MINERALS LTD",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:28:50.426433Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAUAF"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/americanassetstrust",
+      "companyName": "American Assets Trust, Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:28:30.740873Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AAT"
+    },
+    {
+      "candidateUrl": "https://boards.greenhouse.io/aardvarktherapeutics",
+      "companyName": "Aardvark Therapeutics, Inc.",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:28:07.912003Z",
+      "reasonCode": "discovery_fetch_failed",
+      "ticker": "AARD"
+    },
+    {
+      "candidateUrl": "https://appleisports.com/sitemap.xml",
+      "companyName": "Apple iSports Group, Inc.",
+      "detail": "blocked_by_robots",
+      "observedAt": "2026-03-02T20:27:33.006565Z",
+      "reasonCode": "discovery_sitemap_blocked_by_robots",
+      "ticker": "AAPI"
+    }
+  ]
+}

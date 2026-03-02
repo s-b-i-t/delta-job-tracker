@@ -1,0 +1,49 @@
+{
+  "metrics": {
+    "cachedSkipCount": 2993,
+    "companiesAttemptedCount": 7,
+    "companiesInputCount": 3000,
+    "heuristicCandidatesTriedByTld": {
+      "ai": 6,
+      "com": 7,
+      "io": 6
+    },
+    "heuristicCandidatesTriedCount": 19,
+    "heuristicCompaniesTriedCount": 4,
+    "heuristicDurationMs": 145915,
+    "heuristicFetchSuccessCount": 3,
+    "heuristicRejectedCount": 18,
+    "heuristicResolvedByTld": {
+      "com": 1
+    },
+    "heuristicResolvedCount": 1,
+    "heuristicSuccessByReason": {
+      "no_identifier": 1
+    },
+    "resolvedByMethod": {
+      "HEURISTIC": 1
+    },
+    "totalDurationMs": 172327,
+    "wdqsCikBatchCount": 1,
+    "wdqsDurationMs": 26504,
+    "wdqsTitleBatchCount": 1,
+    "wikipediaInfoboxDurationMs": 0,
+    "wikipediaInfoboxRejectedCount": 0,
+    "wikipediaInfoboxResolvedCount": 0,
+    "wikipediaInfoboxTriedCount": 0
+  },
+  "noItemCount": 4,
+  "noP856Count": 0,
+  "noWikipediaTitleCount": 1,
+  "resolvedCount": 1,
+  "sampleErrors": [
+    "CYATY (Contemporary Amperex Technology Co., Limited/ADR): wdqs_timeout",
+    "DAY (Dayforce): no_identifier",
+    "GLUE (Monte Rosa Therapeutics, Inc.): no_item",
+    "GLU-PA (GABELLI GLOBAL UTILITY & INCOME TRUST): no_item",
+    "GLU-PB (GABELLI GLOBAL UTILITY & INCOME TRUST): no_item",
+    "GLV (Clough Global Dividend & Income Fund): no_item"
+  ],
+  "wdqsErrorCount": 0,
+  "wdqsTimeoutCount": 1
+}

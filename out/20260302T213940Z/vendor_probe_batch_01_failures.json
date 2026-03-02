@@ -1,0 +1,44 @@
+{
+  "countsByReason": {
+    "HTTP_404": 3,
+    "TIMEOUT": 1
+  },
+  "failures": [
+    {
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "createdAt": "2026-03-02T21:43:07.278482Z",
+      "errorDetail": null,
+      "httpStatus": null,
+      "reasonCode": "TIMEOUT",
+      "stage": "BUDGET",
+      "ticker": "AAOI"
+    },
+    {
+      "companyName": "Armada Mercantile Ltd",
+      "createdAt": "2026-03-02T21:42:57.463500Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMTF"
+    },
+    {
+      "companyName": "Acadian Asset Management Inc.",
+      "createdAt": "2026-03-02T21:42:34.319244Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMI"
+    },
+    {
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "createdAt": "2026-03-02T21:42:24.618249Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAME"
+    }
+  ]
+}

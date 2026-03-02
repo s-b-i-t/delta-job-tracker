@@ -1,0 +1,10 @@
+[
+  {
+    "avg_duration_ms": 20384.0,
+    "count": 3,
+    "max_duration_ms": 36695,
+    "min_duration_ms": 8197,
+    "stage": "PAGE_SCAN",
+    "total_duration_ms": 61152
+  }
+]

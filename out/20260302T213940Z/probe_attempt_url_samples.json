@@ -1,0 +1,91 @@
+{
+  "careers_candidate_attempts": [
+    {
+      "company_name": "Armada Mercantile Ltd",
+      "detail": "NO_CAREERS_LINK_ON_HOMEPAGE",
+      "observed_at": "2026-03-02 21:46:41.02343+00",
+      "reason_code": "HTTP_404",
+      "status_code": 404,
+      "ticker": "AAMTF",
+      "url": "https://armadamercantile.com/"
+    },
+    {
+      "company_name": "Acadian Asset Management Inc.",
+      "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "observed_at": "2026-03-02 21:46:04.320685+00",
+      "reason_code": "HTTP_404",
+      "status_code": 404,
+      "ticker": "AAMI",
+      "url": "https://acadian-asset-management-inc.com/careers"
+    },
+    {
+      "company_name": "ATLANTIC AMERICAN CORP",
+      "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "observed_at": "2026-03-02 21:45:56.115809+00",
+      "reason_code": "HTTP_404",
+      "status_code": 404,
+      "ticker": "AAME",
+      "url": "https://atlantic-american.com/careers"
+    }
+  ],
+  "fallback_path_attempts": [
+    {
+      "company_name": "Armada Mercantile Ltd",
+      "detail": "NO_CAREERS_LINK_ON_HOMEPAGE",
+      "observed_at": "2026-03-02 21:46:41.02343+00",
+      "reason_code": "HTTP_404",
+      "status_code": 404,
+      "ticker": "AAMTF",
+      "url": "https://armadamercantile.com/"
+    },
+    {
+      "company_name": "Acadian Asset Management Inc.",
+      "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "observed_at": "2026-03-02 21:46:04.320685+00",
+      "reason_code": "HTTP_404",
+      "status_code": 404,
+      "ticker": "AAMI",
+      "url": "https://acadian-asset-management-inc.com/careers"
+    },
+    {
+      "company_name": "ATLANTIC AMERICAN CORP",
+      "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+      "observed_at": "2026-03-02 21:45:56.115809+00",
+      "reason_code": "HTTP_404",
+      "status_code": 404,
+      "ticker": "AAME",
+      "url": "https://atlantic-american.com/careers"
+    }
+  ],
+  "homepage_fetch_attempts": [],
+  "subdomain_attempts": [],
+  "vendor_probe_attempts": [
+    {
+      "company_name": "Armada Mercantile Ltd",
+      "detail": "http_404",
+      "observed_at": "2026-03-02 21:46:41.003791+00",
+      "reason_code": "discovery_fetch_failed",
+      "status_code": 404,
+      "ticker": "AAMTF",
+      "url": "https://boards.greenhouse.io/armadamercantile"
+    },
+    {
+      "company_name": "Acadian Asset Management Inc.",
+      "detail": "http_404",
+      "observed_at": "2026-03-02 21:46:04.302295+00",
+      "reason_code": "discovery_fetch_failed",
+      "status_code": 404,
+      "ticker": "AAMI",
+      "url": "https://boards.greenhouse.io/acadian-asset-management-inc"
+    },
+    {
+      "company_name": "ATLANTIC AMERICAN CORP",
+      "detail": "http_404",
+      "observed_at": "2026-03-02 21:45:56.097019+00",
+      "reason_code": "discovery_fetch_failed",
+      "status_code": 404,
+      "ticker": "AAME",
+      "url": "https://boards.greenhouse.io/atlantic-american"
+    }
+  ]
+}

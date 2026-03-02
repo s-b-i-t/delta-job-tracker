@@ -1,0 +1,18 @@
+[
+  {
+    "avg_duration_ms": 16580.67,
+    "count": 3,
+    "max_duration_ms": 26825,
+    "min_duration_ms": 9534,
+    "stage": "PAGE_SCAN",
+    "total_duration_ms": 49742
+  },
+  {
+    "avg_duration_ms": 12151.0,
+    "count": 1,
+    "max_duration_ms": 12151,
+    "min_duration_ms": 12151,
+    "stage": "BUDGET",
+    "total_duration_ms": 12151
+  }
+]

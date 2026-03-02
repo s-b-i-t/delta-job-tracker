@@ -1,0 +1,34 @@
+{
+  "countsByReason": {
+    "HTTP_404": 3
+  },
+  "failures": [
+    {
+      "companyName": "Armada Mercantile Ltd",
+      "createdAt": "2026-03-02T21:46:41.023430Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMTF"
+    },
+    {
+      "companyName": "Acadian Asset Management Inc.",
+      "createdAt": "2026-03-02T21:46:04.320685Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMI"
+    },
+    {
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "createdAt": "2026-03-02T21:45:56.115809Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAME"
+    }
+  ]
+}

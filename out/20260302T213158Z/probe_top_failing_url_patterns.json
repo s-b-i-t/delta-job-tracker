@@ -1,0 +1,50 @@
+[
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/aardvarktherapeutics",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/aardvarktherapeutics"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/acadian-asset-management-inc",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/acadian-asset-management-inc"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/alliedgold",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/alliedgold"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/almadenminerals",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/almadenminerals"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/americanassetstrust",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/americanassetstrust"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/ao-inc",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/ao-inc"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/armadamercantile",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/armadamercantile"
+  },
+  {
+    "count": 1,
+    "sample_url": "https://boards.greenhouse.io/atlantic-american",
+    "status": 404,
+    "url_pattern": "boards.greenhouse.io/atlantic-american"
+  }
+]

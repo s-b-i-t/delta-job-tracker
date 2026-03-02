@@ -1,0 +1,17 @@
+{
+  "by_source": [
+    {
+      "count": 1358,
+      "source": "WIKIDATA"
+    },
+    {
+      "count": 140,
+      "source": "HEURISTIC"
+    },
+    {
+      "count": 21,
+      "source": "MANUAL"
+    }
+  ],
+  "companies_with_domain_count": 1519
+}

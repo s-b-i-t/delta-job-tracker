@@ -14,6 +14,7 @@ This script reuses helpers from scripts/run_ats_validation_canary.py.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -406,8 +407,52 @@ def run(args: argparse.Namespace) -> int:
     api = canary.ApiClient(args.base_url, args.http_timeout_seconds)
     db = canary.DbClient(args.postgres_container, args.postgres_user, args.postgres_db)
     print(f"Output directory: {out_dir}", file=sys.stderr)
+    print(
+        "Effective time budgets: "
+        f"overall_timeout_seconds={args.overall_timeout_seconds}, "
+        f"max_run_wait_seconds={args.max_run_wait_seconds}, "
+        f"poll_interval_seconds={args.poll_interval_seconds}, "
+        f"http_timeout_seconds={args.http_timeout_seconds}",
+        file=sys.stderr,
+    )
 
     durations_ms: Dict[str, int] = {}
+
+    def dump_running_discovery_diagnostics(trigger: str) -> Dict[str, Any]:
+        running_step = canary.timed_step_safe(
+            "exit_running_discovery_count",
+            lambda: db.query_single_int("SELECT COUNT(*) FROM careers_discovery_runs WHERE status='RUNNING';"),
+        )
+        latest_step = canary.timed_step_safe(
+            "exit_latest_discovery_run",
+            lambda: api.get_json("/api/careers/discover/runs/latest"),
+        )
+
+        running_count = (
+            running_step.payload
+            if isinstance(running_step.payload, int)
+            else canary.parse_int((running_step.payload or {}).get("value"))
+        )
+
+        payload = {
+            "trigger": trigger,
+            "generated_at": utc_now_iso(),
+            "running_count": running_count,
+            "running_count_query": (
+                {"value": running_step.payload}
+                if not isinstance(running_step.payload, dict)
+                else running_step.payload
+            ),
+            "latest_discovery_run": latest_step.payload,
+        }
+        canary.write_json(out_dir / "exit_discovery_diagnostics.json", payload)
+        if running_count > 0:
+            print(f"[exit-diagnostics] running_discovery_runs={running_count}", file=sys.stderr)
+            print(
+                f"[exit-diagnostics] latest_discovery_run={json.dumps(latest_step.payload, sort_keys=True)}",
+                file=sys.stderr,
+            )
+        return payload
 
     preflight_api = canary.timed_step_safe("preflight_api_status", lambda: api.get_json("/api/status"))
     durations_ms[preflight_api.name] = preflight_api.duration_ms
@@ -722,6 +767,7 @@ def run(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     except TimeoutError as e:
+        exit_diag = dump_running_discovery_diagnostics("timeout")
         canary.write_json(out_dir / "runs_started.json", {
             "vendor_probe": [
                 {"batch": r.get("batch"), "run_id": r.get("run_id"), "resumed": r.get("resumed")}
@@ -754,11 +800,13 @@ def run(args: argparse.Namespace) -> int:
                     "vendor_probe": len(vendor_results),
                     "full": len(full_results),
                 },
+                "exit_discovery_diagnostics": exit_diag,
             },
         )
         print(str(e), file=sys.stderr)
         return EXIT_TIMEOUT
     except Exception as e:  # noqa: BLE001
+        exit_diag = dump_running_discovery_diagnostics("runtime_failed")
         canary.write_json(out_dir / "runs_started.json", {
             "vendor_probe": [
                 {"batch": r.get("batch"), "run_id": r.get("run_id"), "resumed": r.get("resumed")}
@@ -791,6 +839,7 @@ def run(args: argparse.Namespace) -> int:
                     "vendor_probe": len(vendor_results),
                     "full": len(full_results),
                 },
+                "exit_discovery_diagnostics": exit_diag,
             },
         )
         print(f"Overnight run failed: {e}", file=sys.stderr)
@@ -814,7 +863,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--max-run-wait-seconds", type=int, default=int(os.getenv("DELTA_MAX_RUN_WAIT_SECONDS", "7200")))
     p.add_argument("--overall-timeout-seconds", type=int, default=int(os.getenv("DELTA_OVERALL_TIMEOUT_SECONDS", "43200")))
     p.add_argument("--poll-interval-seconds", type=int, default=int(os.getenv("DELTA_POLL_INTERVAL_SECONDS", "10")))
-    p.add_argument("--http-timeout-seconds", type=int, default=int(os.getenv("DELTA_HTTP_TIMEOUT_SECONDS", "120")))
+    p.add_argument("--http-timeout-seconds", type=int, default=int(os.getenv("DELTA_HTTP_TIMEOUT_SECONDS", "600")))
     p.add_argument("--out-dir", default=os.getenv("DELTA_OUT_DIR", "out"))
     p.add_argument("--dry-run", action="store_true", default=False, help="Only check /api/status and DB connectivity")
     p.add_argument("--postgres-container", default=os.getenv("DELTA_POSTGRES_CONTAINER", "delta-job-tracker-postgres"))

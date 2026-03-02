@@ -1,0 +1,34 @@
+{
+  "careersPathsChecked": 0,
+  "careersStageFailuresByReason": {
+    "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE": 3,
+    "NO_CAREERS_LINK_ON_HOMEPAGE": 1
+  },
+  "careersUrlFoundCount": 3,
+  "companiesConsidered": 7,
+  "companyLimit": 300,
+  "discoveryRunId": 18,
+  "endpointExtractedCount": 0,
+  "endpointsAdded": 0,
+  "endpointsFoundHomepageByAtsType": {},
+  "endpointsFoundSitemapByAtsType": {},
+  "endpointsFoundVendorProbeByAtsType": {},
+  "failedCount": 5,
+  "failuresByReason": {
+    "HTTP_404": 4,
+    "TIMEOUT": 1
+  },
+  "fetchFailedCount": 34,
+  "finishedAt": "2026-03-02T21:44:21.604526Z",
+  "homepageScanned": 0,
+  "lastError": "time_budget_exceeded",
+  "processedCount": 7,
+  "robotsBlockedCount": 0,
+  "sitemapUrlsChecked": 0,
+  "sitemapsScanned": 0,
+  "startedAt": "2026-03-02T21:43:19.437190Z",
+  "status": "ABORTED",
+  "succeededCount": 0,
+  "timeBudgetExceededCount": 1,
+  "vendorDetectedCount": 0
+}

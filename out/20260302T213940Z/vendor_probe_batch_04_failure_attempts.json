@@ -1,0 +1,35 @@
+[
+  {
+    "candidate_url": "https://boards.greenhouse.io/armadamercantile",
+    "careers_discovery_method": "HOMEPAGE_LINK",
+    "careers_discovery_stage_failure": "NO_CAREERS_LINK_ON_HOMEPAGE",
+    "company_name": "Armada Mercantile Ltd",
+    "detail": "http_404",
+    "observed_at": "2026-03-02 21:46:41.003791+00",
+    "reason_code": "discovery_fetch_failed",
+    "stage": "PAGE_SCAN",
+    "ticker": "AAMTF"
+  },
+  {
+    "candidate_url": "https://boards.greenhouse.io/acadian-asset-management-inc",
+    "careers_discovery_method": "PATH_GUESS",
+    "careers_discovery_stage_failure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+    "company_name": "Acadian Asset Management Inc.",
+    "detail": "http_404",
+    "observed_at": "2026-03-02 21:46:04.302295+00",
+    "reason_code": "discovery_fetch_failed",
+    "stage": "PAGE_SCAN",
+    "ticker": "AAMI"
+  },
+  {
+    "candidate_url": "https://boards.greenhouse.io/atlantic-american",
+    "careers_discovery_method": "PATH_GUESS",
+    "careers_discovery_stage_failure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+    "company_name": "ATLANTIC AMERICAN CORP",
+    "detail": "http_404",
+    "observed_at": "2026-03-02 21:45:56.097019+00",
+    "reason_code": "discovery_fetch_failed",
+    "stage": "PAGE_SCAN",
+    "ticker": "AAME"
+  }
+]

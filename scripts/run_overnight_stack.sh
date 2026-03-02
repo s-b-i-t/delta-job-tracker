@@ -128,6 +128,12 @@ cleanup() {
 trap cleanup EXIT
 
 log "Artifacts directory: $ARTIFACT_DIR"
+log "Effective readiness settings: BACKEND_READY_TIMEOUT_SECONDS=${BACKEND_READY_TIMEOUT_SECONDS}s POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS}s"
+if [[ "${#RUNNER_ARGS[@]}" -gt 0 ]]; then
+  log "Runner passthrough args: ${RUNNER_ARGS[*]}"
+else
+  log "Runner passthrough args: <none>"
+fi
 
 if command -v ss >/dev/null 2>&1; then
   if ss -ltn "( sport = :$SERVER_PORT )" 2>/dev/null | awk 'NR>1 {print $0}' | grep -q .; then

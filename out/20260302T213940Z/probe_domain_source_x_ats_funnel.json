@@ -1,0 +1,36 @@
+{
+  "rows": [
+    {
+      "careers_url_found": false,
+      "count": 1,
+      "discovery_status": "FAILED",
+      "domain_resolution_method": "HEURISTIC_NAME_COM",
+      "domain_source": "HEURISTIC",
+      "endpoint_extracted": false,
+      "vendor_detected": false
+    },
+    {
+      "careers_url_found": true,
+      "count": 2,
+      "discovery_status": "FAILED",
+      "domain_resolution_method": "HEURISTIC_NAME_COM",
+      "domain_source": "HEURISTIC",
+      "endpoint_extracted": false,
+      "vendor_detected": false
+    }
+  ],
+  "summary": [
+    {
+      "attempted_count": 3,
+      "careers_url_found_count": 2,
+      "careers_url_found_rate": 0.6667,
+      "domain_source": "HEURISTIC",
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "failed_count": 3,
+      "succeeded_count": 0,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": 0.0
+    }
+  ]
+}

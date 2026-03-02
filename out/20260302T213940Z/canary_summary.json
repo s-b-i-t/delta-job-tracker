@@ -1,0 +1,707 @@
+{
+  "actionable_failure_evidence": {
+    "attempt_url_samples_by_stage": {
+      "careers_candidate_attempts": [
+        {
+          "company_name": "Armada Mercantile Ltd",
+          "detail": "NO_CAREERS_LINK_ON_HOMEPAGE",
+          "observed_at": "2026-03-02 21:46:41.02343+00",
+          "reason_code": "HTTP_404",
+          "status_code": 404,
+          "ticker": "AAMTF",
+          "url": "https://armadamercantile.com/"
+        },
+        {
+          "company_name": "Acadian Asset Management Inc.",
+          "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+          "observed_at": "2026-03-02 21:46:04.320685+00",
+          "reason_code": "HTTP_404",
+          "status_code": 404,
+          "ticker": "AAMI",
+          "url": "https://acadian-asset-management-inc.com/careers"
+        },
+        {
+          "company_name": "ATLANTIC AMERICAN CORP",
+          "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+          "observed_at": "2026-03-02 21:45:56.115809+00",
+          "reason_code": "HTTP_404",
+          "status_code": 404,
+          "ticker": "AAME",
+          "url": "https://atlantic-american.com/careers"
+        }
+      ],
+      "fallback_path_attempts": [
+        {
+          "company_name": "Armada Mercantile Ltd",
+          "detail": "NO_CAREERS_LINK_ON_HOMEPAGE",
+          "observed_at": "2026-03-02 21:46:41.02343+00",
+          "reason_code": "HTTP_404",
+          "status_code": 404,
+          "ticker": "AAMTF",
+          "url": "https://armadamercantile.com/"
+        },
+        {
+          "company_name": "Acadian Asset Management Inc.",
+          "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+          "observed_at": "2026-03-02 21:46:04.320685+00",
+          "reason_code": "HTTP_404",
+          "status_code": 404,
+          "ticker": "AAMI",
+          "url": "https://acadian-asset-management-inc.com/careers"
+        },
+        {
+          "company_name": "ATLANTIC AMERICAN CORP",
+          "detail": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+          "observed_at": "2026-03-02 21:45:56.115809+00",
+          "reason_code": "HTTP_404",
+          "status_code": 404,
+          "ticker": "AAME",
+          "url": "https://atlantic-american.com/careers"
+        }
+      ],
+      "homepage_fetch_attempts": [],
+      "subdomain_attempts": [],
+      "vendor_probe_attempts": [
+        {
+          "company_name": "Armada Mercantile Ltd",
+          "detail": "http_404",
+          "observed_at": "2026-03-02 21:46:41.003791+00",
+          "reason_code": "discovery_fetch_failed",
+          "status_code": 404,
+          "ticker": "AAMTF",
+          "url": "https://boards.greenhouse.io/armadamercantile"
+        },
+        {
+          "company_name": "Acadian Asset Management Inc.",
+          "detail": "http_404",
+          "observed_at": "2026-03-02 21:46:04.302295+00",
+          "reason_code": "discovery_fetch_failed",
+          "status_code": 404,
+          "ticker": "AAMI",
+          "url": "https://boards.greenhouse.io/acadian-asset-management-inc"
+        },
+        {
+          "company_name": "ATLANTIC AMERICAN CORP",
+          "detail": "http_404",
+          "observed_at": "2026-03-02 21:45:56.097019+00",
+          "reason_code": "discovery_fetch_failed",
+          "status_code": 404,
+          "ticker": "AAME",
+          "url": "https://boards.greenhouse.io/atlantic-american"
+        }
+      ]
+    },
+    "company_funnel_samples": [
+      {
+        "careers_discovery_method": "HOMEPAGE_LINK",
+        "careers_discovery_stage_failure": "NO_CAREERS_LINK_ON_HOMEPAGE",
+        "careers_url_final": "https://armadamercantile.com/",
+        "careers_url_found": "f",
+        "careers_url_initial": "https://armadamercantile.com/",
+        "company_name": "Armada Mercantile Ltd",
+        "created_at": "2026-03-02 21:46:41.02343+00",
+        "duration_ms": "36695",
+        "endpoint_extracted": "f",
+        "endpoint_url": "",
+        "http_status": "404",
+        "http_status_first_failure": "",
+        "reason_code": "HTTP_404",
+        "request_count": "7",
+        "stage": "PAGE_SCAN",
+        "status": "FAILED",
+        "ticker": "AAMTF",
+        "vendor_detected": "f",
+        "vendor_name": ""
+      },
+      {
+        "careers_discovery_method": "PATH_GUESS",
+        "careers_discovery_stage_failure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+        "careers_url_final": "https://acadian-asset-management-inc.com/careers",
+        "careers_url_found": "t",
+        "careers_url_initial": "https://acadian-asset-management-inc.com/careers",
+        "company_name": "Acadian Asset Management Inc.",
+        "created_at": "2026-03-02 21:46:04.320685+00",
+        "duration_ms": "8197",
+        "endpoint_extracted": "f",
+        "endpoint_url": "",
+        "http_status": "404",
+        "http_status_first_failure": "200",
+        "reason_code": "HTTP_404",
+        "request_count": "2",
+        "stage": "PAGE_SCAN",
+        "status": "FAILED",
+        "ticker": "AAMI",
+        "vendor_detected": "f",
+        "vendor_name": ""
+      },
+      {
+        "careers_discovery_method": "PATH_GUESS",
+        "careers_discovery_stage_failure": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE",
+        "careers_url_final": "https://atlantic-american.com/careers",
+        "careers_url_found": "t",
+        "careers_url_initial": "https://atlantic-american.com/careers",
+        "company_name": "ATLANTIC AMERICAN CORP",
+        "created_at": "2026-03-02 21:45:56.115809+00",
+        "duration_ms": "16260",
+        "endpoint_extracted": "f",
+        "endpoint_url": "",
+        "http_status": "404",
+        "http_status_first_failure": "200",
+        "reason_code": "HTTP_404",
+        "request_count": "2",
+        "stage": "PAGE_SCAN",
+        "status": "FAILED",
+        "ticker": "AAME",
+        "vendor_detected": "f",
+        "vendor_name": ""
+      }
+    ],
+    "top_failing_url_patterns": [
+      {
+        "count": 1,
+        "sample_url": "https://boards.greenhouse.io/acadian-asset-management-inc",
+        "status": 404,
+        "url_pattern": "boards.greenhouse.io/acadian-asset-management-inc"
+      },
+      {
+        "count": 1,
+        "sample_url": "https://boards.greenhouse.io/armadamercantile",
+        "status": 404,
+        "url_pattern": "boards.greenhouse.io/armadamercantile"
+      },
+      {
+        "count": 1,
+        "sample_url": "https://boards.greenhouse.io/atlantic-american",
+        "status": 404,
+        "url_pattern": "boards.greenhouse.io/atlantic-american"
+      }
+    ]
+  },
+  "ats_vendor_probe": {
+    "ats_discovery_attempted_count": 18,
+    "ats_discovery_success_count": 0,
+    "ats_discovery_success_rate": 0.0,
+    "domain_source_x_ats_funnel": {
+      "rows": [
+        {
+          "careers_url_found": false,
+          "count": 1,
+          "discovery_status": "FAILED",
+          "domain_resolution_method": "HEURISTIC_NAME_COM",
+          "domain_source": "HEURISTIC",
+          "endpoint_extracted": false,
+          "vendor_detected": false
+        },
+        {
+          "careers_url_found": true,
+          "count": 2,
+          "discovery_status": "FAILED",
+          "domain_resolution_method": "HEURISTIC_NAME_COM",
+          "domain_source": "HEURISTIC",
+          "endpoint_extracted": false,
+          "vendor_detected": false
+        }
+      ],
+      "summary": [
+        {
+          "attempted_count": 3,
+          "careers_url_found_count": 2,
+          "careers_url_found_rate": 0.6667,
+          "domain_source": "HEURISTIC",
+          "endpoint_extracted_count": 0,
+          "endpoint_extracted_rate_among_vendor_detected": null,
+          "failed_count": 3,
+          "succeeded_count": 0,
+          "vendor_detected_count": 0,
+          "vendor_detected_rate_among_found": 0.0
+        }
+      ]
+    },
+    "failures_by_reason": {
+      "HTTP_404": 13,
+      "TIMEOUT": 3
+    },
+    "funnel": {
+      "careers_url_found_count": 9,
+      "careers_url_found_rate": 0.5,
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "requested_discover_count": 1200,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": 0.0
+    },
+    "latest_run_status": {
+      "careersPathsChecked": 0,
+      "careersStageFailuresByReason": {
+        "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE": 2,
+        "NO_CAREERS_LINK_ON_HOMEPAGE": 1
+      },
+      "careersUrlFoundCount": 2,
+      "companiesConsidered": 3,
+      "companyLimit": 300,
+      "discoveryRunId": 20,
+      "endpointExtractedCount": 0,
+      "endpointsAdded": 0,
+      "endpointsFoundHomepageByAtsType": {},
+      "endpointsFoundSitemapByAtsType": {},
+      "endpointsFoundVendorProbeByAtsType": {},
+      "failedCount": 3,
+      "failuresByReason": {
+        "HTTP_404": 3
+      },
+      "fetchFailedCount": 22,
+      "finishedAt": "2026-03-02T21:46:41.029768Z",
+      "homepageScanned": 0,
+      "lastError": "time_budget_exceeded",
+      "processedCount": 3,
+      "robotsBlockedCount": 0,
+      "sitemapUrlsChecked": 0,
+      "sitemapsScanned": 0,
+      "startedAt": "2026-03-02T21:45:39.841072Z",
+      "status": "ABORTED",
+      "succeededCount": 0,
+      "timeBudgetExceededCount": 0,
+      "vendorDetectedCount": 0
+    },
+    "requested_discover_count": 1200,
+    "runs": [
+      {
+        "batch": 1,
+        "resumed": false,
+        "run_id": 17,
+        "status": "ABORTED"
+      },
+      {
+        "batch": 2,
+        "resumed": false,
+        "run_id": 18,
+        "status": "ABORTED"
+      },
+      {
+        "batch": 3,
+        "resumed": false,
+        "run_id": 19,
+        "status": "ABORTED"
+      },
+      {
+        "batch": 4,
+        "resumed": false,
+        "run_id": 20,
+        "status": "ABORTED"
+      }
+    ],
+    "stage_failure_buckets": {
+      "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE": 9,
+      "NO_CAREERS_LINK_ON_HOMEPAGE": 4
+    }
+  },
+  "bottleneck_assessment": {
+    "discover_processed_fill_rate_vs_requested": 0.0025,
+    "likely_domain_limited": true,
+    "next_focus": "Domain resolution / targeting still limiting ATS coverage",
+    "no_domain_reason_count": 0,
+    "notes": "Flagged domain-limited because ATS run reported domain-related failures or could not fill requested batch."
+  },
+  "breakdowns": {
+    "coverage_ats_endpoints_by_method": {
+      "careers_landing": 1,
+      "html": 39,
+      "link": 1,
+      "pattern": 5,
+      "vendor_probe": 23
+    },
+    "coverage_ats_endpoints_by_type": {
+      "GREENHOUSE": 4,
+      "LEVER": 1,
+      "SMARTRECRUITERS": 23,
+      "WORKDAY": 41
+    },
+    "top_failure_categories_diagnostics": [
+      {
+        "count": 207,
+        "key": "discovery_blocked_by_robots"
+      },
+      {
+        "count": 50,
+        "key": "discovery_fetch_failed"
+      },
+      {
+        "count": 14,
+        "key": "discovery_host_cooldown"
+      },
+      {
+        "count": 7,
+        "key": "discovery_homepage_blocked_by_robots"
+      },
+      {
+        "count": 2,
+        "key": "discovery_sitemap_blocked_by_robots"
+      }
+    ],
+    "top_failure_categories_run": [
+      {
+        "count": 13,
+        "key": "HTTP_404"
+      },
+      {
+        "count": 3,
+        "key": "TIMEOUT"
+      }
+    ],
+    "top_stage_failures_run": [
+      {
+        "count": 9,
+        "key": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE"
+      },
+      {
+        "count": 4,
+        "key": "NO_CAREERS_LINK_ON_HOMEPAGE"
+      }
+    ]
+  },
+  "config": {
+    "base_url": "http://localhost:8080",
+    "discover_batch_size": 300,
+    "domain_fresh_cohort_first": true,
+    "num_batches": 4,
+    "resolve_limit": 3000,
+    "run_full_mode": true,
+    "sec_limit": 10000,
+    "sleep_between_batches": 5,
+    "vendor_probe_success_threshold": 0.45
+  },
+  "domain_backlog_watch": {
+    "probe_domain_source_funnel_summary": [
+      {
+        "attempted_count": 3,
+        "careers_url_found_count": 2,
+        "careers_url_found_rate": 0.6667,
+        "domain_source": "HEURISTIC",
+        "endpoint_extracted_count": 0,
+        "endpoint_extracted_rate_among_vendor_detected": null,
+        "failed_count": 3,
+        "succeeded_count": 0,
+        "vendor_detected_count": 0,
+        "vendor_detected_rate_among_found": 0.0
+      }
+    ]
+  },
+  "domain_resolution": {
+    "attempted_count": 3,
+    "domain_resolution_rate": 0.0,
+    "fresh_domain_cohort": {
+      "attempted_count_assumed": 3000,
+      "cohort_size": 3000,
+      "latency_distribution": {
+        "approx_avg_ms_per_attempt": 31276.33,
+        "available": false,
+        "reason": "Per-company domain resolution latency is not persisted; reporting step-level timing and aggregate resolver metrics instead.",
+        "step_duration_ms": 93829
+      },
+      "resolution_rate_in_cohort": 0.0,
+      "resolved_by_method_in_cohort": {},
+      "resolved_count_in_cohort_after_run": 0,
+      "sample_resolved": [],
+      "sample_unresolved": [
+        {
+          "company_id": 77,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:41.754744+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BF.B"
+        },
+        {
+          "company_id": 509,
+          "domain_resolution_attempted_at": "2026-03-02 21:40:48.954263+00",
+          "domain_resolution_status": "NO_IDENTIFIER",
+          "ticker": "DAY"
+        },
+        {
+          "company_id": 527,
+          "domain_resolution_attempted_at": "2026-03-02 21:40:48.937037+00",
+          "domain_resolution_status": "NO_ITEM",
+          "ticker": "CYATY"
+        },
+        {
+          "company_id": 534,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:42.105088+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BHP"
+        },
+        {
+          "company_id": 535,
+          "domain_resolution_attempted_at": "2026-03-02 21:28:20.27429+00",
+          "domain_resolution_status": "NO_ITEM",
+          "ticker": "DTEGY"
+        },
+        {
+          "company_id": 550,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:40.578453+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "ARM"
+        },
+        {
+          "company_id": 552,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:43.263072+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BTI"
+        },
+        {
+          "company_id": 556,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:40.936181+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "ATEYY"
+        },
+        {
+          "company_id": 557,
+          "domain_resolution_attempted_at": "2026-03-02 21:29:02.863168+00",
+          "domain_resolution_status": "NO_P856",
+          "ticker": "GLD"
+        },
+        {
+          "company_id": 558,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:39.077112+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "AEM"
+        },
+        {
+          "company_id": 566,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:42.579171+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BMO"
+        },
+        {
+          "company_id": 573,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:42.704578+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BNS"
+        },
+        {
+          "company_id": 575,
+          "domain_resolution_attempted_at": "2026-03-02 21:27:32.791374+00",
+          "domain_resolution_status": "NO_ITEM",
+          "ticker": "CM"
+        },
+        {
+          "company_id": 577,
+          "domain_resolution_attempted_at": "2026-03-02 21:27:34.634908+00",
+          "domain_resolution_status": "NO_ITEM",
+          "ticker": "CNQ"
+        },
+        {
+          "company_id": 578,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:41.684602+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BCS"
+        },
+        {
+          "company_id": 579,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:41.414853+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BAESY"
+        },
+        {
+          "company_id": 581,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:41.345378+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "B"
+        },
+        {
+          "company_id": 585,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:41.436519+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "BAM"
+        },
+        {
+          "company_id": 588,
+          "domain_resolution_attempted_at": "2026-03-02 20:05:40.102006+00",
+          "domain_resolution_status": "WDQS_ERROR",
+          "ticker": "AMX"
+        },
+        {
+          "company_id": 595,
+          "domain_resolution_attempted_at": "2026-03-02 21:28:12.587377+00",
+          "domain_resolution_status": "NO_ITEM",
+          "ticker": "DB"
+        }
+      ]
+    },
+    "requested_limit": 3000,
+    "resolved_count": 0,
+    "result": {
+      "metrics": {
+        "cachedSkipCount": 2997,
+        "companiesAttemptedCount": 3,
+        "companiesInputCount": 3000,
+        "heuristicCandidatesTriedByTld": {
+          "ai": 6,
+          "com": 6,
+          "io": 6
+        },
+        "heuristicCandidatesTriedCount": 18,
+        "heuristicCompaniesTriedCount": 3,
+        "heuristicDurationMs": 89029,
+        "heuristicFetchSuccessCount": 2,
+        "heuristicRejectedCount": 18,
+        "heuristicResolvedByTld": {},
+        "heuristicResolvedCount": 0,
+        "heuristicSuccessByReason": {},
+        "resolvedByMethod": {},
+        "totalDurationMs": 89697,
+        "wdqsCikBatchCount": 2,
+        "wdqsDurationMs": 420,
+        "wdqsTitleBatchCount": 0,
+        "wikipediaInfoboxDurationMs": 128,
+        "wikipediaInfoboxRejectedCount": 1,
+        "wikipediaInfoboxResolvedCount": 0,
+        "wikipediaInfoboxTriedCount": 1
+      },
+      "noItemCount": 2,
+      "noP856Count": 0,
+      "noWikipediaTitleCount": 1,
+      "resolvedCount": 0,
+      "sampleErrors": [
+        "CYATY (Contemporary Amperex Technology Co., Limited/ADR): no_item",
+        "DAY (Dayforce): no_identifier",
+        "GLVHF (GLENVEAGH PROPERTIES PLC/ADR): no_item"
+      ],
+      "wdqsErrorCount": 0,
+      "wdqsTimeoutCount": 0
+    }
+  },
+  "durations_ms": {
+    "per_step": {
+      "coverage_diagnostics": 14,
+      "discovery_failures_diagnostics": 16,
+      "domain_counts_after": 318,
+      "domain_counts_before": 321,
+      "domain_fresh_cohort_after": 193,
+      "domain_fresh_cohort_before": 212,
+      "domain_resolve": 93829,
+      "overnight_probe_company_funnel_samples": 152,
+      "overnight_probe_domain_source_x_ats_funnel": 361,
+      "overnight_probe_failure_attempts": 146,
+      "preflight_api_status": 57,
+      "preflight_db_connectivity": 166,
+      "sec_ingest": 47102,
+      "vendor_probe_batch_01": 70507,
+      "vendor_probe_batch_02": 70449,
+      "vendor_probe_batch_03": 70455,
+      "vendor_probe_batch_04": 70503
+    },
+    "total_wall_clock_ms": 424801
+  },
+  "generated_at": "2026-03-02T21:46:44.101100+00:00",
+  "inputs_and_counts": {
+    "companies_with_domain_by_source_after": [
+      {
+        "count": 1358,
+        "source": "WIKIDATA"
+      },
+      {
+        "count": 141,
+        "source": "HEURISTIC"
+      },
+      {
+        "count": 21,
+        "source": "MANUAL"
+      }
+    ],
+    "companies_with_domain_by_source_before": [
+      {
+        "count": 1358,
+        "source": "WIKIDATA"
+      },
+      {
+        "count": 141,
+        "source": "HEURISTIC"
+      },
+      {
+        "count": 21,
+        "source": "MANUAL"
+      }
+    ],
+    "companies_with_domain_count_after": 1520,
+    "companies_with_domain_count_before": 1520
+  },
+  "optional_errors": {
+    "coverage": null,
+    "discovery_failures": null
+  },
+  "optional_full_discovery": {
+    "executed": false,
+    "runs": [],
+    "totals": {
+      "careers_stage_failures_by_reason": {},
+      "careers_url_found_count": 0,
+      "careers_url_found_rate": null,
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "failed": 0,
+      "failures_by_reason": {},
+      "processed": 0,
+      "succeeded": 0,
+      "success_rate": null,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": null
+    }
+  },
+  "raw_files": [
+    "coverage_diagnostics.json",
+    "discovery_failures_diagnostics.json",
+    "domain_counts_after.json",
+    "domain_counts_before.json",
+    "domain_fresh_cohort_after.json",
+    "domain_fresh_cohort_before.json",
+    "domain_fresh_cohort_report.json",
+    "domain_resolve_response.json",
+    "final_run_statuses.json",
+    "preflight_api_status.json",
+    "preflight_db_connectivity.json",
+    "probe_attempt_url_samples.json",
+    "probe_company_funnel_samples.json",
+    "probe_domain_source_x_ats_funnel.json",
+    "probe_failure_attempts.json",
+    "probe_top_failing_url_patterns.json",
+    "runs_started.json",
+    "sec_ingest_response.json",
+    "vendor_probe_batch_01_companies.json",
+    "vendor_probe_batch_01_failure_attempts.json",
+    "vendor_probe_batch_01_failures.json",
+    "vendor_probe_batch_01_final_status.json",
+    "vendor_probe_batch_01_result.json",
+    "vendor_probe_batch_01_run_status_snapshots.json",
+    "vendor_probe_batch_01_stage_durations.json",
+    "vendor_probe_batch_01_start.json",
+    "vendor_probe_batch_02_companies.json",
+    "vendor_probe_batch_02_failure_attempts.json",
+    "vendor_probe_batch_02_failures.json",
+    "vendor_probe_batch_02_final_status.json",
+    "vendor_probe_batch_02_result.json",
+    "vendor_probe_batch_02_run_status_snapshots.json",
+    "vendor_probe_batch_02_stage_durations.json",
+    "vendor_probe_batch_02_start.json",
+    "vendor_probe_batch_03_companies.json",
+    "vendor_probe_batch_03_failure_attempts.json",
+    "vendor_probe_batch_03_failures.json",
+    "vendor_probe_batch_03_final_status.json",
+    "vendor_probe_batch_03_result.json",
+    "vendor_probe_batch_03_run_status_snapshots.json",
+    "vendor_probe_batch_03_stage_durations.json",
+    "vendor_probe_batch_03_start.json",
+    "vendor_probe_batch_04_companies.json",
+    "vendor_probe_batch_04_failure_attempts.json",
+    "vendor_probe_batch_04_failures.json",
+    "vendor_probe_batch_04_final_status.json",
+    "vendor_probe_batch_04_result.json",
+    "vendor_probe_batch_04_run_status_snapshots.json",
+    "vendor_probe_batch_04_stage_durations.json",
+    "vendor_probe_batch_04_start.json"
+  ],
+  "schema_version": "ats-canary-summary-v2",
+  "thresholds": {
+    "full_mode_executed": false,
+    "vendor_probe_success_rate_actual": 0.0,
+    "vendor_probe_success_rate_gte": 0.45,
+    "vendor_probe_success_rate_pass": false
+  }
+}

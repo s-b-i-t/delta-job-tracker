@@ -1,0 +1,21 @@
+{
+  "atsEndpointsByMethod": {
+    "careers_landing": 1,
+    "html": 39,
+    "link": 1,
+    "pattern": 5,
+    "vendor_probe": 23
+  },
+  "atsEndpointsByType": {
+    "GREENHOUSE": 4,
+    "LEVER": 1,
+    "SMARTRECRUITERS": 23,
+    "WORKDAY": 41
+  },
+  "counts": {
+    "ats_endpoints": 69,
+    "company_domains": 1520,
+    "discovered_urls": 12893,
+    "job_postings": 9250
+  }
+}

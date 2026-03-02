@@ -1,0 +1,79 @@
+{
+  "countsByReason": {
+    "HTTP_404": 8
+  },
+  "failures": [
+    {
+      "companyName": "Allied Gold Corp",
+      "createdAt": "2026-03-02T21:38:16.710168Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAUC"
+    },
+    {
+      "companyName": "ALMADEN MINERALS LTD",
+      "createdAt": "2026-03-02T21:37:53.295754Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAUAF"
+    },
+    {
+      "companyName": "American Assets Trust, Inc.",
+      "createdAt": "2026-03-02T21:37:33.347089Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAT"
+    },
+    {
+      "companyName": "Aardvark Therapeutics, Inc.",
+      "createdAt": "2026-03-02T21:37:01.535874Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AARD"
+    },
+    {
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "createdAt": "2026-03-02T21:36:41.411288Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAOI"
+    },
+    {
+      "companyName": "Armada Mercantile Ltd",
+      "createdAt": "2026-03-02T21:36:26.343408Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMTF"
+    },
+    {
+      "companyName": "Acadian Asset Management Inc.",
+      "createdAt": "2026-03-02T21:36:05.089084Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAMI"
+    },
+    {
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "createdAt": "2026-03-02T21:35:58.667368Z",
+      "errorDetail": "http_404",
+      "httpStatus": 404,
+      "reasonCode": "HTTP_404",
+      "stage": "PAGE_SCAN",
+      "ticker": "AAME"
+    }
+  ]
+}

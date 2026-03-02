@@ -1,0 +1,231 @@
+{
+  "artifacts": {
+    "canary_summary": "canary_summary.json",
+    "final_run_statuses": "final_run_statuses.json",
+    "overnight_summary": "overnight_summary.json",
+    "runs_started": "runs_started.json"
+  },
+  "batch_rollup": {
+    "full": {
+      "careers_stage_failures_by_reason": {},
+      "careers_url_found_count": 0,
+      "careers_url_found_rate": null,
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "failed": 0,
+      "failures_by_reason": {},
+      "processed": 0,
+      "succeeded": 0,
+      "success_rate": null,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": null
+    },
+    "vendor_probe": {
+      "careers_stage_failures_by_reason": {
+        "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE": 9,
+        "NO_CAREERS_LINK_ON_HOMEPAGE": 4
+      },
+      "careers_url_found_count": 9,
+      "careers_url_found_rate": 0.5,
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "failed": 16,
+      "failures_by_reason": {
+        "HTTP_404": 13,
+        "TIMEOUT": 3
+      },
+      "processed": 18,
+      "succeeded": 0,
+      "success_rate": 0.0,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": 0.0
+    }
+  },
+  "canary_summary_highlights": {
+    "ats_vendor_probe_success_rate": 0.0,
+    "funnel": {
+      "careers_url_found_count": 9,
+      "careers_url_found_rate": 0.5,
+      "endpoint_extracted_count": 0,
+      "endpoint_extracted_rate_among_vendor_detected": null,
+      "requested_discover_count": 1200,
+      "vendor_detected_count": 0,
+      "vendor_detected_rate_among_found": 0.0
+    },
+    "top_stage_failures": [
+      {
+        "count": 9,
+        "key": "CAREERS_PAGE_200_NO_VENDOR_SIGNATURE"
+      },
+      {
+        "count": 4,
+        "key": "NO_CAREERS_LINK_ON_HOMEPAGE"
+      }
+    ]
+  },
+  "config": {
+    "base_url": "http://localhost:8080",
+    "company_samples_limit": 100,
+    "discover_batch_size": 300,
+    "domain_fresh_cohort_first": true,
+    "dry_run": false,
+    "http_timeout_seconds": 600,
+    "max_run_wait_seconds": 7200,
+    "num_batches": 4,
+    "out_dir": "/home/bhatt/programming/delta-job-tracker/out/20260302T213940Z",
+    "overall_timeout_seconds": 43200,
+    "poll_interval_seconds": 10,
+    "postgres_container": "delta-job-tracker-postgres",
+    "postgres_db": "delta_job_tracker",
+    "postgres_user": "delta",
+    "resolve_limit": 3000,
+    "run_full_mode": true,
+    "sec_limit": 10000,
+    "sleep_between_batches": 5,
+    "vendor_probe_threshold_for_full": 0.45
+  },
+  "durations_ms": {
+    "per_step": {
+      "coverage_diagnostics": 14,
+      "discovery_failures_diagnostics": 16,
+      "domain_counts_after": 318,
+      "domain_counts_before": 321,
+      "domain_fresh_cohort_after": 193,
+      "domain_fresh_cohort_before": 212,
+      "domain_resolve": 93829,
+      "overnight_probe_company_funnel_samples": 152,
+      "overnight_probe_domain_source_x_ats_funnel": 361,
+      "overnight_probe_failure_attempts": 146,
+      "preflight_api_status": 57,
+      "preflight_db_connectivity": 166,
+      "sec_ingest": 47102,
+      "vendor_probe_batch_01": 70507,
+      "vendor_probe_batch_02": 70449,
+      "vendor_probe_batch_03": 70455,
+      "vendor_probe_batch_04": 70503
+    },
+    "total_wall_clock_ms": 439643
+  },
+  "generated_at": "2026-03-02T21:46:44.103006+00:00",
+  "pipeline": {
+    "domain_counts_after": {
+      "by_source": [
+        {
+          "count": 1358,
+          "source": "WIKIDATA"
+        },
+        {
+          "count": 141,
+          "source": "HEURISTIC"
+        },
+        {
+          "count": 21,
+          "source": "MANUAL"
+        }
+      ],
+      "companies_with_domain_count": 1520
+    },
+    "domain_counts_before": {
+      "by_source": [
+        {
+          "count": 1358,
+          "source": "WIKIDATA"
+        },
+        {
+          "count": 141,
+          "source": "HEURISTIC"
+        },
+        {
+          "count": 21,
+          "source": "MANUAL"
+        }
+      ],
+      "companies_with_domain_count": 1520
+    },
+    "domain_resolve": {
+      "metrics": {
+        "cachedSkipCount": 2997,
+        "companiesAttemptedCount": 3,
+        "companiesInputCount": 3000,
+        "heuristicCandidatesTriedByTld": {
+          "ai": 6,
+          "com": 6,
+          "io": 6
+        },
+        "heuristicCandidatesTriedCount": 18,
+        "heuristicCompaniesTriedCount": 3,
+        "heuristicDurationMs": 89029,
+        "heuristicFetchSuccessCount": 2,
+        "heuristicRejectedCount": 18,
+        "heuristicResolvedByTld": {},
+        "heuristicResolvedCount": 0,
+        "heuristicSuccessByReason": {},
+        "resolvedByMethod": {},
+        "totalDurationMs": 89697,
+        "wdqsCikBatchCount": 2,
+        "wdqsDurationMs": 420,
+        "wdqsTitleBatchCount": 0,
+        "wikipediaInfoboxDurationMs": 128,
+        "wikipediaInfoboxRejectedCount": 1,
+        "wikipediaInfoboxResolvedCount": 0,
+        "wikipediaInfoboxTriedCount": 1
+      },
+      "noItemCount": 2,
+      "noP856Count": 0,
+      "noWikipediaTitleCount": 1,
+      "resolvedCount": 0,
+      "sampleErrors": [
+        "CYATY (Contemporary Amperex Technology Co., Limited/ADR): no_item",
+        "DAY (Dayforce): no_identifier",
+        "GLVHF (GLENVEAGH PROPERTIES PLC/ADR): no_item"
+      ],
+      "wdqsErrorCount": 0,
+      "wdqsTimeoutCount": 0
+    },
+    "full_batches_completed": 0,
+    "full_mode_executed": false,
+    "full_mode_skip_reason": "vendor_probe_success_rate_below_threshold (0.0 < 0.45)",
+    "sec_ingest": {
+      "errorCount": 0,
+      "inserted": 0,
+      "sampleErrors": [],
+      "total": 10000,
+      "updated": 10000
+    },
+    "vendor_probe_batches_completed": 4
+  },
+  "preflight": {
+    "api_status": {
+      "counts": {
+        "ats_endpoints": 69,
+        "companies": 10426,
+        "company_domains": 1520,
+        "crawl_runs": 27,
+        "discovered_urls": 12893,
+        "job_postings": 9250
+      },
+      "dbConnectivity": true,
+      "mostRecentCrawlRun": {
+        "crawlRunId": 27,
+        "finishedAt": "2026-02-21T16:52:59.711076Z",
+        "jobsExtractedCount": 7564,
+        "lastActivityAt": "2026-02-21T16:52:59.657880Z",
+        "secondsRunning": 119,
+        "startedAt": "2026-02-21T16:51:00.484462Z",
+        "status": "COMPLETED",
+        "topErrors": {
+          "greenhouse_http_404": 1,
+          "lever_http_404": 1,
+          "workday_http_404": 1,
+          "workday_http_422": 1
+        }
+      }
+    },
+    "db_connectivity": {
+      "ok": true,
+      "result": 1
+    },
+    "ok": true
+  },
+  "schema_version": "overnight-summary-v1"
+}
