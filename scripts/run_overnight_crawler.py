@@ -30,6 +30,14 @@ EXIT_TIMEOUT = 3
 EXIT_RUNTIME_FAILED = 4
 
 RUNNING_STATUSES = {"RUNNING"}
+DOMAIN_RESOLVE_TOP_LEVEL_INT_FIELDS = (
+    "resolvedCount",
+    "noWikipediaTitleCount",
+    "noItemCount",
+    "noP856Count",
+    "wdqsErrorCount",
+    "wdqsTimeoutCount",
+)
 
 
 def utc_now_iso() -> str:
@@ -158,6 +166,128 @@ def run_discovery_batch(
     }
 
 
+def _merge_count_maps(target: Dict[str, int], source: Any) -> None:
+    if not isinstance(source, dict):
+        return
+    for key, value in source.items():
+        target[str(key)] = target.get(str(key), 0) + canary.parse_int(value)
+
+
+def _merge_metric_values(target: Dict[str, Any], source: Any) -> None:
+    if not isinstance(source, dict):
+        return
+    for key, value in source.items():
+        if isinstance(value, dict):
+            existing = target.get(key)
+            if not isinstance(existing, dict):
+                existing = {}
+                target[key] = existing
+            _merge_count_maps(existing, value)
+            continue
+        if isinstance(value, (int, float)) or str(value).lstrip("-").isdigit():
+            target[key] = canary.parse_int(target.get(key)) + canary.parse_int(value)
+        elif key not in target:
+            target[key] = value
+
+
+def summarize_domain_resolve_batch(payload: Dict[str, Any]) -> Dict[str, Any]:
+    metrics = payload.get("metrics") or {}
+    return {
+        "resolvedCount": canary.parse_int(payload.get("resolvedCount")),
+        "attemptedCount": canary.parse_int(metrics.get("companiesAttemptedCount")),
+        "companiesInputCount": canary.parse_int(metrics.get("companiesInputCount")),
+        "cachedSkipCount": canary.parse_int(metrics.get("cachedSkipCount")),
+        "wdqsTimeoutCount": canary.parse_int(payload.get("wdqsTimeoutCount")),
+        "wdqsErrorCount": canary.parse_int(payload.get("wdqsErrorCount")),
+    }
+
+
+def run_domain_resolution_in_batches(
+    *,
+    api: canary.ApiClient,
+    out_dir: Path,
+    resolve_limit: int,
+    resolve_batch_size: int,
+    overall_deadline: Optional[float],
+    durations_ms: Dict[str, int],
+) -> Dict[str, Any]:
+    if resolve_limit <= 0:
+        return {
+            "requestedLimit": 0,
+            "resolveBatchSize": resolve_batch_size,
+            "batchCount": 0,
+            "resolvedCount": 0,
+            "noWikipediaTitleCount": 0,
+            "noItemCount": 0,
+            "noP856Count": 0,
+            "wdqsErrorCount": 0,
+            "wdqsTimeoutCount": 0,
+            "sampleErrors": [],
+            "metrics": {"companiesInputCount": 0, "companiesAttemptedCount": 0},
+            "batches": [],
+        }
+
+    batch_size = max(1, resolve_batch_size)
+    batch_count = (resolve_limit + batch_size - 1) // batch_size
+    remaining = resolve_limit
+    rollup_metrics: Dict[str, Any] = {}
+    rollup_counts: Dict[str, int] = {field: 0 for field in DOMAIN_RESOLVE_TOP_LEVEL_INT_FIELDS}
+    sample_errors: List[str] = []
+    batch_summaries: List[Dict[str, Any]] = []
+    started = time.monotonic()
+
+    for batch in range(1, batch_count + 1):
+        ensure_within_deadline(overall_deadline, f"starting domain resolve batch {batch}/{batch_count}")
+        requested = min(batch_size, remaining)
+        batch_label = f"domain_resolve_batch_{batch:02d}"
+        batch_step = canary.timed_step(
+            batch_label,
+            lambda req=requested: api.post_json("/api/domains/resolve", {"limit": req}),
+        )
+        durations_ms[batch_step.name] = batch_step.duration_ms
+        payload = batch_step.payload if isinstance(batch_step.payload, dict) else {}
+        canary.write_json(out_dir / f"{batch_label}_response.json", payload)
+
+        for field in DOMAIN_RESOLVE_TOP_LEVEL_INT_FIELDS:
+            rollup_counts[field] += canary.parse_int(payload.get(field))
+        _merge_metric_values(rollup_metrics, payload.get("metrics") or {})
+        for err in (payload.get("sampleErrors") or []):
+            err_txt = str(err)
+            if err_txt and err_txt not in sample_errors:
+                sample_errors.append(err_txt)
+                if len(sample_errors) >= 50:
+                    break
+
+        summary = summarize_domain_resolve_batch(payload)
+        summary_with_meta = {
+            "batch": batch,
+            "batchCount": batch_count,
+            "requestedLimit": requested,
+            "elapsedMs": batch_step.duration_ms,
+            **summary,
+        }
+        batch_summaries.append(summary_with_meta)
+        print(
+            f"[domain_resolve_batch_{batch:02d}] batch={batch}/{batch_count} requested={requested} "
+            f"resolved={summary['resolvedCount']} attempted={summary['attemptedCount']} elapsed_ms={batch_step.duration_ms}",
+            file=sys.stderr,
+        )
+        remaining -= requested
+
+    total_elapsed_ms = int((time.monotonic() - started) * 1000)
+    durations_ms["domain_resolve"] = total_elapsed_ms
+
+    return {
+        "requestedLimit": resolve_limit,
+        "resolveBatchSize": batch_size,
+        "batchCount": batch_count,
+        **rollup_counts,
+        "sampleErrors": sample_errors,
+        "metrics": rollup_metrics,
+        "batches": batch_summaries,
+    }
+
+
 def summarize_batch_statuses(statuses: List[Dict[str, Any]]) -> Dict[str, Any]:
     processed = sum(canary.parse_int(s.get("processedCount")) for s in statuses)
     succeeded = sum(canary.parse_int(s.get("succeededCount")) for s in statuses)
@@ -275,6 +405,7 @@ def generate_canary_summary(
             "base_url": args.base_url,
             "sec_limit": args.sec_limit,
             "resolve_limit": args.resolve_limit,
+            "resolve_batch_size": args.resolve_batch_size,
             "discover_batch_size": args.discover_batch_size,
             "num_batches": args.num_batches,
             "sleep_between_batches": args.sleep_between_batches,
@@ -556,12 +687,14 @@ def run(args: argparse.Namespace) -> int:
             canary.write_json(out_dir / "domain_fresh_cohort_before.json", fresh_before_rows)
 
         ensure_within_deadline(overall_deadline, "domain resolve")
-        resolve_step = canary.timed_step(
-            "domain_resolve",
-            lambda: api.post_json("/api/domains/resolve", {"limit": args.resolve_limit}),
+        domain_resolve_payload = run_domain_resolution_in_batches(
+            api=api,
+            out_dir=out_dir,
+            resolve_limit=args.resolve_limit,
+            resolve_batch_size=args.resolve_batch_size,
+            overall_deadline=overall_deadline,
+            durations_ms=durations_ms,
         )
-        durations_ms[resolve_step.name] = resolve_step.duration_ms
-        domain_resolve_payload = resolve_step.payload
         canary.write_json(out_dir / "domain_resolve_response.json", domain_resolve_payload)
 
         ensure_within_deadline(overall_deadline, "domain counts after")
@@ -586,7 +719,7 @@ def run(args: argparse.Namespace) -> int:
                 fresh_before_rows,
                 fresh_after_rows,
                 domain_resolve_payload if isinstance(domain_resolve_payload, dict) else {},
-                resolve_step.duration_ms,
+                durations_ms.get("domain_resolve", 0),
             )
             canary.write_json(out_dir / "domain_fresh_cohort_report.json", fresh_domain_report)
 
@@ -853,6 +986,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--base-url", default=os.getenv("DELTA_BASE_URL", "http://localhost:8080"))
     p.add_argument("--sec-limit", type=int, default=int(os.getenv("DELTA_SEC_LIMIT", "10000")))
     p.add_argument("--resolve-limit", type=int, default=int(os.getenv("DELTA_RESOLVE_LIMIT", "2000")))
+    p.add_argument("--resolve-batch-size", type=int, default=int(os.getenv("DELTA_RESOLVE_BATCH_SIZE", "300")))
     p.add_argument("--discover-batch-size", type=int, default=int(os.getenv("DELTA_DISCOVER_BATCH_SIZE", "500")))
     p.add_argument("--num-batches", type=int, default=int(os.getenv("DELTA_NUM_BATCHES", "10")))
     p.add_argument("--sleep-between-batches", type=int, default=int(os.getenv("DELTA_SLEEP_BETWEEN_BATCHES", "30")))
@@ -874,6 +1008,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     for field in (
         "sec_limit",
         "resolve_limit",
+        "resolve_batch_size",
         "discover_batch_size",
         "num_batches",
         "max_run_wait_seconds",

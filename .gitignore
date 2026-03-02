@@ -1,2 +1,9 @@
 *.log
 *.pid
+out/
+__pycache__/
+*.pyc
+backend/build/
+.gradle/
+.idea/
+.vscode/
