@@ -1,0 +1,98 @@
+{
+  "countsByReason": {
+    "HTTP_404": 8,
+    "ROBOTS_BLOCKED": 2
+  },
+  "failures": [
+    {
+      "ticker": "AAUC",
+      "companyName": "Allied Gold Corp",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:29:09.678906Z"
+    },
+    {
+      "ticker": "AAUAF",
+      "companyName": "ALMADEN MINERALS LTD",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:28:50.448174Z"
+    },
+    {
+      "ticker": "AAT",
+      "companyName": "American Assets Trust, Inc.",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:28:30.760028Z"
+    },
+    {
+      "ticker": "AARD",
+      "companyName": "Aardvark Therapeutics, Inc.",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:28:07.926873Z"
+    },
+    {
+      "ticker": "AAPI",
+      "companyName": "Apple iSports Group, Inc.",
+      "stage": "SITEMAP",
+      "reasonCode": "ROBOTS_BLOCKED",
+      "httpStatus": null,
+      "errorDetail": "blocked_by_robots",
+      "createdAt": "2026-03-02T20:27:33.017356Z"
+    },
+    {
+      "ticker": "AAP",
+      "companyName": "ADVANCE AUTO PARTS INC",
+      "stage": "SITEMAP",
+      "reasonCode": "ROBOTS_BLOCKED",
+      "httpStatus": null,
+      "errorDetail": "blocked_by_robots",
+      "createdAt": "2026-03-02T20:26:17.853994Z"
+    },
+    {
+      "ticker": "AAOI",
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:25:05.771572Z"
+    },
+    {
+      "ticker": "AAMTF",
+      "companyName": "Armada Mercantile Ltd",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:24:44.673496Z"
+    },
+    {
+      "ticker": "AAMI",
+      "companyName": "Acadian Asset Management Inc.",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:24:07.011392Z"
+    },
+    {
+      "ticker": "AAME",
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "stage": "PAGE_SCAN",
+      "reasonCode": "HTTP_404",
+      "httpStatus": 404,
+      "errorDetail": "http_404",
+      "createdAt": "2026-03-02T20:23:53.867788Z"
+    }
+  ]
+}

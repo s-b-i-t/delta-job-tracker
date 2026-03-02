@@ -1,0 +1,31 @@
+{
+  "config": {
+    "base_url": "http://localhost:8080",
+    "company_samples_limit": 100,
+    "discover_batch_size": 300,
+    "domain_fresh_cohort_first": true,
+    "dry_run": false,
+    "http_timeout_seconds": 120,
+    "max_run_wait_seconds": 7200,
+    "num_batches": 4,
+    "out_dir": "/home/bhatt/programming/delta-job-tracker/out/20260302T200214Z",
+    "overall_timeout_seconds": 43200,
+    "poll_interval_seconds": 10,
+    "postgres_container": "delta-job-tracker-postgres",
+    "postgres_db": "delta_job_tracker",
+    "postgres_user": "delta",
+    "resolve_limit": 3000,
+    "run_full_mode": true,
+    "sec_limit": 10000,
+    "sleep_between_batches": 5,
+    "vendor_probe_threshold_for_full": 0.45
+  },
+  "error": "timeout",
+  "generated_at": "2026-03-02T20:05:10.217806+00:00",
+  "message": "timed out",
+  "partial_runs": {
+    "full": 0,
+    "vendor_probe": 0
+  },
+  "schema_version": "overnight-summary-v1"
+}

@@ -1,0 +1,32 @@
+{
+  "resolvedCount": 0,
+  "noWikipediaTitleCount": 0,
+  "noItemCount": 0,
+  "noP856Count": 0,
+  "wdqsErrorCount": 0,
+  "wdqsTimeoutCount": 0,
+  "sampleErrors": [],
+  "metrics": {
+    "companiesInputCount": 300,
+    "companiesAttemptedCount": 0,
+    "cachedSkipCount": 300,
+    "wdqsTitleBatchCount": 0,
+    "wdqsCikBatchCount": 0,
+    "wikipediaInfoboxTriedCount": 0,
+    "wikipediaInfoboxResolvedCount": 0,
+    "wikipediaInfoboxRejectedCount": 0,
+    "heuristicCompaniesTriedCount": 0,
+    "heuristicCandidatesTriedCount": 0,
+    "heuristicFetchSuccessCount": 0,
+    "heuristicResolvedCount": 0,
+    "heuristicRejectedCount": 0,
+    "totalDurationMs": 1,
+    "wdqsDurationMs": 0,
+    "wikipediaInfoboxDurationMs": 0,
+    "heuristicDurationMs": 0,
+    "heuristicCandidatesTriedByTld": {},
+    "heuristicResolvedByTld": {},
+    "resolvedByMethod": {},
+    "heuristicSuccessByReason": {}
+  }
+}

@@ -1,0 +1,5002 @@
+[
+  {
+    "cik": "0001708646",
+    "company_id": "7516",
+    "domain_resolution_attempted_at": "2026-03-02 20:03:31.754037+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Goldman Sachs Physical Gold ETF",
+    "ticker": "AAAU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002034334",
+    "company_id": "3939",
+    "domain_resolution_attempted_at": "2026-03-02 20:03:43.791047+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Artius II Acquisition Inc.",
+    "ticker": "AACB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002034334",
+    "company_id": "9704",
+    "domain_resolution_attempted_at": "2026-03-02 20:03:43.797035+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Artius II Acquisition Inc.",
+    "ticker": "AACBR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002034334",
+    "company_id": "9705",
+    "domain_resolution_attempted_at": "2026-03-02 20:03:43.801267+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Artius II Acquisition Inc.",
+    "ticker": "AACBU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001420529",
+    "company_id": "5605",
+    "domain_resolution_attempted_at": "2026-03-02 20:03:55.831865+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ATA Creativity Global",
+    "ticker": "AACG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002092897",
+    "company_id": "7209",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:05.554225+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Armada Acquisition Corp. III",
+    "ticker": "AACI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002092897",
+    "company_id": "10257",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:05.563573+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Armada Acquisition Corp. III",
+    "ticker": "AACIU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002099906",
+    "company_id": "7200",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:17.593451+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Abony Acquisition Corp. I",
+    "ticker": "AACO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002099906",
+    "company_id": "10266",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:17.598902+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Abony Acquisition Corp. I",
+    "ticker": "AACOU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002023311",
+    "company_id": "2014",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:29.624695+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ASCENTAGE PHARMA GROUP INTERNATIONAL",
+    "ticker": "AAPG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001672571",
+    "company_id": "5819",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:39.361144+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Antiaging Quantum Living Inc.",
+    "ticker": "AAQL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000930245",
+    "company_id": "5186",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:49.633525+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Agassi Sports Entertainment Corp.",
+    "ticker": "AASP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000943034",
+    "company_id": "8192",
+    "domain_resolution_attempted_at": "2026-03-02 20:04:59.356928+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "AUTOSCOPE TECHNOLOGIES CORP",
+    "ticker": "AATC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000790500",
+    "company_id": "8439",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:11.378389+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ABRDN ASIA-PACIFIC INCOME FUND, INC.",
+    "ticker": "ABAKF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001091587",
+    "company_id": "7593",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.39804+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ABB LTD",
+    "ticker": "ABBNY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001284237",
+    "company_id": "6413",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.72094+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ABACUS MINING & EXPLORATION CORP",
+    "ticker": "ABCFF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001703057",
+    "company_id": "2755",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.729548+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "AbCellera Biologics Inc.",
+    "ticker": "ABCL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000020639",
+    "company_id": "5917",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.742998+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "AmBase Corp",
+    "ticker": "ABCP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001095146",
+    "company_id": "5861",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.750767+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_P856",
+    "name": "Athena Bitcoin Global",
+    "ticker": "ABIT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001957489",
+    "company_id": "5451",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.757054+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Able View Global Inc.",
+    "ticker": "ABLV",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001957489",
+    "company_id": "9915",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.762224+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Able View Global Inc.",
+    "ticker": "ABLVW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001091587",
+    "company_id": "7594",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.766339+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ABB LTD",
+    "ticker": "ABLZF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001576885",
+    "company_id": "4403",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.77074+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Acumen Pharmaceuticals, Inc.",
+    "ticker": "ABOS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001253986",
+    "company_id": "2369",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.774894+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ARBOR REALTY TRUST INC",
+    "ticker": "ABR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001253986",
+    "company_id": "8888",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.779285+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ARBOR REALTY TRUST INC",
+    "ticker": "ABR-PD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001253986",
+    "company_id": "8889",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.783616+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ARBOR REALTY TRUST INC",
+    "ticker": "ABR-PE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001253986",
+    "company_id": "8890",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.787868+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ARBOR REALTY TRUST INC",
+    "ticker": "ABR-PF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001672688",
+    "company_id": "3517",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.792087+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Absci Corp",
+    "ticker": "ABSI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001864055",
+    "company_id": "6371",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.796509+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Abits Group Inc",
+    "ticker": "ABTS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001173313",
+    "company_id": "5553",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.800797+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ABVC BIOPHARMA, INC.",
+    "ticker": "ABVC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001979484",
+    "company_id": "5048",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.805199+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Above Food Ingredients Inc.",
+    "ticker": "ABVE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001979484",
+    "company_id": "9453",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.809428+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Above Food Ingredients Inc.",
+    "ticker": "ABVEW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001971975",
+    "company_id": "2658",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.812897+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Abaxx Technologies Inc.",
+    "ticker": "ABXXF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002096900",
+    "company_id": "7057",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.816987+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Averin Capital Acquisition Corp.",
+    "ticker": "ACAA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002096900",
+    "company_id": "10375",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.820383+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Averin Capital Acquisition Corp.",
+    "ticker": "ACAAU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001781726",
+    "company_id": "9314",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.824674+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "NP Life Sciences Health Industry Group Inc.",
+    "ticker": "ACAT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002038378",
+    "company_id": "5840",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.828985+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Acco Group Holdings Ltd",
+    "ticker": "ACCL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000843006",
+    "company_id": "5663",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.833417+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ACCESS Newswire Inc.",
+    "ticker": "ACCS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001520697",
+    "company_id": "2380",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.837607+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Acadia Healthcare Company, Inc.",
+    "ticker": "ACHC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002065282",
+    "company_id": "7084",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.842037+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Allied Critical Metals Corp.",
+    "ticker": "ACMIF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000715579",
+    "company_id": "3291",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.846301+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "ACNB CORP",
+    "ticker": "ACNB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001503290",
+    "company_id": "3020",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.850787+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "abrdn Income Credit Strategies Fund",
+    "ticker": "ACP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001503290",
+    "company_id": "9252",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.855021+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "abrdn Income Credit Strategies Fund",
+    "ticker": "ACP-PA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001860484",
+    "company_id": "9743",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.859402+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Relativity Acquisition Corp",
+    "ticker": "ACQC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001529377",
+    "company_id": "3969",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.86364+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Ares Commercial Real Estate Corp",
+    "ticker": "ACRE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001584618",
+    "company_id": "8253",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.86801+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Atacama Resources International, Inc.",
+    "ticker": "ACRL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001823529",
+    "company_id": "1310",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.872377+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Enact Holdings, Inc.",
+    "ticker": "ACT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001850767",
+    "company_id": "6335",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.876739+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Accustem Sciences Inc.",
+    "ticker": "ACUT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001636289",
+    "company_id": "3948",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.880953+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Virtus Diversified Income & Convertible Fund",
+    "ticker": "ACV",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001736243",
+    "company_id": "6561",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.885378+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "NO_ITEM",
+    "name": "Acurx Pharmaceuticals, Inc.",
+    "ticker": "ACXP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000821130",
+    "company_id": "1600",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.891414+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARRAY DIGITAL INFRASTRUCTURE, INC.",
+    "ticker": "AD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083002",
+    "company_id": "3943",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.909207+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Drive Acquisition Co",
+    "ticker": "ADAC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083002",
+    "company_id": "9945",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.927593+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Drive Acquisition Co",
+    "ticker": "ADACU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083002",
+    "company_id": "9946",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.93857+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Drive Acquisition Co",
+    "ticker": "ADACW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002084227",
+    "company_id": "7143",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.942644+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Advasa Holdings, Inc.",
+    "ticker": "ADBT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000917251",
+    "company_id": "1053",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.947293+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AGREE REALTY CORP",
+    "ticker": "ADC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000917251",
+    "company_id": "8992",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.951432+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AGREE REALTY CORP",
+    "ticker": "ADC-PA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001766868",
+    "company_id": "8713",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.955804+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Addtech AB/ADR",
+    "ticker": "ADDTF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001171008",
+    "company_id": "8339",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.960076+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ADAMANT DRI PROCESSING & MINERALS GROUP",
+    "ticker": "ADMG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000849401",
+    "company_id": "6500",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.964486+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ADM TRONICS UNLIMITED, INC.",
+    "ticker": "ADMT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001744494",
+    "company_id": "6780",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.968781+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ADVENT TECHNOLOGIES HOLDINGS, INC.",
+    "ticker": "ADNH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001489079",
+    "company_id": "1641",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.973073+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Adaro Energy PT/ADR/",
+    "ticker": "ADOOY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001879248",
+    "company_id": "3001",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.977428+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ads-Tec Energy Public Ltd Co",
+    "ticker": "ADSE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001879248",
+    "company_id": "9825",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.981749+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ads-Tec Energy Public Ltd Co",
+    "ticker": "ADSEW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001420924",
+    "company_id": "6054",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.986114+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Adapti, Inc.",
+    "ticker": "ADTI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001863934",
+    "company_id": "3575",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.990424+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ADURO CLEAN TECHNOLOGIES INC.",
+    "ticker": "ADUR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001776661",
+    "company_id": "4423",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:38.99586+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Advantage Solutions Inc.",
+    "ticker": "ADV",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001159508",
+    "company_id": "8923",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.00009+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "DEUTSCHE BANK AKTIENGESELLSCHAFT",
+    "ticker": "ADZCF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001852016",
+    "company_id": "5014",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.004503+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AltEnergy Acquisition Corp",
+    "ticker": "AEAE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001852016",
+    "company_id": "9569",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.008896+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AltEnergy Acquisition Corp",
+    "ticker": "AEAEU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001852016",
+    "company_id": "9570",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.0132+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AltEnergy Acquisition Corp",
+    "ticker": "AEAEW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083689",
+    "company_id": "3845",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.017489+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Activate Energy Acquisition Corp.",
+    "ticker": "AEAQ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083689",
+    "company_id": "10362",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.021828+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Activate Energy Acquisition Corp.",
+    "ticker": "AEAQU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083689",
+    "company_id": "10363",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.026224+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Activate Energy Acquisition Corp.",
+    "ticker": "AEAQW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002048519",
+    "company_id": "2633",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.030572+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aebi Schmidt Holding AG",
+    "ticker": "AEBI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001174511",
+    "company_id": "8812",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.034908+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANADOLU EFES BIRACILIK VE MALT SANAYI A S/ADR",
+    "ticker": "AEBMF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001174511",
+    "company_id": "8811",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.03919+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANADOLU EFES BIRACILIK VE MALT SANAYI A S/ADR",
+    "ticker": "AEBMY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001174511",
+    "company_id": "1925",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.04339+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANADOLU EFES BIRACILIK VE MALT SANAYI A S/ADR",
+    "ticker": "AEBZY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001519469",
+    "company_id": "4655",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.047867+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANFIELD ENERGY INC.",
+    "ticker": "AEC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002057673",
+    "company_id": "621",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.052187+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Brand Meditech Ltd",
+    "ticker": "AED",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000846676",
+    "company_id": "3660",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.056625+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "abrdn Emerging Markets ex-China Fund, Inc.",
+    "ticker": "AEF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002032732",
+    "company_id": "9598",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.060728+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arrived Homes 5, LLC",
+    "ticker": "AEHGS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001470683",
+    "company_id": "6480",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.0641+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Antelope Enterprise Holdings Ltd",
+    "ticker": "AEHL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001040470",
+    "company_id": "2586",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.068398+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AEHR TEST SYSTEMS",
+    "ticker": "AEHR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000927003",
+    "company_id": "923",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.072869+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ADVANCED ENERGY INDUSTRIES INC",
+    "ticker": "AEIS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000002809",
+    "company_id": "558",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.077112+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AGNICO EAGLE MINES LTD",
+    "ticker": "AEM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001561861",
+    "company_id": "1883",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.080167+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Grupo Aeromexico, S.A.B. de C.V.",
+    "ticker": "AERO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001853044",
+    "company_id": "5980",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.08397+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aeries Technology, Inc.",
+    "ticker": "AERT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001853044",
+    "company_id": "9639",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.08782+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aeries Technology, Inc.",
+    "ticker": "AERTW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001984060",
+    "company_id": "2263",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.091273+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Atlas Energy Solutions Inc.",
+    "ticker": "AESI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002082526",
+    "company_id": "7197",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.096624+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aeon Acquisition I Corp.",
+    "ticker": "AESP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002079173",
+    "company_id": "3217",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.099729+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Exceptionalism Acquisition Corp. A",
+    "ticker": "AEXA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002054964",
+    "company_id": "7315",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.104272+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "FARLONG HOLDING Corp",
+    "ticker": "AFA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001162027",
+    "company_id": "3804",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.108426+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLIANCEBERNSTEIN NATIONAL MUNICIPAL INCOME FUND",
+    "ticker": "AFB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001823406",
+    "company_id": "4648",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.112754+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Affinity Bancshares, Inc.",
+    "ticker": "AFBI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001822523",
+    "company_id": "5275",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.116088+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Advanced Flower Capital Inc.",
+    "ticker": "AFCG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001979005",
+    "company_id": "4139",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.119407+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aimei Health Technology Co., Ltd.",
+    "ticker": "AFJK",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001979005",
+    "company_id": "9807",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.123689+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aimei Health Technology Co., Ltd.",
+    "ticker": "AFJKR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001979005",
+    "company_id": "9806",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.127996+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aimei Health Technology Co., Ltd.",
+    "ticker": "AFJKU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002101973",
+    "company_id": "7005",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.132486+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Allfunds Group PLC./ADR",
+    "ticker": "AFNDY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002087035",
+    "company_id": "7145",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.138419+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AfterNext Acquisition I Corp.",
+    "ticker": "AFNX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001903870",
+    "company_id": "4000",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.141983+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Forafric Global PLC",
+    "ticker": "AFRI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001903870",
+    "company_id": "9759",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.145349+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Forafric Global PLC",
+    "ticker": "AFRIW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001771007",
+    "company_id": "2551",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.149627+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Afya Ltd",
+    "ticker": "AFYA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001708341",
+    "company_id": "6101",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.154107+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Allied Gaming & Entertainment Inc.",
+    "ticker": "AGAE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002060016",
+    "company_id": "3922",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.158323+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Agencia Comercial Spirits Ltd.",
+    "ticker": "AGCC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001362481",
+    "company_id": "3819",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.161512+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "abrdn Global Dynamic Dividend Fund",
+    "ticker": "AGD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001673504",
+    "company_id": "8231",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.164899+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Atlantis Glory Inc.",
+    "ticker": "AGLY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002020932",
+    "company_id": "2921",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.169089+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Agomab Therapeutics NV",
+    "ticker": "AGMB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001705402",
+    "company_id": "6624",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.172436+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AGM GROUP HOLDINGS, INC.",
+    "ticker": "AGMH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002022059",
+    "company_id": "4124",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.176647+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Silver Mountain Resources, Inc.",
+    "ticker": "AGMRF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002022059",
+    "company_id": "9469",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.179964+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Silver Mountain Resources, Inc.",
+    "ticker": "AGMWF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001415311",
+    "company_id": "9037",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.183274+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ProShares Trust II",
+    "ticker": "AGQ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001174169",
+    "company_id": "8497",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.187492+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALGONQUIN POWER & UTILITIES CORP.",
+    "ticker": "AGQPF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002009233",
+    "company_id": "6229",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.190873+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Agroz Inc.",
+    "ticker": "AGRZ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001514443",
+    "company_id": "6721",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.195158+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERIGUARD SECURITY SERVICES, INC.",
+    "ticker": "AGSS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001725255",
+    "company_id": "2592",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.199487+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AdaptHealth Corp.",
+    "ticker": "AHCO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001702318",
+    "company_id": "2667",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.203705+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Akso Health Group",
+    "ticker": "AHG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001569187",
+    "company_id": "3132",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.207109+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Armada Hoffler Properties, Inc.",
+    "ticker": "AHH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001569187",
+    "company_id": "8004",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.212522+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Armada Hoffler Properties, Inc.",
+    "ticker": "AHH-PA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001545236",
+    "company_id": "8379",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.216726+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Heritage International Inc.",
+    "ticker": "AHII",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002010959",
+    "company_id": "4217",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.221049+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMBITIONS ENTERPRISE MANAGEMENT CO. L.L.C",
+    "ticker": "AHMA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001232582",
+    "company_id": "5850",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.224317+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASHFORD HOSPITALITY TRUST INC",
+    "ticker": "AHT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001232582",
+    "company_id": "8109",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.227674+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASHFORD HOSPITALITY TRUST INC",
+    "ticker": "AHT-PD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001232582",
+    "company_id": "8112",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.232004+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASHFORD HOSPITALITY TRUST INC",
+    "ticker": "AHT-PF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001232582",
+    "company_id": "8110",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.235495+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASHFORD HOSPITALITY TRUST INC",
+    "ticker": "AHT-PG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001232582",
+    "company_id": "8111",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.239557+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASHFORD HOSPITALITY TRUST INC",
+    "ticker": "AHT-PH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001232582",
+    "company_id": "8114",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.242793+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASHFORD HOSPITALITY TRUST INC",
+    "ticker": "AHT-PI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002096362",
+    "company_id": "7213",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.247087+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIAI Holdings Corp",
+    "ticker": "AIAI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002070542",
+    "company_id": "5392",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.250306+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "BlockchAIn Digital Infrastructure, Inc.",
+    "ticker": "AIB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001139685",
+    "company_id": "7337",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.253691+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "20/20 Biolabs, Inc.",
+    "ticker": "AIDX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001711012",
+    "company_id": "6415",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.25789+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Senmiao Technology Ltd",
+    "ticker": "AIHS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002073553",
+    "company_id": "4298",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.261237+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AI Infrastructure Acquisition Corp.",
+    "ticker": "AIIA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002073553",
+    "company_id": "10036",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.265452+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AI Infrastructure Acquisition Corp.",
+    "ticker": "AIIA-RI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002073553",
+    "company_id": "10037",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.268846+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AI Infrastructure Acquisition Corp.",
+    "ticker": "AIIA-UN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001932737",
+    "company_id": "5355",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.272133+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ROBO.AI INC.",
+    "ticker": "AIIO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001932737",
+    "company_id": "9845",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.275277+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ROBO.AI INC.",
+    "ticker": "AIIOW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001713923",
+    "company_id": "5904",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.278421+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Jianpu Technology Inc.",
+    "ticker": "AIJTY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002087856",
+    "company_id": "10258",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.281767+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aica Kogyo Co Limited/ADR",
+    "ticker": "AIKCF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "2287",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.285064+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILIH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "7936",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.288244+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILIM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "7947",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.29158+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILIN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "8664",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.294655+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILIO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "8665",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.297941+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILIP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "7923",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.301241+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILLI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "7928",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.304487+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILLM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "7929",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.30779+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILLN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "7943",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.311096+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILLO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000018654",
+    "company_id": "7953",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.314127+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameren Illinois Co",
+    "ticker": "AILLP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000946644",
+    "company_id": "6586",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.317487+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIM ImmunoTech Inc.",
+    "ticker": "AIM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001903464",
+    "company_id": "9894",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.322093+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aimfinity Investment Corp. I",
+    "ticker": "AIMTF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001903464",
+    "company_id": "9892",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.326299+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aimfinity Investment Corp. I",
+    "ticker": "AIMUF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001903464",
+    "company_id": "9893",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.330505+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aimfinity Investment Corp. I",
+    "ticker": "AIMWF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001778114",
+    "company_id": "2900",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.333736+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Virtus Artificial Intelligence & Technology Opportunities Fund",
+    "ticker": "AIO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001603993",
+    "company_id": "6623",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.337109+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIOS Tech Inc.",
+    "ticker": "AIOS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001667011",
+    "company_id": "2999",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.340166+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arteris, Inc.",
+    "ticker": "AIP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001161167",
+    "company_id": "7610",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.343596+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "L AIR LIQUIDE SA /FI",
+    "ticker": "AIQUF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001859199",
+    "company_id": "5385",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.347773+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "reAlpha Tech Corp.",
+    "ticker": "AIRE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001009891",
+    "company_id": "5941",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.351007+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIR INDUSTRIES GROUP",
+    "ticker": "AIRI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001855474",
+    "company_id": "4211",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.354399+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AirJoule Technologies Corp.",
+    "ticker": "AIRJ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001855474",
+    "company_id": "9566",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.358525+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AirJoule Technologies Corp.",
+    "ticker": "AIRJW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001927958",
+    "company_id": "3828",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.365197+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIRO Group Holdings, Inc.",
+    "ticker": "AIRO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001476573",
+    "company_id": "4252",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.374062+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aurion Resources Ltd.",
+    "ticker": "AIRRF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001870940",
+    "company_id": "4735",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.382473+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Airsculpt Technologies, Inc.",
+    "ticker": "AIRS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000353184",
+    "company_id": "5164",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.390216+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIR T INC",
+    "ticker": "AIRT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000353184",
+    "company_id": "8036",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.399261+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIR T INC",
+    "ticker": "AIRTP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001842566",
+    "company_id": "4788",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.408786+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Airship AI Holdings, Inc.",
+    "ticker": "AISP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001842566",
+    "company_id": "9672",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.41678+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Airship AI Holdings, Inc.",
+    "ticker": "AISPW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001520556",
+    "company_id": "6303",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.421838+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "TRENCHANT TECHNOLOGIES CAPITAL CORP.",
+    "ticker": "AITTF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001498148",
+    "company_id": "6166",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.427281+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Artificial Intelligence Technology Solutions Inc.",
+    "ticker": "AITX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001460702",
+    "company_id": "7560",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.432512+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AIxCrypto Holdings, Inc.",
+    "ticker": "AIXC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001935172",
+    "company_id": "6634",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.436886+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Xiao-I Corp",
+    "ticker": "AIXI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000835662",
+    "company_id": "6546",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.441507+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AiXin Life International, Inc.",
+    "ticker": "AIXN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001865107",
+    "company_id": "4686",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.447162+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "A.K.A. BRANDS HOLDING CORP.",
+    "ticker": "AKA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001888014",
+    "company_id": "6739",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.45249+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AKANDA CORP.",
+    "ticker": "AKAN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001517022",
+    "company_id": "3734",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.457857+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Akebia Therapeutics, Inc.",
+    "ticker": "AKBA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002087856",
+    "company_id": "7208",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.463095+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aica Kogyo Co Limited/ADR",
+    "ticker": "AKCLY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000925261",
+    "company_id": "1530",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.468509+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANDINA BOTTLING CO INC",
+    "ticker": "AKO-A",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000925261",
+    "company_id": "7863",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.473938+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANDINA BOTTLING CO INC",
+    "ticker": "AKO-B",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002103785",
+    "company_id": "6853",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.480126+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AKOM Inc.",
+    "ticker": "AKOM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001923734",
+    "company_id": "9436",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.487484+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ark7 Properties Plus LLC",
+    "ticker": "AKPPS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002035832",
+    "company_id": "2654",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.495085+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aktis Oncology, Inc.",
+    "ticker": "AKTS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001541157",
+    "company_id": "6086",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.502818+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Akari Therapeutics Plc",
+    "ticker": "AKTX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001736297",
+    "company_id": "750",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.510331+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Astera Labs, Inc.",
+    "ticker": "ALAB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001725332",
+    "company_id": "5301",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.517679+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alarum Technologies Ltd.",
+    "ticker": "ALAR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001834868",
+    "company_id": "9557",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.525556+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alternative Ballistics Corp",
+    "ticker": "ALBC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001630212",
+    "company_id": "6732",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.53382+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Avalon GloboCare Corp.",
+    "ticker": "ALBT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001883984",
+    "company_id": "7001",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.541724+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alternus Clean Energy, Inc.",
+    "ticker": "ALCE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000003545",
+    "company_id": "3805",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.549233+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALICO, INC.",
+    "ticker": "ALCO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001901336",
+    "company_id": "5300",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.556966+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alchemy Investments Acquisition Corp 1",
+    "ticker": "ALCY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001901336",
+    "company_id": "9221",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.564539+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alchemy Investments Acquisition Corp 1",
+    "ticker": "ALCYU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001901336",
+    "company_id": "9222",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.571915+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alchemy Investments Acquisition Corp 1",
+    "ticker": "ALCYW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002067715",
+    "company_id": "7164",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.579393+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Altech Digital Co., Ltd.",
+    "ticker": "ALD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001062506",
+    "company_id": "6963",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.585914+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ATLANTICA INC",
+    "ticker": "ALDA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002031561",
+    "company_id": "3818",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.593955+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aldel Financial II Inc.",
+    "ticker": "ALDF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002031561",
+    "company_id": "9999",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.602364+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aldel Financial II Inc.",
+    "ticker": "ALDFU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002031561",
+    "company_id": "10000",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.609912+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aldel Financial II Inc.",
+    "ticker": "ALDFW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001755101",
+    "company_id": "6127",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.617559+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APPlife Digital Solutions Inc",
+    "ticker": "ALDS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001341235",
+    "company_id": "3821",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.625046+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aldeyra Therapeutics, Inc.",
+    "ticker": "ALDX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002046098",
+    "company_id": "10332",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.633011+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLEGRO.EU SA/ADR",
+    "ticker": "ALEGF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001806905",
+    "company_id": "7358",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.648244+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALE Group Holding Ltd",
+    "ticker": "ALEH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002046098",
+    "company_id": "7074",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.656852+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLEGRO.EU SA/ADR",
+    "ticker": "ALEUY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002010930",
+    "company_id": "3566",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.666178+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Centurion Acquisition Corp.",
+    "ticker": "ALF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002010930",
+    "company_id": "9839",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.672306+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Centurion Acquisition Corp.",
+    "ticker": "ALFUU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002010930",
+    "company_id": "9838",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.677843+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Centurion Acquisition Corp.",
+    "ticker": "ALFUW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000866291",
+    "company_id": "1208",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.683083+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLEGRO MICROSYSTEMS, INC.",
+    "ticker": "ALGM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001799448",
+    "company_id": "5389",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.688355+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aligos Therapeutics, Inc.",
+    "ticker": "ALGS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001362468",
+    "company_id": "2178",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.692513+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Allegiant Travel CO",
+    "ticker": "ALGT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001317685",
+    "company_id": "1512",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.696926+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alliance Laundry Holdings Inc.",
+    "ticker": "ALH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001832466",
+    "company_id": "1647",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.701023+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alignment Healthcare, Inc.",
+    "ticker": "ALHC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002026767",
+    "company_id": "4920",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.704291+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Calisa Acquisition Corp",
+    "ticker": "ALIS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002026767",
+    "company_id": "10112",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.70854+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Calisa Acquisition Corp",
+    "ticker": "ALISR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002026767",
+    "company_id": "10111",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.711826+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Calisa Acquisition Corp",
+    "ticker": "ALISU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001809104",
+    "company_id": "3463",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.715159+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alight, Inc. / Delaware",
+    "ticker": "ALIT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001520262",
+    "company_id": "1387",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.718296+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alkermes plc.",
+    "ticker": "ALKS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001529274",
+    "company_id": "2315",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.721456+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALKAMI TECHNOLOGY, INC.",
+    "ticker": "ALKT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001737287",
+    "company_id": "3288",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.725028+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Allogene Therapeutics, Inc.",
+    "ticker": "ALLO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001860657",
+    "company_id": "5955",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.729171+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Allarity Therapeutics, Inc.",
+    "ticker": "ALLR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001365767",
+    "company_id": "3377",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.732472+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Allot Ltd.",
+    "ticker": "ALLT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001670061",
+    "company_id": "1578",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.736793+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Almonty Industries Inc.",
+    "ticker": "ALM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001161611",
+    "company_id": "7769",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.740044+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALUMINUM CORP OF CHINA LTD",
+    "ticker": "ALMMF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001956237",
+    "company_id": "9964",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.743242+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Almco Plumbing Inc",
+    "ticker": "ALMP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001847367",
+    "company_id": "1729",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.746523+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALUMIS INC.",
+    "ticker": "ALMS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001828805",
+    "company_id": "3785",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.750893+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aeluma, Inc.",
+    "ticker": "ALMU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000046129",
+    "company_id": "2635",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.755237+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLIENT INC",
+    "ticker": "ALNT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083031",
+    "company_id": "7017",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.758548+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALBERT ORIGIN ACQUISITION Corp",
+    "ticker": "ALOG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002032732",
+    "company_id": "9599",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.76175+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arrived Homes 5, LLC",
+    "ticker": "ALOIS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000008146",
+    "company_id": "5060",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.766025+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AstroNova, Inc.",
+    "ticker": "ALOT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083989",
+    "company_id": "7048",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.76943+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aldabra 4 Liquidity Opportunity Vehicle, Inc.",
+    "ticker": "ALOV",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083989",
+    "company_id": "10354",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.772488+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aldabra 4 Liquidity Opportunity Vehicle, Inc.",
+    "ticker": "ALOVU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001567900",
+    "company_id": "10422",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.775692+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "REALLOYS INC.",
+    "ticker": "ALOY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000872716",
+    "company_id": "2973",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.779133+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALPINE BANKS OF COLORADO",
+    "ticker": "ALPIB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002025774",
+    "company_id": "4493",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.783406+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alps Group Inc",
+    "ticker": "ALPS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002025774",
+    "company_id": "10349",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.787679+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alps Group Inc",
+    "ticker": "ALPWF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001459200",
+    "company_id": "2033",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.792241+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alarm.com Holdings, Inc.",
+    "ticker": "ALRM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000903419",
+    "company_id": "3126",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.796467+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALERUS FINANCIAL CORP",
+    "ticker": "ALRS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001930419",
+    "company_id": "6204",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.800634+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALR Technologies SG Ltd.",
+    "ticker": "ALRTF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001865111",
+    "company_id": "3091",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.804103+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alpha Star Acquisition Corp",
+    "ticker": "ALSAF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001411207",
+    "company_id": "1014",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.808308+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Allison Transmission Holdings Inc",
+    "ticker": "ALSN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001865111",
+    "company_id": "9651",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.81246+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alpha Star Acquisition Corp",
+    "ticker": "ALSTF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001865111",
+    "company_id": "9650",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.815954+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alpha Star Acquisition Corp",
+    "ticker": "ALSUF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001865111",
+    "company_id": "9652",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.820269+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alpha Star Acquisition Corp",
+    "ticker": "ALSWF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001326190",
+    "company_id": "3180",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.824608+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Altimmune, Inc.",
+    "ticker": "ALT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001642365",
+    "company_id": "7848",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.828973+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alpine Auto Brokers Inc.",
+    "ticker": "ALTB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001759824",
+    "company_id": "4183",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.833116+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALTA EQUIPMENT GROUP INC.",
+    "ticker": "ALTG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001759824",
+    "company_id": "9263",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.837637+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALTA EQUIPMENT GROUP INC.",
+    "ticker": "ALTG-PA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001838615",
+    "company_id": "3036",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.841894+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AlTi Global, Inc.",
+    "ticker": "ALTI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000778164",
+    "company_id": "4332",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.846213+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alto Ingredients, Inc.",
+    "ticker": "ALTO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000862861",
+    "company_id": "4477",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.850577+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALT5 Sigma Corp",
+    "ticker": "ALTS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000775057",
+    "company_id": "6653",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.857251+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALTEX INDUSTRIES INC",
+    "ticker": "ALTX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002041493",
+    "company_id": "3648",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.86396+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alussa Energy Acquisition Corp. II",
+    "ticker": "ALUB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002041493",
+    "company_id": "10163",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.86798+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alussa Energy Acquisition Corp. II",
+    "ticker": "ALUB-UN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002041493",
+    "company_id": "10164",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.873276+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alussa Energy Acquisition Corp. II",
+    "ticker": "ALUB-WT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001964979",
+    "company_id": "5914",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.877684+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLURION TECHNOLOGIES, INC.",
+    "ticker": "ALUR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001964979",
+    "company_id": "9960",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.88198+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLURION TECHNOLOGIES, INC.",
+    "ticker": "ALUR-WT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001898416",
+    "company_id": "2543",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.885353+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alvotech",
+    "ticker": "ALVO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001898416",
+    "company_id": "9890",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.889522+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alvotech",
+    "ticker": "ALVOW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001810182",
+    "company_id": "3782",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.892807+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALX ONCOLOGY HOLDINGS INC",
+    "ticker": "ALXO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001734520",
+    "company_id": "4812",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.896201+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alithya Group inc",
+    "ticker": "ALYAF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001677077",
+    "company_id": "6270",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.900338+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alzamend Neuro, Inc.",
+    "ticker": "ALZN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001623925",
+    "company_id": "1006",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.905369+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Antero Midstream Corp",
+    "ticker": "AM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001823608",
+    "company_id": "2611",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.911741+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amalgamated Financial Corp.",
+    "ticker": "AMAL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001280263",
+    "company_id": "1814",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.921449+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMBARELLA INC",
+    "ticker": "AMBA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001937441",
+    "company_id": "5617",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.926603+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ambipar Emergency Response",
+    "ticker": "AMBI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001937441",
+    "company_id": "9900",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.930813+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ambipar Emergency Response",
+    "ticker": "AMBIQ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001494558",
+    "company_id": "6419",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.936315+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ambow Education Holding Ltd.",
+    "ticker": "AMBO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001845097",
+    "company_id": "1901",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.940542+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ardagh Metal Packaging S.A.",
+    "ticker": "AMBP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001500412",
+    "company_id": "3068",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.944812+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ambiq Micro, Inc.",
+    "ticker": "AMBQ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001697818",
+    "company_id": "4115",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.948024+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amber International Holding Ltd",
+    "ticker": "AMBR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001937441",
+    "company_id": "9901",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.952382+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ambipar Emergency Response",
+    "ticker": "AMBWQ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001411579",
+    "company_id": "3138",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.956841+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMC ENTERTAINMENT HOLDINGS, INC.",
+    "ticker": "AMC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001937891",
+    "company_id": "4494",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.96107+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMC Robotics Corp",
+    "ticker": "AMCI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001514991",
+    "company_id": "3803",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.964264+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMC Networks Inc.",
+    "ticker": "AMCX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001617867",
+    "company_id": "6555",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.967591+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Autonomix Medical, Inc.",
+    "ticker": "AMIX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001699880",
+    "company_id": "9299",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.971808+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Lithium Corp.",
+    "ticker": "AMLIF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001356371",
+    "company_id": "6212",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.975064+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICAN LITHIUM MINERALS, INC.",
+    "ticker": "AMLM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001658551",
+    "company_id": "2329",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.978463+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amylyx Pharmaceuticals, Inc.",
+    "ticker": "AMLX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001142750",
+    "company_id": "2910",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.981624+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMN HEALTHCARE SERVICES INC",
+    "ticker": "AMN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001862463",
+    "company_id": "5762",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.984755+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALPHA MODUS HOLDINGS, INC.",
+    "ticker": "AMOD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001862463",
+    "company_id": "9740",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.989292+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALPHA MODUS HOLDINGS, INC.",
+    "ticker": "AMODW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001518461",
+    "company_id": "5096",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.992542+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AmpliTech Group, Inc.",
+    "ticker": "AMPG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001518461",
+    "company_id": "9228",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:39.995686+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AmpliTech Group, Inc.",
+    "ticker": "AMPGR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001518461",
+    "company_id": "9226",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.000215+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AmpliTech Group, Inc.",
+    "ticker": "AMPGW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001518461",
+    "company_id": "9227",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.004397+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AmpliTech Group, Inc.",
+    "ticker": "AMPGZ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001297184",
+    "company_id": "2538",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.008625+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amphastar Pharmaceuticals, Inc.",
+    "ticker": "AMPH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001866692",
+    "company_id": "2798",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.011945+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amplitude, Inc.",
+    "ticker": "AMPL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002049323",
+    "company_id": "7072",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.016187+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AM PM Group Ltd",
+    "ticker": "AMPM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001845097",
+    "company_id": "9482",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.019449+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ardagh Metal Packaging S.A.",
+    "ticker": "AMPWF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001899287",
+    "company_id": "2455",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.022825+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amprius Technologies, Inc.",
+    "ticker": "AMPX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001899287",
+    "company_id": "9811",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.026003+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amprius Technologies, Inc.",
+    "ticker": "AMPX-WT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001533924",
+    "company_id": "4187",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.029329+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amplify Energy Corp.",
+    "ticker": "AMPY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001488139",
+    "company_id": "2254",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.033649+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ameresco, Inc.",
+    "ticker": "AMRC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002076631",
+    "company_id": "3016",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.037939+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMAROQ LTD.",
+    "ticker": "AMRQF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002035989",
+    "company_id": "672",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.04244+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amrize Ltd",
+    "ticker": "AMRZ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000744825",
+    "company_id": "5988",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.046711+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICAN SHARED HOSPITAL SERVICES",
+    "ticker": "AMS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000880807",
+    "company_id": "2333",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.050977+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICAN SUPERCONDUCTOR CORP /DE/",
+    "ticker": "AMSC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001018979",
+    "company_id": "2996",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.055286+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERISAFE INC",
+    "ticker": "AMSF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001807166",
+    "company_id": "6248",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.059745+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amesite Inc.",
+    "ticker": "AMST",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001734342",
+    "company_id": "2792",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.064003+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amerant Bancorp Inc.",
+    "ticker": "AMTB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001769731",
+    "company_id": "4946",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.067358+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMTD IDEA GROUP",
+    "ticker": "AMTD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002011286",
+    "company_id": "1194",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.072679+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amentum Holdings, Inc.",
+    "ticker": "AMTM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002078570",
+    "company_id": "7008",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.077184+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMATUHI HOLDINGS, INC.",
+    "ticker": "AMTU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000738214",
+    "company_id": "4834",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.081338+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AEMETIS, INC",
+    "ticker": "AMTX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001114446",
+    "company_id": "8477",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.085712+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "UBS AG",
+    "ticker": "AMUB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002085236",
+    "company_id": "10402",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.089964+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AUMOVIO SE",
+    "ticker": "AMVIF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002085236",
+    "company_id": "7022",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.094468+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AUMOVIO SE",
+    "ticker": "AMVOY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001393584",
+    "company_id": "4866",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.098655+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Well Corp",
+    "ticker": "AMWL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001129137",
+    "company_id": "588",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.102006+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICA MOVIL SAB DE CV/",
+    "ticker": "AMX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001129137",
+    "company_id": "7622",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.106247+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICA MOVIL SAB DE CV/",
+    "ticker": "AMXOF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001880343",
+    "company_id": "6016",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.109593+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMAZE HOLDINGS, INC.",
+    "ticker": "AMZE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001370053",
+    "company_id": "2366",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.113889+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANAPTYSBIO, INC",
+    "ticker": "ANAB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000821026",
+    "company_id": "2057",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.118272+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Andersons, Inc.",
+    "ticker": "ANDE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002065708",
+    "company_id": "2022",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.122597+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Andersen Group Inc.",
+    "ticker": "ANDG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001815974",
+    "company_id": "5883",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.126804+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Anebulo Pharmaceuticals, Inc.",
+    "ticker": "ANEB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001871983",
+    "company_id": "5752",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.130152+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Anghami Inc",
+    "ticker": "ANGH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001871983",
+    "company_id": "9237",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.134524+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Anghami Inc",
+    "ticker": "ANGHW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001275187",
+    "company_id": "3379",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.138639+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANGIODYNAMICS INC",
+    "ticker": "ANGO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001039828",
+    "company_id": "8978",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.141974+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American National Group Inc.",
+    "ticker": "ANG-PD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001865200",
+    "company_id": "3229",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.145259+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Angel Studios, Inc.",
+    "ticker": "ANGX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000898437",
+    "company_id": "4460",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.148522+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Anika Therapeutics, Inc.",
+    "ticker": "ANIK",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001023024",
+    "company_id": "2269",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.151784+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANI PHARMACEUTICALS INC",
+    "ticker": "ANIP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000715446",
+    "company_id": "4790",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.154945+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Anixa Biosciences Inc",
+    "ticker": "ANIX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002098397",
+    "company_id": "7158",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.158261+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Anjoy Foods Group Co., Ltd./ADR",
+    "ticker": "ANJFY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001781629",
+    "company_id": "9321",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.161415+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ankam, Inc.",
+    "ticker": "ANKM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001944552",
+    "company_id": "3605",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.164848+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Adlai Nortye Ltd.",
+    "ticker": "ANL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001845123",
+    "company_id": "4737",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.169046+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AleAnna, Inc.",
+    "ticker": "ANNA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001845123",
+    "company_id": "9673",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.172336+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AleAnna, Inc.",
+    "ticker": "ANNAW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001700171",
+    "company_id": "7696",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.175586+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aena S.A./ADR",
+    "ticker": "ANNSF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001528115",
+    "company_id": "2950",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.179999+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Annexon, Inc.",
+    "ticker": "ANNX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002031688",
+    "company_id": "4438",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.184418+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Rich Sparkle Holdings Ltd",
+    "ticker": "ANPA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001620678",
+    "company_id": "8191",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.188469+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANGLE plc",
+    "ticker": "ANPCF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001999480",
+    "company_id": "3156",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.191772+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alto Neuroscience, Inc.",
+    "ticker": "ANRO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001854149",
+    "company_id": "3389",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.195155+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Agriculture & Natural Solutions Acquisition Corp",
+    "ticker": "ANSC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001854149",
+    "company_id": "9404",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.198077+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Agriculture & Natural Solutions Acquisition Corp",
+    "ticker": "ANSCU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001854149",
+    "company_id": "9405",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.201466+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Agriculture & Natural Solutions Acquisition Corp",
+    "ticker": "ANSCW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002044255",
+    "company_id": "4245",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.204807+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Antalpha Platform Holding Co",
+    "ticker": "ANTA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001880438",
+    "company_id": "5647",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.208085+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AN2 Therapeutics, Inc.",
+    "ticker": "ANTX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001570132",
+    "company_id": "3903",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.211361+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ANVI GLOBAL HOLDINGS, INC.",
+    "ticker": "ANVI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001477845",
+    "company_id": "5043",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.215542+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Annovis Bio, Inc.",
+    "ticker": "ANVS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001591956",
+    "company_id": "6525",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.220104+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Sphere 3D Corp.",
+    "ticker": "ANY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002042320",
+    "company_id": "8117",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.227746+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Alpha One Inc.",
+    "ticker": "AOAO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001379400",
+    "company_id": "2639",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.236567+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "abrdn Total Dynamic Dividend Fund",
+    "ticker": "AOD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002048803",
+    "company_id": "7285",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.245081+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AOJE INC.",
+    "ticker": "AOJE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001766478",
+    "company_id": "9370",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.253577+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Angel Oak Mortgage REIT, Inc.",
+    "ticker": "AOMD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001766478",
+    "company_id": "9371",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.261274+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Angel Oak Mortgage REIT, Inc.",
+    "ticker": "AOMN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001766478",
+    "company_id": "4238",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.270046+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Angel Oak Mortgage REIT, Inc.",
+    "ticker": "AOMR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001387467",
+    "company_id": "3073",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.277086+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALPHA & OMEGA SEMICONDUCTOR Ltd",
+    "ticker": "AOSL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001808997",
+    "company_id": "4702",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.283197+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Outdoor Brands, Inc.",
+    "ticker": "AOUT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000352991",
+    "company_id": "6932",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.288475+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ADVANCED OXYGEN TECHNOLOGIES INC",
+    "ticker": "AOXY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000006176",
+    "company_id": "4326",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.292868+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMPCO PITTSBURGH CORP",
+    "ticker": "AP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001419336",
+    "company_id": "5582",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.298581+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Appia Rare Earths & Uranium Corp.",
+    "ticker": "APAAF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002043630",
+    "company_id": "4950",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.302547+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "StoneBridge Acquisition II Corp",
+    "ticker": "APAC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002043630",
+    "company_id": "10129",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.306655+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "StoneBridge Acquisition II Corp",
+    "ticker": "APACR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002043630",
+    "company_id": "10128",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.311112+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "StoneBridge Acquisition II Corp",
+    "ticker": "APACU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001956439",
+    "company_id": "2451",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.315459+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AParadise Acquisition Corp.",
+    "ticker": "APAD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001956439",
+    "company_id": "9750",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.319639+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AParadise Acquisition Corp.",
+    "ticker": "APADR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001956439",
+    "company_id": "9751",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.324028+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AParadise Acquisition Corp.",
+    "ticker": "APADU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001517302",
+    "company_id": "1885",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.327142+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Artisan Partners Asset Management Inc.",
+    "ticker": "APAM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002080921",
+    "company_id": "2375",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.330428+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARKO Petroleum Corp.",
+    "ticker": "APC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001070050",
+    "company_id": "6093",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.333671+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AppTech Payments Corp.",
+    "ticker": "APCX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001070050",
+    "company_id": "8550",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.336989+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AppTech Payments Corp.",
+    "ticker": "APCXW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002069858",
+    "company_id": "7246",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.341403+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APEX Global Solutions Ltd",
+    "ticker": "APEX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001796209",
+    "company_id": "781",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.345722+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APi Group Corp",
+    "ticker": "APG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001974640",
+    "company_id": "1482",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.350066+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apogee Therapeutics, Inc.",
+    "ticker": "APGE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001811931",
+    "company_id": "4297",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.353273+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apollo Silver Corp",
+    "ticker": "APGOF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001490054",
+    "company_id": "8241",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.35765+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "VERDE BIO HOLDINGS, INC.",
+    "ticker": "APHD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001771995",
+    "company_id": "6118",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.361913+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Picture House Corp",
+    "ticker": "APHP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001144879",
+    "company_id": "1097",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.365188+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Applied Digital Corp.",
+    "ticker": "APLD",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001418121",
+    "company_id": "1871",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.368337+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apple Hospitality REIT, Inc.",
+    "ticker": "APLE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001944885",
+    "company_id": "5360",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.371688+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apollomics Inc.",
+    "ticker": "APLM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001944885",
+    "company_id": "8071",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.376087+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apollomics Inc.",
+    "ticker": "APLMW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001492422",
+    "company_id": "1896",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.380276+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apellis Pharmaceuticals, Inc.",
+    "ticker": "APLS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001734005",
+    "company_id": "6373",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.384626+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aptorum Group Ltd",
+    "ticker": "APM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001628935",
+    "company_id": "6216",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.388967+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "MORIEN RESOURCES CORP.",
+    "ticker": "APMCF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002085795",
+    "company_id": "4181",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.393309+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APEIRON ACQUISITION VEHICLE I",
+    "ticker": "APN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000006845",
+    "company_id": "2837",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.397535+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APOGEE ENTERPRISES, INC.",
+    "ticker": "APOG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001781983",
+    "company_id": "6436",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.40091+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aprea Therapeutics, Inc.",
+    "ticker": "APRE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001553264",
+    "company_id": "8344",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.40517+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AQUA POWER SYSTEMS INC.",
+    "ticker": "APSI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000884269",
+    "company_id": "5271",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.408408+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALPHA PRO TECH LTD",
+    "ticker": "APT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000882361",
+    "company_id": "6558",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.411677+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aptose Biosciences Inc.",
+    "ticker": "APTOF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002093524",
+    "company_id": "7055",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.414911+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aperture AC",
+    "ticker": "APUR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001894525",
+    "company_id": "5916",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.418299+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apimeds Pharmaceuticals US, Inc.",
+    "ticker": "APUS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001671584",
+    "company_id": "6130",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.422498+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aptevo Therapeutics Inc.",
+    "ticker": "APVO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001026980",
+    "company_id": "5521",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.425813+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASIA PACIFIC WIRE & CABLE CORP LTD",
+    "ticker": "APWC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002093856",
+    "company_id": "7056",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.429095+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APEX CRITICAL METALS CORP.",
+    "ticker": "APXC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002093856",
+    "company_id": "10376",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.432171+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APEX CRITICAL METALS CORP.",
+    "ticker": "APXCF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002079253",
+    "company_id": "3401",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.435495+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apex Treasury Corp",
+    "ticker": "APXT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002079253",
+    "company_id": "10309",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.438715+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apex Treasury Corp",
+    "ticker": "APXTU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002079253",
+    "company_id": "10310",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.442096+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apex Treasury Corp",
+    "ticker": "APXTW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001568969",
+    "company_id": "6106",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.445369+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "APPYEA, INC",
+    "ticker": "APYP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000719135",
+    "company_id": "4521",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.448385+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apyx Medical Corp",
+    "ticker": "APYX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001603978",
+    "company_id": "6604",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.451695+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AQUABOUNTY TECHNOLOGIES INC",
+    "ticker": "AQB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001621832",
+    "company_id": "5967",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.455056+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aqua Metals, Inc.",
+    "ticker": "AQMS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001174169",
+    "company_id": "1434",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.458308+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALGONQUIN POWER & UTILITIES CORP.",
+    "ticker": "AQN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001174169",
+    "company_id": "8498",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.461543+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALGONQUIN POWER & UTILITIES CORP.",
+    "ticker": "AQNB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001398733",
+    "company_id": "3317",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.464698+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aquestive Therapeutics, Inc.",
+    "ticker": "AQST",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001861063",
+    "company_id": "5806",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.467973+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aquaron Acquisition Corp.",
+    "ticker": "AQUC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001861063",
+    "company_id": "9659",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.471253+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aquaron Acquisition Corp.",
+    "ticker": "AQUNR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001861063",
+    "company_id": "9660",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.474525+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aquaron Acquisition Corp.",
+    "ticker": "AQUNU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001818274",
+    "company_id": "5431",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.477718+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arrive AI Inc.",
+    "ticker": "ARAI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001138723",
+    "company_id": "5065",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.482481+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ACCURAY INC",
+    "ticker": "ARAY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001930179",
+    "company_id": "6236",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.486422+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARB IOT Group Ltd",
+    "ticker": "ARBB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001861841",
+    "company_id": "4643",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.489688+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arbe Robotics Ltd.",
+    "ticker": "ARBE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001861841",
+    "company_id": "9496",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.492956+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arbe Robotics Ltd.",
+    "ticker": "ARBEW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001841675",
+    "company_id": "6826",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.496192+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Argo Blockchain Plc",
+    "ticker": "ARBK",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000894405",
+    "company_id": "2038",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.49937+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARCBEST CORP /DE/",
+    "ticker": "ARCB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001287750",
+    "company_id": "886",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.502733+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARES CAPITAL CORP",
+    "ticker": "ARCC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083910",
+    "company_id": "6321",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.506944+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Archimedes Tech SPAC Partners III Co.",
+    "ticker": "ARCI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002083910",
+    "company_id": "10206",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.511375+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Archimedes Tech SPAC Partners III Co.",
+    "ticker": "ARCIU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001508478",
+    "company_id": "2216",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.514625+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arcos Dorados Holdings Inc.",
+    "ticker": "ARCO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001768224",
+    "company_id": "4121",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.517797+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arcturus Therapeutics Holdings Inc.",
+    "ticker": "ARCT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001515324",
+    "company_id": "3856",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.520993+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ares Dynamic Credit Allocation Fund, Inc.",
+    "ticker": "ARDC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001756655",
+    "company_id": "2481",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.524311+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ardent Health, Inc.",
+    "ticker": "ARDT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001648087",
+    "company_id": "6767",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.527606+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICAN REBEL HOLDINGS INC",
+    "ticker": "AREB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001648087",
+    "company_id": "9152",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.530854+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICAN REBEL HOLDINGS INC",
+    "ticker": "AREBW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001590715",
+    "company_id": "3753",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.534094+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "American Resources Corp",
+    "ticker": "AREC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000894871",
+    "company_id": "4504",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.537356+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arena Group Holdings, Inc.",
+    "ticker": "AREN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001176948",
+    "company_id": "8982",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.541686+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ares Management Corp",
+    "ticker": "ARES-PB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001697862",
+    "company_id": "624",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.545076+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARGENX SE",
+    "ticker": "ARGX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001875444",
+    "company_id": "2590",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.550312+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arhaus, Inc.",
+    "ticker": "ARHS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001467760",
+    "company_id": "2416",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.553593+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Apollo Commercial Real Estate Finance, Inc.",
+    "ticker": "ARI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001964504",
+    "company_id": "1557",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.556174+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aris Mining Corp",
+    "ticker": "ARIS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001869699",
+    "company_id": "7383",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.560141+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ark 21Shares Bitcoin ETF",
+    "ticker": "ARKB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001823794",
+    "company_id": "3044",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.563475+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARKO Corp.",
+    "ticker": "ARKO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000779544",
+    "company_id": "5723",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.567695+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARK RESTAURANTS CORP",
+    "ticker": "ARKR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001102238",
+    "company_id": "3970",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.571041+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AMERICAN REALTY INVESTORS INC",
+    "ticker": "ARL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001086600",
+    "company_id": "1748",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.575288+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALLIANCE RESOURCE PARTNERS LP",
+    "ticker": "ARLP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001973239",
+    "company_id": "550",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.578453+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARM HOLDINGS PLC /UK",
+    "ticker": "ARM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001964504",
+    "company_id": "7882",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.581804+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aris Mining Corp",
+    "ticker": "ARMN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000921114",
+    "company_id": "3482",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.585017+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Armata Pharmaceuticals, Inc.",
+    "ticker": "ARMP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001719117",
+    "company_id": "856",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.588315+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASR Nederland N.V./ADR",
+    "ticker": "ARNNY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001389050",
+    "company_id": "1335",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.59153+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Archrock, Inc.",
+    "ticker": "AROC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001515156",
+    "company_id": "4522",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.595972+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arq, Inc.",
+    "ticker": "ARQ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001859690",
+    "company_id": "4039",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.599055+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arqit Quantum Inc.",
+    "ticker": "ARQQ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001859690",
+    "company_id": "9230",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.602271+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arqit Quantum Inc.",
+    "ticker": "ARQQW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001787306",
+    "company_id": "1763",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.605618+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Arcutis Biotherapeutics, Inc.",
+    "ticker": "ARQT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001428205",
+    "company_id": "2117",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.608914+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Armour Residential REIT, Inc.",
+    "ticker": "ARR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001855743",
+    "company_id": "8155",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.612167+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARRAS MINERALS CORP.",
+    "ticker": "ARRKF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001428205",
+    "company_id": "8766",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.615213+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Armour Residential REIT, Inc.",
+    "ticker": "ARR-PC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001530425",
+    "company_id": "6855",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.61856+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Artisan Consumer Goods, Inc.",
+    "ticker": "ARRT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001820721",
+    "company_id": "2319",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.621841+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Array Technologies, Inc.",
+    "ticker": "ARRY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001804792",
+    "company_id": "4842",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.625166+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARES STRATEGIC MINING INC.",
+    "ticker": "ARSMF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002044984",
+    "company_id": "7310",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.628422+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ariston Holding N.V./ADR",
+    "ticker": "ARSTY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002086545",
+    "company_id": "7206",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.631802+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Art Technology Acquisition Corp.",
+    "ticker": "ARTC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002086545",
+    "company_id": "10259",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.634778+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Art Technology Acquisition Corp.",
+    "ticker": "ARTCU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001621221",
+    "company_id": "6626",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.638204+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARTELO BIOSCIENCES, INC.",
+    "ticker": "ARTL",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000863110",
+    "company_id": "3687",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.641432+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARTESIAN RESOURCES CORP",
+    "ticker": "ARTNA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000863110",
+    "company_id": "8052",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.644631+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARTESIAN RESOURCES CORP",
+    "ticker": "ARTNB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001817241",
+    "company_id": "4645",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.64803+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Artiva Biotherapeutics, Inc.",
+    "ticker": "ARTV",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000007623",
+    "company_id": "6061",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.652283+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARTS WAY MANUFACTURING CO INC",
+    "ticker": "ARTW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001997350",
+    "company_id": "2087",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.65648+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Accelerant Holdings",
+    "ticker": "ARX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001423210",
+    "company_id": "7959",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.659863+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ARYZTA AG (fka IAWS GROUP PLC)",
+    "ticker": "ARZTF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001988894",
+    "company_id": "758",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.663208+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Amer Sports, Inc.",
+    "ticker": "AS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001230869",
+    "company_id": "2429",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.66737+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASA Gold & Precious Metals Ltd",
+    "ticker": "ASA",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001834048",
+    "company_id": "9476",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.671738+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Sendas Distributor S.A.",
+    "ticker": "ASAIY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001477720",
+    "company_id": "2304",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.676238+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Asana, Inc.",
+    "ticker": "ASAN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002055337",
+    "company_id": "7290",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.680434+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Asahi Group Holdings, Ltd./ADR",
+    "ticker": "ASBHY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001847345",
+    "company_id": "6377",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.684725+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aspire Biopharma Holdings, Inc.",
+    "ticker": "ASBP",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001847345",
+    "company_id": "9642",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.688024+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Aspire Biopharma Holdings, Inc.",
+    "ticker": "ASBPW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002055337",
+    "company_id": "10083",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.691272+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Asahi Group Holdings, Ltd./ADR",
+    "ticker": "ASBRF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001577437",
+    "company_id": "3117",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.694493+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ardmore Shipping Corp",
+    "ticker": "ASC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001876716",
+    "company_id": "8156",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.697837+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPAC II Acquisition Corp.",
+    "ticker": "ASCBF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001716885",
+    "company_id": "9296",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.701011+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Angel Oak Strategic Credit Fund",
+    "ticker": "ASCIX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001876716",
+    "company_id": "9573",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.704224+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPAC II Acquisition Corp.",
+    "ticker": "ASCRF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001876716",
+    "company_id": "9574",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.707477+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPAC II Acquisition Corp.",
+    "ticker": "ASCWF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001828748",
+    "company_id": "5295",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.710809+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASIAFIN HOLDINGS CORP.",
+    "ticker": "ASFH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001651992",
+    "company_id": "6772",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.714044+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Appsoft Technologies, Inc.",
+    "ticker": "ASFT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000786035",
+    "company_id": "3799",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.71714+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "LIBERTY ALL STAR GROWTH FUND INC.",
+    "ticker": "ASG",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001793855",
+    "company_id": "2925",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.72168+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "abrdn Global Infrastructure Income Fund",
+    "ticker": "ASGI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000890564",
+    "company_id": "2243",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.725961+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASGN Inc",
+    "ticker": "ASGN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001518258",
+    "company_id": "698",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.730206+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ashtead Group plc/ADR",
+    "ticker": "ASHGY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001518258",
+    "company_id": "7700",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.73347+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ashtead Group plc/ADR",
+    "ticker": "ASHTF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002040491",
+    "company_id": "2669",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.737838+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ategrity Specialty Insurance Co Holdings",
+    "ticker": "ASIC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001464865",
+    "company_id": "8347",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.742226+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Accredited Solutions, Inc.",
+    "ticker": "ASII",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001673985",
+    "company_id": "3347",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.745559+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AdvanSix Inc.",
+    "ticker": "ASIX",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0002078895",
+    "company_id": "7109",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.749695+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Asker Healthcare Group AB/ADR",
+    "ticker": "ASKRY",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001754170",
+    "company_id": "3646",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.753059+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AerSale Corp",
+    "ticker": "ASLE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000316888",
+    "company_id": "2460",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.756321+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "AVINO SILVER & GOLD MINES LTD",
+    "ticker": "ASM",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001426800",
+    "company_id": "3392",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.759359+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASSEMBLY BIOSCIENCES, INC.",
+    "ticker": "ASMB",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001141284",
+    "company_id": "6769",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.762725+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ACTELIS NETWORKS INC",
+    "ticker": "ASNS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001817358",
+    "company_id": "1611",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.765975+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Academy Sports & Outdoors, Inc.",
+    "ticker": "ASO",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001890361",
+    "company_id": "5649",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.769316+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPAC III Acquisition Corp.",
+    "ticker": "ASPC",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001890361",
+    "company_id": "9815",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.772594+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPAC III Acquisition Corp.",
+    "ticker": "ASPCR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001890361",
+    "company_id": "9814",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.776901+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPAC III Acquisition Corp.",
+    "ticker": "ASPCU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001921865",
+    "company_id": "3048",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.780102+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASP Isotopes Inc.",
+    "ticker": "ASPI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001145986",
+    "company_id": "3887",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.783446+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPEN AEROGELS INC",
+    "ticker": "ASPN",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001462418",
+    "company_id": "4972",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.786551+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALTISOURCE PORTFOLIO SOLUTIONS S.A.",
+    "ticker": "ASPS",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001462418",
+    "company_id": "8688",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.789886+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALTISOURCE PORTFOLIO SOLUTIONS S.A.",
+    "ticker": "ASPSW",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001462418",
+    "company_id": "8687",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.794094+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ALTISOURCE PORTFOLIO SOLUTIONS S.A.",
+    "ticker": "ASPSZ",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001487198",
+    "company_id": "8266",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.797351+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASPEN GROUP, INC.",
+    "ticker": "ASPU",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001123452",
+    "company_id": "989",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.800669+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "SOUTHEAST AIRPORT GROUP",
+    "ticker": "ASR",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001231339",
+    "company_id": "6778",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.803955+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Astra Energy, Inc.",
+    "ticker": "ASRE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001123452",
+    "company_id": "7788",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.808297+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "SOUTHEAST AIRPORT GROUP",
+    "ticker": "ASRMF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001719117",
+    "company_id": "9307",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.812495+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASR Nederland N.V./ADR",
+    "ticker": "ASRRF",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001808665",
+    "company_id": "4989",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.815828+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Assertio Holdings, Inc.",
+    "ticker": "ASRT",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001920406",
+    "company_id": "3408",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.82009+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Strive, Inc.",
+    "ticker": "ASST",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0000792987",
+    "company_id": "2498",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.824599+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "ASTEC INDUSTRIES INC",
+    "ticker": "ASTE",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001083446",
+    "company_id": "2751",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.8288+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Astrana Health, Inc.",
+    "ticker": "ASTH",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001350102",
+    "company_id": "5328",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.832169+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Ascent Solar Technologies, Inc.",
+    "ticker": "ASTI",
+    "wikipedia_title": ""
+  },
+  {
+    "cik": "0001860805",
+    "company_id": "3340",
+    "domain_resolution_attempted_at": "2026-03-02 20:05:40.836447+00",
+    "domain_resolution_method": "CIK",
+    "domain_resolution_status": "WDQS_ERROR",
+    "name": "Algoma Steel Group Inc.",
+    "ticker": "ASTL",
+    "wikipedia_title": ""
+  }
+]

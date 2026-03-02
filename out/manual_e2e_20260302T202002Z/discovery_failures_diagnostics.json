@@ -1,0 +1,173 @@
+{
+  "countsByReason": {
+    "discovery_blocked_by_robots": 207,
+    "discovery_fetch_failed": 50,
+    "discovery_host_cooldown": 14,
+    "discovery_homepage_blocked_by_robots": 7,
+    "discovery_sitemap_blocked_by_robots": 2,
+    "discovery_no_match": 1,
+    "discovery_time_budget_exceeded": 1
+  },
+  "recentFailures": [
+    {
+      "ticker": "AAUC",
+      "companyName": "Allied Gold Corp",
+      "candidateUrl": "https://boards.greenhouse.io/alliedgold",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:29:09.663460Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAUAF",
+      "companyName": "ALMADEN MINERALS LTD",
+      "candidateUrl": "https://boards.greenhouse.io/almadenminerals",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:28:50.426433Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAT",
+      "companyName": "American Assets Trust, Inc.",
+      "candidateUrl": "https://boards.greenhouse.io/americanassetstrust",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:28:30.740873Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AARD",
+      "companyName": "Aardvark Therapeutics, Inc.",
+      "candidateUrl": "https://boards.greenhouse.io/aardvarktherapeutics",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:28:07.912003Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAPI",
+      "companyName": "Apple iSports Group, Inc.",
+      "candidateUrl": "https://appleisports.com/sitemap.xml",
+      "detail": "blocked_by_robots",
+      "observedAt": "2026-03-02T20:27:33.006565Z",
+      "reasonCode": "discovery_sitemap_blocked_by_robots"
+    },
+    {
+      "ticker": "AAP",
+      "companyName": "ADVANCE AUTO PARTS INC",
+      "candidateUrl": "https://shop.advanceautoparts.com/sitemap.xml",
+      "detail": "blocked_by_robots",
+      "observedAt": "2026-03-02T20:26:17.834757Z",
+      "reasonCode": "discovery_sitemap_blocked_by_robots"
+    },
+    {
+      "ticker": "AAOI",
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "candidateUrl": "https://boards.greenhouse.io/ao-inc",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:25:05.749184Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAMTF",
+      "companyName": "Armada Mercantile Ltd",
+      "candidateUrl": "https://boards.greenhouse.io/armadamercantile",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:24:44.652010Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAMI",
+      "companyName": "Acadian Asset Management Inc.",
+      "candidateUrl": "https://boards.greenhouse.io/acadian-asset-management-inc",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:24:06.992812Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAME",
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "candidateUrl": "https://boards.greenhouse.io/atlantic-american",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:23:53.857603Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAUC",
+      "companyName": "Allied Gold Corp",
+      "candidateUrl": "https://boards.greenhouse.io/alliedgold",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:23:36.930138Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAUAF",
+      "companyName": "ALMADEN MINERALS LTD",
+      "candidateUrl": "https://boards.greenhouse.io/almadenminerals",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:23:22.653415Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAT",
+      "companyName": "American Assets Trust, Inc.",
+      "candidateUrl": "https://boards.greenhouse.io/americanassetstrust",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:23:01.559885Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AARD",
+      "companyName": "Aardvark Therapeutics, Inc.",
+      "candidateUrl": "https://boards.greenhouse.io/aardvarktherapeutics",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:22:38.741790Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAPI",
+      "companyName": "Apple iSports Group, Inc.",
+      "candidateUrl": "https://boards.greenhouse.io/appleisports",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:22:18.723647Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAP",
+      "companyName": "ADVANCE AUTO PARTS INC",
+      "candidateUrl": "https://boards.greenhouse.io/shop",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:22:07.099550Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAOI",
+      "companyName": "APPLIED OPTOELECTRONICS, INC.",
+      "candidateUrl": "https://boards.greenhouse.io/ao-inc",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:21:24.180217Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAMTF",
+      "companyName": "Armada Mercantile Ltd",
+      "candidateUrl": "https://boards.greenhouse.io/armadamercantile",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:21:11.932911Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAMI",
+      "companyName": "Acadian Asset Management Inc.",
+      "candidateUrl": "https://boards.greenhouse.io/acadian-asset-management-inc",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:20:51.974759Z",
+      "reasonCode": "discovery_fetch_failed"
+    },
+    {
+      "ticker": "AAME",
+      "companyName": "ATLANTIC AMERICAN CORP",
+      "candidateUrl": "https://boards.greenhouse.io/atlantic-american",
+      "detail": "http_404",
+      "observedAt": "2026-03-02T20:20:41.002639Z",
+      "reasonCode": "discovery_fetch_failed"
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "attempted_count_assumed": 500,
+  "cohort_size": 500,
+  "latency_distribution": {
+    "approx_avg_ms_per_attempt": 0.08,
+    "available": false,
+    "reason": "Per-company domain resolution latency is not persisted; reporting step-level timing and aggregate resolver metrics instead.",
+    "step_duration_ms": 38
+  },
+  "resolution_rate_in_cohort": 0.0,
+  "resolved_by_method_in_cohort": {},
+  "resolved_count_in_cohort_after_run": 0,
+  "sample_resolved": [],
+  "sample_unresolved": [
+    {
+      "company_id": 550,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.578453+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ARM"
+    },
+    {
+      "company_id": 558,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.077112+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AEM"
+    },
+    {
+      "company_id": 588,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.102006+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AMX"
+    },
+    {
+      "company_id": 621,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.052187+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AED"
+    },
+    {
+      "company_id": 624,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.545076+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ARGX"
+    },
+    {
+      "company_id": 672,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.04244+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AMRZ"
+    },
+    {
+      "company_id": 698,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.730206+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ASHGY"
+    },
+    {
+      "company_id": 750,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.510331+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ALAB"
+    },
+    {
+      "company_id": 758,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.663208+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AS"
+    },
+    {
+      "company_id": 781,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.345722+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "APG"
+    },
+    {
+      "company_id": 856,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.588315+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ARNNY"
+    },
+    {
+      "company_id": 886,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.502733+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ARCC"
+    },
+    {
+      "company_id": 923,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.072869+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AEIS"
+    },
+    {
+      "company_id": 989,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.800669+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ASR"
+    },
+    {
+      "company_id": 1006,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.905369+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AM"
+    },
+    {
+      "company_id": 1014,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.808308+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ALSN"
+    },
+    {
+      "company_id": 1053,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:38.947293+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ADC"
+    },
+    {
+      "company_id": 1097,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.365188+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "APLD"
+    },
+    {
+      "company_id": 1194,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:40.072679+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "AMTM"
+    },
+    {
+      "company_id": 1208,
+      "domain_resolution_attempted_at": "2026-03-02 20:05:39.683083+00",
+      "domain_resolution_status": "WDQS_ERROR",
+      "ticker": "ALGM"
+    }
+  ]
+}

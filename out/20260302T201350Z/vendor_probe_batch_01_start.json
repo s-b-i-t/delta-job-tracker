@@ -1,0 +1,7 @@
+{
+  "discoveryRunId": 11,
+  "resumeMode": true,
+  "resumeReason": "latest_run_already_running",
+  "status": "RUNNING",
+  "statusUrl": "/api/careers/discover/run/11"
+}

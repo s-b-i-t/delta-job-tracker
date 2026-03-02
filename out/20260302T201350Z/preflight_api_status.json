@@ -1,0 +1,26 @@
+{
+  "counts": {
+    "ats_endpoints": 69,
+    "companies": 10426,
+    "company_domains": 1515,
+    "crawl_runs": 27,
+    "discovered_urls": 12893,
+    "job_postings": 9250
+  },
+  "dbConnectivity": true,
+  "mostRecentCrawlRun": {
+    "crawlRunId": 27,
+    "finishedAt": "2026-02-21T16:52:59.711076Z",
+    "jobsExtractedCount": 7564,
+    "lastActivityAt": "2026-02-21T16:52:59.657880Z",
+    "secondsRunning": 119,
+    "startedAt": "2026-02-21T16:51:00.484462Z",
+    "status": "COMPLETED",
+    "topErrors": {
+      "greenhouse_http_404": 1,
+      "lever_http_404": 1,
+      "workday_http_404": 1,
+      "workday_http_422": 1
+    }
+  }
+}

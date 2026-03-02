@@ -1,0 +1,54 @@
+{
+  "metrics": {
+    "cachedSkipCount": 1125,
+    "companiesAttemptedCount": 375,
+    "companiesInputCount": 1500,
+    "heuristicCandidatesTriedByTld": {
+      "ai": 20,
+      "com": 31,
+      "io": 21
+    },
+    "heuristicCandidatesTriedCount": 72,
+    "heuristicCompaniesTriedCount": 20,
+    "heuristicDurationMs": 120333,
+    "heuristicFetchSuccessCount": 9,
+    "heuristicRejectedCount": 62,
+    "heuristicResolvedByTld": {
+      "com": 9,
+      "io": 1
+    },
+    "heuristicResolvedCount": 10,
+    "heuristicSuccessByReason": {
+      "no_item": 10
+    },
+    "resolvedByMethod": {
+      "HEURISTIC": 10
+    },
+    "totalDurationMs": 132440,
+    "wdqsCikBatchCount": 8,
+    "wdqsDurationMs": 11348,
+    "wdqsTitleBatchCount": 0,
+    "wikipediaInfoboxDurationMs": 0,
+    "wikipediaInfoboxRejectedCount": 0,
+    "wikipediaInfoboxResolvedCount": 0,
+    "wikipediaInfoboxTriedCount": 0
+  },
+  "noItemCount": 364,
+  "noP856Count": 1,
+  "noWikipediaTitleCount": 0,
+  "resolvedCount": 10,
+  "sampleErrors": [
+    "BUUU (BUUU Group Ltd): no_item",
+    "BVAXF (BioVaxys Technology Corp.): no_item",
+    "BVENY (Brava Energia S.A.): no_item",
+    "BWB (Bridgewater Bancshares Inc): no_item",
+    "BWBBP (Bridgewater Bancshares Inc): no_item",
+    "BWET (Amplify Commodity Trust): no_item",
+    "BWFG (Bankwell Financial Group, Inc.): no_item",
+    "BWG (BrandywineGLOBAL-Global Income Opportunities Fund Inc): no_item",
+    "BWIN (Baldwin Insurance Group, Inc.): no_item",
+    "BWIV (Blue Water Acquisition Corp. IV): no_item"
+  ],
+  "wdqsErrorCount": 0,
+  "wdqsTimeoutCount": 0
+}
