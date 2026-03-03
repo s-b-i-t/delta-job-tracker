@@ -57,6 +57,7 @@ public class DomainResolutionService {
   private static final String STATUS_NO_IDENTIFIER = "NO_IDENTIFIER";
   private static final String STATUS_INFOBOX_ERROR = "INFOBOX_ERROR";
   private static final int MAX_ERROR_SAMPLES = 10;
+  private static final int MAX_NOT_EMPLOYER_SAMPLES = 10;
   private static final int WDQS_MAX_ATTEMPTS = 3;
   private static final long WDQS_RETRY_BASE_MS = 750L;
   private static final long WDQS_RETRY_MAX_MS = 4000L;
@@ -130,17 +131,45 @@ public class DomainResolutionService {
   }
 
   public DomainResolutionResult resolveMissingDomains(Integer requestedLimit) {
-    return resolveMissingDomains(requestedLimit, null);
+    return resolveMissingDomains(requestedLimit, null, null);
   }
 
   public DomainResolutionResult resolveMissingDomains(Integer requestedLimit, Instant deadline) {
+    return resolveMissingDomains(requestedLimit, deadline, null);
+  }
+
+  public DomainResolutionResult resolveMissingDomains(
+      Integer requestedLimit, Instant deadline, Boolean includeNonEmployer) {
     int limit =
         requestedLimit == null
             ? properties.getDomainResolution().getDefaultLimit()
             : Math.max(1, requestedLimit);
+    boolean includeNonEmployerCandidates = Boolean.TRUE.equals(includeNonEmployer);
 
-    List<CompanyIdentity> missingDomain = repository.findCompaniesMissingDomain(limit);
-    return resolveCompanies(missingDomain, limit, deadline);
+    int selectionEligibleCount =
+        repository.countCompaniesMissingDomainEligible(includeNonEmployerCandidates);
+    int skippedNotEmployerCount = 0;
+    List<String> skippedNotEmployerSample = List.of();
+    if (!includeNonEmployerCandidates) {
+      skippedNotEmployerCount = repository.countLikelyNonEmployerMissingDomainEligible();
+      List<String> sample =
+          repository.sampleLikelyNonEmployerMissingDomainEligible(MAX_NOT_EMPLOYER_SAMPLES);
+      skippedNotEmployerSample = sample == null ? List.of() : sample;
+    }
+
+    List<CompanyIdentity> selected =
+        includeNonEmployerCandidates
+            ? repository.findCompaniesMissingDomain(limit, true)
+            : repository.findCompaniesMissingDomain(limit);
+    List<CompanyIdentity> missingDomain = selected == null ? List.of() : selected;
+    return resolveCompanies(
+        missingDomain,
+        limit,
+        deadline,
+        missingDomain.size(),
+        selectionEligibleCount,
+        skippedNotEmployerCount,
+        skippedNotEmployerSample);
   }
 
   public DomainResolutionResult resolveMissingDomainsForTickers(
@@ -156,15 +185,28 @@ public class DomainResolutionService {
             : Math.max(1, requestedLimit);
     List<CompanyIdentity> missingDomain =
         repository.findCompaniesMissingDomainByTickers(tickers, limit);
-    return resolveCompanies(missingDomain, limit, deadline);
+    List<CompanyIdentity> companies = missingDomain == null ? List.of() : missingDomain;
+    return resolveCompanies(companies, limit, deadline, companies.size(), companies.size(), 0, List.of());
   }
 
   private DomainResolutionResult resolveCompanies(
-      List<CompanyIdentity> missingDomain, int limit, Instant deadline) {
+      List<CompanyIdentity> missingDomain,
+      int limit,
+      Instant deadline,
+      int selectionReturnedCount,
+      int selectionEligibleCount,
+      int skippedNotEmployerCount,
+      List<String> skippedNotEmployerSample) {
     Instant startedAt = Instant.now();
+    List<CompanyIdentity> companies = missingDomain == null ? List.of() : missingDomain;
     ResolutionMetricsCollector metrics =
-        new ResolutionMetricsCollector(missingDomain == null ? 0 : missingDomain.size());
-    if (missingDomain.isEmpty()) {
+        new ResolutionMetricsCollector(
+            companies.size(),
+            selectionReturnedCount,
+            selectionEligibleCount,
+            skippedNotEmployerCount,
+            skippedNotEmployerSample);
+    if (companies.isEmpty()) {
       return new DomainResolutionResult(0, 0, 0, 0, 0, 0, List.of(), metrics.toModel(0L));
     }
 
@@ -175,31 +217,31 @@ public class DomainResolutionService {
     HeuristicBudget heuristicBudget = new HeuristicBudget(HEURISTIC_MAX_TOTAL_DURATION_MS);
     int totalWithTitle = 0;
     int totalWithCik = 0;
-    for (CompanyIdentity company : missingDomain) {
+    for (CompanyIdentity company : companies) {
       if (hasWikipediaTitle(company)) {
         totalWithTitle++;
       } else if (hasCik(company)) {
         totalWithCik++;
       }
     }
-    int batchCount = (missingDomain.size() + batchSize - 1) / batchSize;
+    int batchCount = (companies.size() + batchSize - 1) / batchSize;
     log.info(
         "Domain resolver starting: companies={}, with_wikipedia_title={}, with_cik={}, batch_size={}",
-        missingDomain.size(),
+        companies.size(),
         totalWithTitle,
         totalWithCik,
         batchSize);
 
-    for (int from = 0; from < missingDomain.size(); from += batchSize) {
+    for (int from = 0; from < companies.size(); from += batchSize) {
       if (deadline != null && Instant.now().isAfter(deadline)) {
         log.info(
             "Domain resolver stopped early due to time budget (processed {} of {})",
             from,
-            missingDomain.size());
+            companies.size());
         break;
       }
-      int to = Math.min(missingDomain.size(), from + batchSize);
-      List<CompanyIdentity> batch = missingDomain.subList(from, to);
+      int to = Math.min(companies.size(), from + batchSize);
+      List<CompanyIdentity> batch = companies.subList(from, to);
       int batchIndex = (from / batchSize) + 1;
 
       Map<CompanyIdentity, List<String>> titlesByCompany = new LinkedHashMap<>();
@@ -1219,6 +1261,13 @@ public class DomainResolutionService {
     if (heuristicBudget != null && !heuristicBudget.allowAttempt()) {
       return false;
     }
+    NameSignals signals = buildNameSignals(company.name());
+    if (signals == null || signals.strongTokens().isEmpty()) {
+      return false;
+    }
+    if (!hasWikipediaTitle(company) && !hasCik(company) && isLowConfidenceHeuristicSignals(signals)) {
+      return false;
+    }
 
     List<String> candidates = heuristicDomainCandidates(company);
     if (candidates.isEmpty()) {
@@ -1256,7 +1305,7 @@ public class DomainResolutionService {
         metrics.incrementHeuristicFetchSuccess();
       }
 
-      HeuristicVerdict verdict = verifyHeuristicCandidate(company, candidate, fetch);
+      HeuristicVerdict verdict = verifyHeuristicCandidate(company, candidate, fetch, signals);
       if (!verdict.accepted()) {
         metrics.incrementHeuristicRejected();
         continue;
@@ -1382,7 +1431,7 @@ public class DomainResolutionService {
   }
 
   private HeuristicVerdict verifyHeuristicCandidate(
-      CompanyIdentity company, String candidateDomain, HttpFetchResult fetch) {
+      CompanyIdentity company, String candidateDomain, HttpFetchResult fetch, NameSignals signals) {
     if (fetch == null || !fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
       return HeuristicVerdict.reject("fetch_failed");
     }
@@ -1407,7 +1456,6 @@ public class DomainResolutionService {
     String bodyText = doc.body() == null ? "" : doc.body().text();
     String verificationText = (pageTitle + " " + bodyText).toLowerCase(Locale.ROOT);
 
-    NameSignals signals = buildNameSignals(company.name());
     if (signals == null || signals.strongTokens().isEmpty()) {
       return HeuristicVerdict.reject("no_name_signals");
     }
@@ -1431,6 +1479,17 @@ public class DomainResolutionService {
     }
 
     return HeuristicVerdict.accept(resolvedDomain);
+  }
+
+  private boolean isLowConfidenceHeuristicSignals(NameSignals signals) {
+    if (signals == null) {
+      return true;
+    }
+    boolean hasStrongToken =
+        signals.strongTokens().stream().anyMatch(token -> token != null && token.length() >= 4);
+    boolean hasAcceptableRoot =
+        signals.acceptableRoots().stream().anyMatch(root -> root != null && root.length() >= 4);
+    return !hasStrongToken || !hasAcceptableRoot;
   }
 
   private NameSignals buildNameSignals(String name) {
@@ -1646,6 +1705,10 @@ public class DomainResolutionService {
 
   private static final class ResolutionMetricsCollector {
     private final int companiesInputCount;
+    private final int selectionReturnedCount;
+    private final int selectionEligibleCount;
+    private final int skippedNotEmployerCount;
+    private final List<String> skippedNotEmployerSample;
     private int companiesAttemptedCount;
     private int cachedSkipCount;
     private int wdqsTitleBatchCount;
@@ -1666,8 +1729,18 @@ public class DomainResolutionService {
     private final Map<String, Integer> resolvedByMethod = new LinkedHashMap<>();
     private final Map<String, Integer> heuristicSuccessByReason = new LinkedHashMap<>();
 
-    private ResolutionMetricsCollector(int companiesInputCount) {
+    private ResolutionMetricsCollector(
+        int companiesInputCount,
+        int selectionReturnedCount,
+        int selectionEligibleCount,
+        int skippedNotEmployerCount,
+        List<String> skippedNotEmployerSample) {
       this.companiesInputCount = Math.max(0, companiesInputCount);
+      this.selectionReturnedCount = Math.max(0, selectionReturnedCount);
+      this.selectionEligibleCount = Math.max(0, selectionEligibleCount);
+      this.skippedNotEmployerCount = Math.max(0, skippedNotEmployerCount);
+      this.skippedNotEmployerSample =
+          skippedNotEmployerSample == null ? List.of() : List.copyOf(skippedNotEmployerSample);
     }
 
     private void incrementCompaniesAttempted() {
@@ -1759,6 +1832,10 @@ public class DomainResolutionService {
     private DomainResolutionMetrics toModel(long totalDurationMs) {
       return new DomainResolutionMetrics(
           companiesInputCount,
+          selectionReturnedCount,
+          selectionEligibleCount,
+          skippedNotEmployerCount,
+          skippedNotEmployerSample,
           companiesAttemptedCount,
           cachedSkipCount,
           wdqsTitleBatchCount,

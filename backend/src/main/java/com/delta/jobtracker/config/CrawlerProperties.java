@@ -379,6 +379,7 @@ public class CrawlerProperties {
     private int wdqsMinDelayMs = 2000;
     private int wdqsTimeoutSeconds = 8;
     private int cacheTtlMinutes = 720;
+    private int noItemRetryHours = 168;
     private List<String> heuristicTlds = new ArrayList<>(List.of("com", "io", "ai", "co", "net", "org"));
 
     public int getDefaultLimit() {
@@ -419,6 +420,14 @@ public class CrawlerProperties {
 
     public void setCacheTtlMinutes(int cacheTtlMinutes) {
       this.cacheTtlMinutes = Math.max(0, cacheTtlMinutes);
+    }
+
+    public int getNoItemRetryHours() {
+      return Math.max(0, noItemRetryHours);
+    }
+
+    public void setNoItemRetryHours(int noItemRetryHours) {
+      this.noItemRetryHours = Math.max(0, noItemRetryHours);
     }
 
     public List<String> getHeuristicTlds() {

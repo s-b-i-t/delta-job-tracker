@@ -196,7 +196,10 @@ def summarize_domain_resolve_batch(payload: Dict[str, Any]) -> Dict[str, Any]:
         "resolvedCount": canary.parse_int(payload.get("resolvedCount")),
         "attemptedCount": canary.parse_int(metrics.get("companiesAttemptedCount")),
         "companiesInputCount": canary.parse_int(metrics.get("companiesInputCount")),
+        "selectionReturnedCount": canary.parse_int(metrics.get("selectionReturnedCount")),
+        "selectionEligibleCount": canary.parse_int(metrics.get("selectionEligibleCount")),
         "cachedSkipCount": canary.parse_int(metrics.get("cachedSkipCount")),
+        "skippedNotEmployerCount": canary.parse_int(metrics.get("skippedNotEmployerCount")),
         "wdqsTimeoutCount": canary.parse_int(payload.get("wdqsTimeoutCount")),
         "wdqsErrorCount": canary.parse_int(payload.get("wdqsErrorCount")),
     }
@@ -223,7 +226,13 @@ def run_domain_resolution_in_batches(
             "wdqsErrorCount": 0,
             "wdqsTimeoutCount": 0,
             "sampleErrors": [],
-            "metrics": {"companiesInputCount": 0, "companiesAttemptedCount": 0},
+            "metrics": {
+                "companiesInputCount": 0,
+                "companiesAttemptedCount": 0,
+                "selectionReturnedCount": 0,
+                "selectionEligibleCount": 0,
+                "skippedNotEmployerCount": 0,
+            },
             "batches": [],
         }
 
@@ -269,7 +278,9 @@ def run_domain_resolution_in_batches(
         batch_summaries.append(summary_with_meta)
         print(
             f"[domain_resolve_batch_{batch:02d}] batch={batch}/{batch_count} requested={requested} "
-            f"resolved={summary['resolvedCount']} attempted={summary['attemptedCount']} elapsed_ms={batch_step.duration_ms}",
+            f"resolved={summary['resolvedCount']} attempted={summary['attemptedCount']} "
+            f"selection_returned={summary['selectionReturnedCount']} selection_eligible={summary['selectionEligibleCount']} "
+            f"skipped_not_employer={summary['skippedNotEmployerCount']} elapsed_ms={batch_step.duration_ms}",
             file=sys.stderr,
         )
         remaining -= requested

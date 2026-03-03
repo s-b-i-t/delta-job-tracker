@@ -34,6 +34,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -57,6 +58,8 @@ import org.springframework.stereotype.Repository;
 public class CrawlJdbcRepository {
   private static final Logger log = LoggerFactory.getLogger(CrawlJdbcRepository.class);
   private static final TypeReference<Map<String, Integer>> MAP_INT = new TypeReference<>() {};
+  private static final List<String> DOMAIN_RESOLUTION_SEMI_PERMANENT_STATUSES =
+      List.of("NO_ITEM", "NO_P856", "INVALID_WEBSITE_URL");
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final NamedParameterJdbcTemplate jdbc;
   private final boolean postgres;
@@ -1503,8 +1506,12 @@ public class CrawlJdbcRepository {
   }
 
   public List<CompanyIdentity> findCompaniesMissingDomain(int limit) {
-    MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", limit);
-    return jdbc.query(
+    return findCompaniesMissingDomain(limit, false);
+  }
+
+  public List<CompanyIdentity> findCompaniesMissingDomain(int limit, boolean includeNonEmployer) {
+    MapSqlParameterSource params = domainResolutionSelectionParams(limit);
+    String sql =
         """
                 SELECT c.id AS company_id,
                        c.ticker,
@@ -1517,16 +1524,64 @@ public class CrawlJdbcRepository {
                        c.domain_resolution_error,
                        c.domain_resolution_attempted_at
                 FROM companies c
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM company_domains cd
-                    WHERE cd.company_id = c.id
-                )
+                WHERE %s
                 ORDER BY c.ticker
                 LIMIT :limit
-                """,
+                """
+            .formatted(domainResolutionSelectionWhereClause("c", includeNonEmployer));
+    return jdbc.query(sql, params, companyIdentityRowMapper());
+  }
+
+  public int countCompaniesMissingDomainEligible(boolean includeNonEmployer) {
+    MapSqlParameterSource params = domainResolutionSelectionParams(null);
+    String sql =
+        """
+                SELECT COUNT(*)
+                FROM companies c
+                WHERE %s
+                """
+            .formatted(domainResolutionSelectionWhereClause("c", includeNonEmployer));
+    Integer value = jdbc.queryForObject(sql, params, Integer.class);
+    return value == null ? 0 : value;
+  }
+
+  public int countLikelyNonEmployerMissingDomainEligible() {
+    MapSqlParameterSource params = domainResolutionSelectionParams(null);
+    String sql =
+        """
+                SELECT COUNT(*)
+                FROM companies c
+                WHERE %s
+                  AND %s
+                """
+            .formatted(domainResolutionBaseEligibilityClause("c"), likelyNonEmployerClause("c"));
+    Integer value = jdbc.queryForObject(sql, params, Integer.class);
+    return value == null ? 0 : value;
+  }
+
+  public List<String> sampleLikelyNonEmployerMissingDomainEligible(int limit) {
+    int safeLimit = Math.max(1, limit);
+    MapSqlParameterSource params = domainResolutionSelectionParams(safeLimit);
+    String sql =
+        """
+                SELECT c.ticker, c.name
+                FROM companies c
+                WHERE %s
+                  AND %s
+                ORDER BY c.ticker
+                LIMIT :limit
+                """
+            .formatted(domainResolutionBaseEligibilityClause("c"), likelyNonEmployerClause("c"));
+    return jdbc.query(
+        sql,
         params,
-        companyIdentityRowMapper());
+        (rs, ignored) -> {
+          String ticker = rs.getString("ticker");
+          String name = rs.getString("name");
+          String safeTicker = ticker == null ? "" : ticker;
+          String safeName = name == null ? "" : name;
+          return safeTicker + " (" + safeName + ")";
+        });
   }
 
   public List<CompanyIdentity> findCompaniesMissingDomainByTickers(
@@ -1560,6 +1615,101 @@ public class CrawlJdbcRepository {
                 """,
         params,
         companyIdentityRowMapper());
+  }
+
+  private MapSqlParameterSource domainResolutionSelectionParams(Integer limit) {
+    Instant now = Instant.now();
+    int cacheTtlMinutes = properties.getDomainResolution().getCacheTtlMinutes();
+    int noItemRetryHours = properties.getDomainResolution().getNoItemRetryHours();
+    Instant cacheRetryCutoff =
+        cacheTtlMinutes <= 0 ? now : now.minus(Duration.ofMinutes(cacheTtlMinutes));
+    Instant semiPermanentRetryCutoff =
+        noItemRetryHours <= 0 ? now : now.minus(Duration.ofHours(noItemRetryHours));
+
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
+            .addValue("cacheRetryCutoff", toTimestamp(cacheRetryCutoff))
+            .addValue("semiPermanentRetryCutoff", toTimestamp(semiPermanentRetryCutoff))
+            .addValue("semiPermanentStatuses", DOMAIN_RESOLUTION_SEMI_PERMANENT_STATUSES);
+    if (limit != null) {
+      params.addValue("limit", Math.max(1, limit));
+    }
+    return params;
+  }
+
+  private String domainResolutionSelectionWhereClause(String companyAlias, boolean includeNonEmployer) {
+    String clause = domainResolutionBaseEligibilityClause(companyAlias);
+    if (includeNonEmployer) {
+      return clause;
+    }
+    return clause + "\n                  AND NOT " + likelyNonEmployerClause(companyAlias);
+  }
+
+  private String domainResolutionBaseEligibilityClause(String companyAlias) {
+    return """
+                NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains cd
+                    WHERE cd.company_id = %1$s.id
+                )
+                  AND (
+                    %1$s.domain_resolution_attempted_at IS NULL
+                    OR %1$s.domain_resolution_attempted_at <= :cacheRetryCutoff
+                  )
+                  AND (
+                    %1$s.domain_resolution_status IS NULL
+                    OR UPPER(%1$s.domain_resolution_status) NOT IN (:semiPermanentStatuses)
+                    OR %1$s.domain_resolution_attempted_at IS NULL
+                    OR %1$s.domain_resolution_attempted_at <= :semiPermanentRetryCutoff
+                  )
+                """
+        .formatted(companyAlias);
+  }
+
+  private String likelyNonEmployerClause(String companyAlias) {
+    String normalizedName = normalizedCompanyNameExpression(companyAlias);
+    return """
+                (
+                    %1$s LIKE '%% etf %%'
+                    OR %1$s LIKE '%% fund %%'
+                    OR %1$s LIKE '%% trust %%'
+                    OR %1$s LIKE '%% acquisition %%'
+                    OR %1$s LIKE '%% spac %%'
+                    OR %1$s LIKE '%% lp %%'
+                    OR %1$s LIKE '%% holdings trust %%'
+                    OR %1$s LIKE '%% depositary %%'
+                    OR %1$s LIKE '%% depository %%'
+                    OR %1$s LIKE '%% notes %%'
+                    OR %1$s LIKE '%% warrant %%'
+                    OR %1$s LIKE '%% unit %%'
+                    OR %1$s LIKE '%% units %%'
+                )
+                """
+        .formatted(normalizedName);
+  }
+
+  private String normalizedCompanyNameExpression(String companyAlias) {
+    return """
+                LOWER(
+                    ' '
+                    || REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(
+                                    REPLACE(
+                                        REPLACE(
+                                            REPLACE(COALESCE(%1$s.name, ''), '.', ' '),
+                                            ',', ' '),
+                                        '/', ' '),
+                                    '-', ' '),
+                                '&', ' '),
+                            '(', ' '),
+                        ')', ' ')
+                    || ' '
+                )
+                """
+        .formatted(companyAlias)
+        .trim();
   }
 
   public List<CompanyTarget> findCompaniesWithDomainWithoutAts(int limit) {

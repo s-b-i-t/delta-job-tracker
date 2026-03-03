@@ -230,8 +230,9 @@ public class CrawlController {
 
   @PostMapping("/domains/resolve")
   public DomainResolutionResult resolveDomains(
-      @RequestParam(name = "limit", required = false) Integer limit) {
-    return domainResolutionService.resolveMissingDomains(limit);
+      @RequestParam(name = "limit", required = false) Integer limit,
+      @RequestParam(name = "includeNonEmployer", required = false) Boolean includeNonEmployer) {
+    return domainResolutionService.resolveMissingDomains(limit, null, includeNonEmployer);
   }
 
   @PostMapping("/careers/discover")
