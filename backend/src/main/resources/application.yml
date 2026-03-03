@@ -65,5 +65,7 @@ crawler:
     max-slug-candidates: 8
     max-careers-paths: 4
     robots-cooldown-days: 14
+    cache-ttl-minutes: 720
+    semi-permanent-retry-hours: 168
     max-vendor-probe-requests-per-host: 200
     failure-backoff-minutes: [5, 15, 60, 360, 1440]

@@ -60,6 +60,13 @@ public class CrawlJdbcRepository {
   private static final TypeReference<Map<String, Integer>> MAP_INT = new TypeReference<>() {};
   private static final List<String> DOMAIN_RESOLUTION_SEMI_PERMANENT_STATUSES =
       List.of("NO_ITEM", "NO_P856", "INVALID_WEBSITE_URL");
+  private static final List<String> ATS_DISCOVERY_SEMI_PERMANENT_REASON_CODES =
+      List.of(
+          "DISCOVERY_NO_MATCH",
+          "DISCOVERY_ATS_DETECTED_NO_ENDPOINT",
+          "DISCOVERY_SITEMAP_NO_URLS",
+          "DISCOVERY_SITEMAP_FETCH_FAILED",
+          "DISCOVERY_HOMEPAGE_TOO_LARGE");
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final NamedParameterJdbcTemplate jdbc;
   private final boolean postgres;
@@ -197,16 +204,36 @@ public class CrawlJdbcRepository {
   }
 
   public long insertCareersDiscoveryRun(int companyLimit) {
+    return insertCareersDiscoveryRun(companyLimit, 0, 0, 0);
+  }
+
+  public long insertCareersDiscoveryRun(
+      int companyLimit,
+      int selectionEligibleCount,
+      int selectionReturnedCount,
+      int companiesInputCount) {
     MapSqlParameterSource params =
-        new MapSqlParameterSource().addValue("companyLimit", companyLimit);
+        new MapSqlParameterSource()
+            .addValue("companyLimit", companyLimit)
+            .addValue("selectionEligibleCount", Math.max(0, selectionEligibleCount))
+            .addValue("selectionReturnedCount", Math.max(0, selectionReturnedCount))
+            .addValue("companiesInputCount", Math.max(0, companiesInputCount));
     KeyHolder keyHolder = new GeneratedKeyHolder();
     jdbc.update(
         """
                 INSERT INTO careers_discovery_runs (
-                    status, company_limit
+                    status,
+                    company_limit,
+                    selection_eligible_count,
+                    selection_returned_count,
+                    companies_input_count
                 )
                 VALUES (
-                    'RUNNING', :companyLimit
+                    'RUNNING',
+                    :companyLimit,
+                    :selectionEligibleCount,
+                    :selectionReturnedCount,
+                    :companiesInputCount
                 )
                 """,
         params,
@@ -234,6 +261,48 @@ public class CrawlJdbcRepository {
       int robotsBlockedCount,
       int fetchFailedCount,
       int timeBudgetExceededCount) {
+    updateCareersDiscoveryRunProgress(
+        runId,
+        processedCount,
+        succeededCount,
+        failedCount,
+        endpointsAdded,
+        lastError,
+        companiesConsidered,
+        companiesConsidered,
+        0,
+        homepageScanned,
+        endpointsFoundHomepageByAtsType,
+        endpointsFoundVendorProbeByAtsType,
+        sitemapsScanned,
+        sitemapUrlsChecked,
+        endpointsFoundSitemapByAtsType,
+        careersPathsChecked,
+        robotsBlockedCount,
+        fetchFailedCount,
+        timeBudgetExceededCount);
+  }
+
+  public void updateCareersDiscoveryRunProgress(
+      long runId,
+      int processedCount,
+      int succeededCount,
+      int failedCount,
+      int endpointsAdded,
+      String lastError,
+      int companiesConsidered,
+      int companiesAttemptedCount,
+      int cachedSkipCount,
+      int homepageScanned,
+      Map<String, Integer> endpointsFoundHomepageByAtsType,
+      Map<String, Integer> endpointsFoundVendorProbeByAtsType,
+      int sitemapsScanned,
+      int sitemapUrlsChecked,
+      Map<String, Integer> endpointsFoundSitemapByAtsType,
+      int careersPathsChecked,
+      int robotsBlockedCount,
+      int fetchFailedCount,
+      int timeBudgetExceededCount) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("runId", runId)
@@ -243,6 +312,8 @@ public class CrawlJdbcRepository {
             .addValue("endpointsAdded", endpointsAdded)
             .addValue("lastError", truncateErrorDetail(lastError))
             .addValue("companiesConsidered", Math.max(0, companiesConsidered))
+            .addValue("companiesAttemptedCount", Math.max(0, companiesAttemptedCount))
+            .addValue("cachedSkipCount", Math.max(0, cachedSkipCount))
             .addValue("homepageScanned", Math.max(0, homepageScanned))
             .addValue("endpointsFoundHomepageJson", writeJson(endpointsFoundHomepageByAtsType))
             .addValue("endpointsFoundVendorJson", writeJson(endpointsFoundVendorProbeByAtsType))
@@ -262,6 +333,8 @@ public class CrawlJdbcRepository {
                     endpoints_added = :endpointsAdded,
                     last_error = COALESCE(:lastError, last_error),
                     companies_considered = :companiesConsidered,
+                    companies_attempted_count = :companiesAttemptedCount,
+                    cached_skip_count = :cachedSkipCount,
                     homepage_scanned = :homepageScanned,
                     endpoints_found_homepage_json = :endpointsFoundHomepageJson,
                     endpoints_found_vendor_json = :endpointsFoundVendorJson,
@@ -455,6 +528,11 @@ public class CrawlJdbcRepository {
                        finished_at,
                        status,
                        company_limit,
+                       selection_eligible_count,
+                       selection_returned_count,
+                       companies_input_count,
+                       companies_attempted_count,
+                       cached_skip_count,
                        processed_count,
                        succeeded_count,
                        failed_count,
@@ -482,6 +560,11 @@ public class CrawlJdbcRepository {
                     toInstant(rs.getTimestamp("finished_at")),
                     rs.getString("status"),
                     rs.getInt("company_limit"),
+                    rs.getInt("selection_eligible_count"),
+                    rs.getInt("selection_returned_count"),
+                    rs.getInt("companies_input_count"),
+                    rs.getInt("companies_attempted_count"),
+                    rs.getInt("cached_skip_count"),
                     rs.getInt("processed_count"),
                     rs.getInt("succeeded_count"),
                     rs.getInt("failed_count"),
@@ -515,6 +598,11 @@ public class CrawlJdbcRepository {
                        finished_at,
                        status,
                        company_limit,
+                       selection_eligible_count,
+                       selection_returned_count,
+                       companies_input_count,
+                       companies_attempted_count,
+                       cached_skip_count,
                        processed_count,
                        succeeded_count,
                        failed_count,
@@ -543,6 +631,11 @@ public class CrawlJdbcRepository {
                     toInstant(rs.getTimestamp("finished_at")),
                     rs.getString("status"),
                     rs.getInt("company_limit"),
+                    rs.getInt("selection_eligible_count"),
+                    rs.getInt("selection_returned_count"),
+                    rs.getInt("companies_input_count"),
+                    rs.getInt("companies_attempted_count"),
+                    rs.getInt("cached_skip_count"),
                     rs.getInt("processed_count"),
                     rs.getInt("succeeded_count"),
                     rs.getInt("failed_count"),
@@ -1712,8 +1805,32 @@ public class CrawlJdbcRepository {
         .trim();
   }
 
+  public int countCompaniesWithDomainWithoutAtsEligible() {
+    MapSqlParameterSource params = atsDiscoverySelectionParams(null);
+    String sql =
+        """
+                SELECT COUNT(*)
+                FROM companies c
+                JOIN company_domains cd ON cd.id = (
+                    SELECT cd2.id
+                    FROM company_domains cd2
+                    WHERE cd2.company_id = c.id
+                    ORDER BY cd2.confidence DESC,
+                             CASE WHEN cd2.resolved_at IS NULL THEN 1 ELSE 0 END,
+                             cd2.resolved_at DESC,
+                             cd2.id DESC
+                    LIMIT 1
+                )
+                LEFT JOIN careers_discovery_state s ON s.company_id = c.id
+                WHERE %s
+                """
+            .formatted(atsDiscoverySelectionEligibilityClause("c", "s"));
+    Integer value = jdbc.queryForObject(sql, params, Integer.class);
+    return value == null ? 0 : value;
+  }
+
   public List<CompanyTarget> findCompaniesWithDomainWithoutAts(int limit) {
-    MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", limit);
+    MapSqlParameterSource params = atsDiscoverySelectionParams(limit);
 
     return jdbc.query(
         """
@@ -1734,14 +1851,12 @@ public class CrawlJdbcRepository {
                              cd2.id DESC
                     LIMIT 1
                 )
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM ats_endpoints ae
-                    WHERE ae.company_id = c.id
-                )
-                ORDER BY c.ticker
+                LEFT JOIN careers_discovery_state s ON s.company_id = c.id
+                WHERE %s
+                ORDER BY COALESCE(s.last_attempt_at, TIMESTAMP '1970-01-01 00:00:00') ASC, c.ticker
                 LIMIT :limit
-                """,
+                """
+            .formatted(atsDiscoverySelectionEligibilityClause("c", "s")),
         params,
         companyTargetRowMapper());
   }
@@ -1752,7 +1867,7 @@ public class CrawlJdbcRepository {
       return List.of();
     }
     MapSqlParameterSource params =
-        new MapSqlParameterSource().addValue("tickers", tickers).addValue("limit", limit);
+        atsDiscoverySelectionParams(limit).addValue("tickers", tickers);
     return jdbc.query(
         """
                 SELECT c.id AS company_id,
@@ -1772,17 +1887,61 @@ public class CrawlJdbcRepository {
                              cd2.id DESC
                     LIMIT 1
                 )
+                LEFT JOIN careers_discovery_state s ON s.company_id = c.id
                 WHERE c.ticker IN (:tickers)
-                  AND NOT EXISTS (
-                    SELECT 1
-                    FROM ats_endpoints ae
-                    WHERE ae.company_id = c.id
-                )
-                ORDER BY c.ticker
+                  AND %s
+                ORDER BY COALESCE(s.last_attempt_at, TIMESTAMP '1970-01-01 00:00:00') ASC, c.ticker
                 LIMIT :limit
-                """,
+                """
+            .formatted(atsDiscoverySelectionEligibilityClause("c", "s")),
         params,
         companyTargetRowMapper());
+  }
+
+  private MapSqlParameterSource atsDiscoverySelectionParams(Integer limit) {
+    Instant now = Instant.now();
+    int cacheTtlMinutes = properties.getCareersDiscovery().getCacheTtlMinutes();
+    int semiPermanentRetryHours = properties.getCareersDiscovery().getSemiPermanentRetryHours();
+    Instant cacheRetryCutoff =
+        cacheTtlMinutes <= 0 ? now : now.minus(Duration.ofMinutes(cacheTtlMinutes));
+    Instant semiPermanentRetryCutoff =
+        semiPermanentRetryHours <= 0 ? now : now.minus(Duration.ofHours(semiPermanentRetryHours));
+
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
+            .addValue("atsSelectionNow", toTimestamp(now))
+            .addValue("atsCacheRetryCutoff", toTimestamp(cacheRetryCutoff))
+            .addValue("atsSemiPermanentRetryCutoff", toTimestamp(semiPermanentRetryCutoff))
+            .addValue("atsSemiPermanentReasonCodes", ATS_DISCOVERY_SEMI_PERMANENT_REASON_CODES);
+    if (limit != null) {
+      params.addValue("limit", Math.max(1, limit));
+    }
+    return params;
+  }
+
+  private String atsDiscoverySelectionEligibilityClause(String companyAlias, String stateAlias) {
+    return """
+                NOT EXISTS (
+                    SELECT 1
+                    FROM ats_endpoints ae
+                    WHERE ae.company_id = %1$s.id
+                )
+                  AND (
+                    %2$s.next_attempt_at IS NULL
+                    OR %2$s.next_attempt_at <= :atsSelectionNow
+                  )
+                  AND (
+                    %2$s.last_attempt_at IS NULL
+                    OR %2$s.last_attempt_at <= :atsCacheRetryCutoff
+                  )
+                  AND (
+                    %2$s.last_reason_code IS NULL
+                    OR UPPER(%2$s.last_reason_code) NOT IN (:atsSemiPermanentReasonCodes)
+                    OR %2$s.last_attempt_at IS NULL
+                    OR %2$s.last_attempt_at <= :atsSemiPermanentRetryCutoff
+                  )
+                """
+        .formatted(companyAlias, stateAlias);
   }
 
   public List<CompanyTarget> findCompanyTargets(List<String> tickers, int limit) {
