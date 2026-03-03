@@ -5,7 +5,7 @@ Flow:
 1) SEC ingest
 2) Domain resolve (optional missing-domain cohort sampling before/after)
 3) ATS discovery vendorProbeOnly in batches
-4) ATS discovery full mode in batches if vendorProbe stage passes threshold
+4) ATS discovery full mode with explicit gate semantics and force mode support
 5) Writes summary + raw captures to out/<timestamp>/
 
 This script reuses helpers from scripts/run_ats_validation_canary.py.
@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -38,6 +39,9 @@ DOMAIN_RESOLVE_TOP_LEVEL_INT_FIELDS = (
     "wdqsErrorCount",
     "wdqsTimeoutCount",
 )
+MIN_VENDOR_PROBE_PROCESSED_FOR_GATE = 20
+REDUCED_FULL_MODE_BATCHES_ON_INSUFFICIENT_SAMPLE = 1
+HTTP_STATUS_RE = re.compile(r"http[_ ]?(\d{3})", flags=re.IGNORECASE)
 
 
 def utc_now_iso() -> str:
@@ -337,6 +341,184 @@ def summarize_batch_statuses(statuses: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def classify_failure_type(reason: Any) -> str:
+    lower = str(reason or "").strip().lower()
+    if not lower:
+        return "unknown"
+    if "host_cooldown" in lower:
+        return "host_cooldown"
+    if "robot" in lower:
+        return "robots"
+    if "time_budget" in lower or "budget_exceeded" in lower or "timeout" in lower:
+        return "timeout"
+    if (
+        "parse" in lower
+        or "invalid_payload" in lower
+        or "gzip_decode" in lower
+        or "empty_sitemap_payload" in lower
+    ):
+        return "parse_miss"
+    if "unknownhost" in lower or "name or service not known" in lower or "dns" in lower:
+        return "dns"
+    if "ssl" in lower or "tls" in lower or "handshake" in lower:
+        return "tls"
+    if (
+        "no_sitemaps" in lower
+        or "sitemap_no_urls" in lower
+        or "sitemap_fetch_failed" in lower
+        or "sitemap_not_found" in lower
+    ):
+        return "sitemap_not_found"
+    if "no_jobposting" in lower or "ats_detected_no_endpoint" in lower or "ats_not_found" in lower:
+        return "ats_not_found"
+    match = HTTP_STATUS_RE.search(lower)
+    if match:
+        code = canary.parse_int(match.group(1))
+        if code in {401, 403}:
+            return "http_401_403"
+        if code == 404:
+            return "http_404"
+        if code == 429:
+            return "http_429_rate_limit"
+        if 500 <= code < 600:
+            return "http_5xx"
+        return "http_other"
+    return "other"
+
+
+def sort_count_map(counts: Dict[str, int]) -> Dict[str, int]:
+    return dict(
+        sorted(
+            ((k, canary.parse_int(v)) for k, v in counts.items() if canary.parse_int(v) > 0),
+            key=lambda kv: (-kv[1], kv[0]),
+        )
+    )
+
+
+def enrich_discovery_failures_diagnostics(payload: Any) -> Any:
+    if not isinstance(payload, dict) or "_error" in payload:
+        return payload
+    counts_by_reason = payload.get("countsByReason") or {}
+    failure_type_breakdown: Dict[str, int] = {}
+    for reason, count in counts_by_reason.items():
+        failure_type = classify_failure_type(reason)
+        failure_type_breakdown[failure_type] = (
+            failure_type_breakdown.get(failure_type, 0) + canary.parse_int(count)
+        )
+    enriched = dict(payload)
+    enriched["failureTypeBreakdown"] = sort_count_map(failure_type_breakdown)
+    enriched["failureTypeBreakdownTop"] = canary.top_n_map(enriched["failureTypeBreakdown"], 10)
+    enriched["topFailureReasons"] = canary.top_n_map(counts_by_reason, 10)
+    return enriched
+
+
+def summarize_rollup_for_stderr(label: str, rollup: Dict[str, Any]) -> str:
+    return (
+        f"[{label}] "
+        f"processed={canary.parse_int(rollup.get('processed'))} "
+        f"succeeded={canary.parse_int(rollup.get('succeeded'))} "
+        f"failed={canary.parse_int(rollup.get('failed'))} "
+        f"careersFound={canary.parse_int(rollup.get('careers_url_found_count'))} "
+        f"vendorDetected={canary.parse_int(rollup.get('vendor_detected_count'))} "
+        f"endpointsExtracted={canary.parse_int(rollup.get('endpoint_extracted_count'))}"
+    )
+
+
+def evaluate_vendor_probe_gate(
+    *,
+    args: argparse.Namespace,
+    vendor_statuses: List[Dict[str, Any]],
+    vendor_rollup: Dict[str, Any],
+) -> Dict[str, Any]:
+    processed = canary.parse_int(vendor_rollup.get("processed"))
+    success_rate = vendor_rollup.get("success_rate")
+    success_rate_value = float(success_rate) if success_rate is not None else 0.0
+    threshold = float(args.vendor_probe_threshold_for_full)
+    threshold_pass = success_rate is not None and success_rate_value >= threshold
+
+    terminal_statuses = sorted({str(s.get("status") or "").upper() for s in vendor_statuses if s})
+    aborted_statuses = [s for s in terminal_statuses if s == "ABORTED"]
+    insufficient_sample_reasons: List[str] = []
+    if aborted_statuses:
+        insufficient_sample_reasons.append("vendor_probe_status_aborted")
+    if processed < MIN_VENDOR_PROBE_PROCESSED_FOR_GATE:
+        insufficient_sample_reasons.append(
+            f"processed_below_minimum ({processed} < {MIN_VENDOR_PROBE_PROCESSED_FOR_GATE})"
+        )
+    insufficient_sample = bool(insufficient_sample_reasons)
+
+    original_gate_pass = (not insufficient_sample) and threshold_pass
+    if insufficient_sample:
+        original_gate_reason = f"insufficient_sample: {', '.join(insufficient_sample_reasons)}"
+    elif original_gate_pass:
+        original_gate_reason = "vendor_probe_success_rate_met_threshold"
+    else:
+        original_gate_reason = (
+            f"vendor_probe_success_rate_below_threshold ({round(success_rate_value, 4)} < {threshold})"
+        )
+
+    run_full_mode_requested = bool(args.run_full_mode)
+    full_mode_forced = bool(run_full_mode_requested and getattr(args, "run_full_mode_explicit", False))
+    run_reduced_budget = False
+    decision_reason = "threshold_passed"
+    if full_mode_forced:
+        run_full = True
+        decision_reason = (
+            "forced_by_run_full_mode_flag"
+            if not original_gate_pass
+            else "run_full_mode_enabled_threshold_also_passed"
+        )
+    elif not run_full_mode_requested:
+        run_full = False
+        decision_reason = "disabled_by_flag"
+    elif insufficient_sample:
+        run_full = True
+        run_reduced_budget = True
+        decision_reason = "insufficient_sample_reduced_budget_full_mode"
+    elif threshold_pass:
+        run_full = True
+    else:
+        run_full = False
+        decision_reason = original_gate_reason
+
+    planned_batches = args.num_batches
+    planned_discover_batch_size = args.discover_batch_size
+    if run_reduced_budget:
+        planned_batches = min(args.num_batches, REDUCED_FULL_MODE_BATCHES_ON_INSUFFICIENT_SAMPLE)
+        planned_discover_batch_size = max(1, args.discover_batch_size // 2)
+        if planned_discover_batch_size >= args.discover_batch_size and args.discover_batch_size > 1:
+            planned_discover_batch_size = args.discover_batch_size - 1
+
+    return {
+        "run_full_mode_requested": run_full_mode_requested,
+        "run_full_mode_explicit": bool(getattr(args, "run_full_mode_explicit", False)),
+        "full_mode_forced": full_mode_forced,
+        "run_full": run_full,
+        "run_reduced_budget": run_reduced_budget,
+        "decision_reason": decision_reason,
+        "planned_batches": planned_batches,
+        "planned_discover_batch_size": planned_discover_batch_size,
+        "original_gate": {
+            "pass": original_gate_pass,
+            "reason": original_gate_reason,
+            "vendor_probe_success_rate_threshold": threshold,
+            "vendor_probe_success_rate_actual": (
+                round(success_rate_value, 4) if success_rate is not None else None
+            ),
+            "vendor_probe_success_rate_pass": threshold_pass,
+            "processed": processed,
+            "minimum_processed_required": MIN_VENDOR_PROBE_PROCESSED_FOR_GATE,
+            "insufficient_sample": insufficient_sample,
+            "insufficient_sample_reasons": insufficient_sample_reasons,
+            "terminal_statuses": terminal_statuses,
+            "top_stage_failure_buckets": canary.top_n_map(
+                vendor_rollup.get("careers_stage_failures_by_reason"), 5
+            ),
+            "top_failure_buckets": canary.top_n_map(vendor_rollup.get("failures_by_reason"), 5),
+        },
+    }
+
+
 def generate_canary_summary(
     *,
     args: argparse.Namespace,
@@ -348,6 +530,7 @@ def generate_canary_summary(
     fresh_domain_report: Optional[Dict[str, Any]],
     vendor_results: List[Dict[str, Any]],
     full_results: List[Dict[str, Any]],
+    full_mode_gate_decision: Dict[str, Any],
     optional_payloads: Dict[str, Any],
     durations_ms: Dict[str, int],
 ) -> Dict[str, Any]:
@@ -492,6 +675,10 @@ def generate_canary_summary(
                 (optional_payloads.get("discovery_failures") or {}).get("countsByReason"),
                 5,
             ),
+            "top_failure_types_diagnostics": canary.top_n_map(
+                (optional_payloads.get("discovery_failures") or {}).get("failureTypeBreakdown"),
+                10,
+            ),
         },
         "thresholds": {
             "vendor_probe_success_rate_gte": args.vendor_probe_threshold_for_full,
@@ -500,6 +687,19 @@ def generate_canary_summary(
                 vendor_rollup["success_rate"] is not None
                 and vendor_rollup["success_rate"] >= args.vendor_probe_threshold_for_full
             ),
+            "vendor_probe_processed_count": vendor_rollup["processed"],
+            "vendor_probe_minimum_processed_required": MIN_VENDOR_PROBE_PROCESSED_FOR_GATE,
+            "vendor_probe_insufficient_sample": (
+                (full_mode_gate_decision.get("original_gate") or {}).get("insufficient_sample")
+            ),
+            "vendor_probe_terminal_statuses": (
+                (full_mode_gate_decision.get("original_gate") or {}).get("terminal_statuses", [])
+            ),
+            "vendor_probe_gate_would_pass_without_force": (
+                (full_mode_gate_decision.get("original_gate") or {}).get("pass")
+            ),
+            "full_mode_requested": bool(args.run_full_mode),
+            "full_mode_forced": bool(full_mode_gate_decision.get("full_mode_forced")),
             "full_mode_executed": bool(full_results),
         },
         "domain_backlog_watch": {
@@ -519,6 +719,7 @@ def generate_canary_summary(
         },
         "optional_full_discovery": {
             "executed": bool(full_results),
+            "decision": full_mode_gate_decision,
             "runs": [
                 {
                     "batch": r.get("batch"),
@@ -760,11 +961,56 @@ def run(args: argparse.Namespace) -> int:
 
         vendor_statuses = [r.get("final") or {} for r in vendor_results]
         vendor_rollup = summarize_batch_statuses(vendor_statuses)
-        vendor_success_rate = vendor_rollup.get("success_rate") or 0.0
-        run_full = bool(args.run_full_mode and vendor_success_rate >= args.vendor_probe_threshold_for_full)
+        full_mode_gate_decision = evaluate_vendor_probe_gate(
+            args=args,
+            vendor_statuses=vendor_statuses,
+            vendor_rollup=vendor_rollup,
+        )
+        print(summarize_rollup_for_stderr("vendor_probe_summary", vendor_rollup), file=sys.stderr)
+        original_gate = full_mode_gate_decision.get("original_gate") or {}
+        if not original_gate.get("pass"):
+            print(
+                "[vendor_probe_failures] "
+                f"top_stage_failure_buckets={json.dumps(original_gate.get('top_stage_failure_buckets') or [], separators=(',', ':'))} "
+                f"top_failure_buckets={json.dumps(original_gate.get('top_failure_buckets') or [], separators=(',', ':'))}",
+                file=sys.stderr,
+            )
+        if full_mode_gate_decision.get("full_mode_forced"):
+            print(
+                "[full_mode_gate] full_mode_forced=true "
+                f"original_gate_pass={original_gate.get('pass')} "
+                f"original_gate_reason={original_gate.get('reason')}",
+                file=sys.stderr,
+            )
+        elif original_gate.get("insufficient_sample"):
+            print(
+                "[full_mode_gate] insufficient_sample=true "
+                f"reasons={','.join(original_gate.get('insufficient_sample_reasons') or [])} "
+                "action=reduced_budget_full_mode",
+                file=sys.stderr,
+            )
+        elif not full_mode_gate_decision.get("run_full"):
+            print(
+                f"[full_mode_gate] action=skip reason={full_mode_gate_decision.get('decision_reason')}",
+                file=sys.stderr,
+            )
 
-        if run_full:
-            for batch in range(1, args.num_batches + 1):
+        if full_mode_gate_decision.get("run_full"):
+            full_batches_to_run = canary.parse_int(
+                full_mode_gate_decision.get("planned_batches"), args.num_batches
+            )
+            full_discover_batch_size = canary.parse_int(
+                full_mode_gate_decision.get("planned_discover_batch_size"),
+                args.discover_batch_size,
+            )
+            if full_mode_gate_decision.get("run_reduced_budget"):
+                print(
+                    "[full_mode_gate] running reduced-budget full mode "
+                    f"planned_batches={full_batches_to_run} "
+                    f"discover_batch_size={full_discover_batch_size}",
+                    file=sys.stderr,
+                )
+            for batch in range(1, full_batches_to_run + 1):
                 ensure_within_deadline(overall_deadline, f"running full batch {batch}")
                 full_step = canary.timed_step(
                     f"full_batch_{batch:02d}",
@@ -773,7 +1019,7 @@ def run(args: argparse.Namespace) -> int:
                         db=db,
                         out_dir=out_dir,
                         batch_index=b,
-                        discover_batch_size=args.discover_batch_size,
+                        discover_batch_size=full_discover_batch_size,
                         vendor_probe_only=False,
                         poll_interval_seconds=args.poll_interval_seconds,
                         max_run_wait_seconds=args.max_run_wait_seconds,
@@ -784,7 +1030,7 @@ def run(args: argparse.Namespace) -> int:
                 durations_ms[full_step.name] = full_step.duration_ms
                 full_results.append(full_step.payload)
                 canary.write_json(out_dir / f"full_batch_{batch:02d}_result.json", full_step.payload)
-                if batch < args.num_batches and args.sleep_between_batches > 0:
+                if batch < full_batches_to_run and args.sleep_between_batches > 0:
                     ensure_within_deadline(overall_deadline, "sleeping between full batches")
                     time.sleep(args.sleep_between_batches)
 
@@ -815,6 +1061,8 @@ def run(args: argparse.Namespace) -> int:
             "full": [r.get("final") for r in full_results],
         }
         canary.write_json(out_dir / "final_run_statuses.json", final_run_statuses)
+        full_rollup = summarize_batch_statuses([r.get("final") or {} for r in full_results])
+        print(summarize_rollup_for_stderr("full_mode_summary", full_rollup), file=sys.stderr)
 
         coverage_step = canary.timed_step_safe(
             "coverage_diagnostics", lambda: api.get_json("/api/diagnostics/coverage")
@@ -827,15 +1075,18 @@ def run(args: argparse.Namespace) -> int:
             lambda: api.get_json("/api/diagnostics/discovery-failures"),
         )
         durations_ms[discovery_failures_step.name] = discovery_failures_step.duration_ms
+        discovery_failures_payload = enrich_discovery_failures_diagnostics(
+            discovery_failures_step.payload
+        )
         canary.write_json(
-            out_dir / "discovery_failures_diagnostics.json", discovery_failures_step.payload
+            out_dir / "discovery_failures_diagnostics.json", discovery_failures_payload
         )
 
         optional_payloads = {
             "coverage": coverage_step.payload if isinstance(coverage_step.payload, dict) and "_error" not in coverage_step.payload else {},
             "coverage_error": coverage_step.payload if isinstance(coverage_step.payload, dict) and "_error" in coverage_step.payload else None,
-            "discovery_failures": discovery_failures_step.payload if isinstance(discovery_failures_step.payload, dict) and "_error" not in discovery_failures_step.payload else {},
-            "discovery_failures_error": discovery_failures_step.payload if isinstance(discovery_failures_step.payload, dict) and "_error" in discovery_failures_step.payload else None,
+            "discovery_failures": discovery_failures_payload if isinstance(discovery_failures_payload, dict) and "_error" not in discovery_failures_payload else {},
+            "discovery_failures_error": discovery_failures_payload if isinstance(discovery_failures_payload, dict) and "_error" in discovery_failures_payload else None,
         }
 
         canary_summary = generate_canary_summary(
@@ -848,9 +1099,17 @@ def run(args: argparse.Namespace) -> int:
             fresh_domain_report=fresh_domain_report,
             vendor_results=vendor_results,
             full_results=full_results,
+            full_mode_gate_decision=full_mode_gate_decision,
             optional_payloads=optional_payloads,
             durations_ms=durations_ms,
         )
+
+        full_mode_skip_reason = None
+        if not full_results:
+            if not full_mode_gate_decision.get("run_full_mode_requested"):
+                full_mode_skip_reason = "disabled_by_flag"
+            else:
+                full_mode_skip_reason = str(full_mode_gate_decision.get("decision_reason"))
 
         overnight_summary = {
             "schema_version": "overnight-summary-v1",
@@ -869,19 +1128,13 @@ def run(args: argparse.Namespace) -> int:
                 "vendor_probe_batches_completed": len(vendor_results),
                 "full_batches_completed": len(full_results),
                 "full_mode_executed": bool(full_results),
-                "full_mode_skip_reason": (
-                    None
-                    if full_results
-                    else (
-                        "disabled_by_flag"
-                        if not args.run_full_mode
-                        else f"vendor_probe_success_rate_below_threshold ({summarize_batch_statuses([r.get('final') or {} for r in vendor_results]).get('success_rate')} < {args.vendor_probe_threshold_for_full})"
-                    )
-                ),
+                "full_mode_forced": bool(full_mode_gate_decision.get("full_mode_forced")),
+                "full_mode_skip_reason": full_mode_skip_reason,
+                "full_mode_gate_decision": full_mode_gate_decision,
             },
             "batch_rollup": {
-                "vendor_probe": summarize_batch_statuses([r.get("final") or {} for r in vendor_results]),
-                "full": summarize_batch_statuses([r.get("final") or {} for r in full_results]),
+                "vendor_probe": vendor_rollup,
+                "full": full_rollup,
             },
             "durations_ms": {
                 "per_step": durations_ms,
@@ -903,6 +1156,10 @@ def run(args: argparse.Namespace) -> int:
                         "stage_failure_buckets"
                     ),
                     5,
+                ),
+                "top_failure_types_diagnostics": canary.top_n_map(
+                    ((optional_payloads.get("discovery_failures") or {}).get("failureTypeBreakdown")),
+                    10,
                 ),
             },
         }
@@ -991,6 +1248,14 @@ def run(args: argparse.Namespace) -> int:
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    argv_list = list(sys.argv[1:] if argv is None else argv)
+    run_full_mode_default = os.getenv("DELTA_RUN_FULL_MODE", "true").lower() == "true"
+    last_run_full_idx = max((i for i, arg in enumerate(argv_list) if arg == "--run-full-mode"), default=-1)
+    last_no_run_full_idx = max(
+        (i for i, arg in enumerate(argv_list) if arg == "--no-run-full-mode"),
+        default=-1,
+    )
+
     p = argparse.ArgumentParser(
         description="Overnight SEC/domain/ATS runner with resume mode and hard timeouts"
     )
@@ -1002,7 +1267,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--num-batches", type=int, default=int(os.getenv("DELTA_NUM_BATCHES", "10")))
     p.add_argument("--sleep-between-batches", type=int, default=int(os.getenv("DELTA_SLEEP_BETWEEN_BATCHES", "30")))
     p.add_argument("--vendor-probe-threshold-for-full", type=float, default=float(os.getenv("DELTA_VENDOR_PROBE_THRESHOLD_FOR_FULL", "0.45")))
-    p.add_argument("--run-full-mode", action="store_true", default=os.getenv("DELTA_RUN_FULL_MODE", "true").lower() == "true")
+    p.add_argument("--run-full-mode", dest="run_full_mode", action="store_true", default=run_full_mode_default)
+    p.add_argument("--no-run-full-mode", dest="run_full_mode", action="store_false")
     p.add_argument("--domain-fresh-cohort-first", action="store_true", default=os.getenv("DELTA_DOMAIN_FRESH_COHORT_FIRST", "false").lower() == "true")
     p.add_argument("--company-samples-limit", type=int, default=int(os.getenv("DELTA_COMPANY_SAMPLES_LIMIT", "100")))
     p.add_argument("--max-run-wait-seconds", type=int, default=int(os.getenv("DELTA_MAX_RUN_WAIT_SECONDS", "7200")))
@@ -1014,7 +1280,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--postgres-container", default=os.getenv("DELTA_POSTGRES_CONTAINER", "delta-job-tracker-postgres"))
     p.add_argument("--postgres-user", default=os.getenv("DELTA_POSTGRES_USER", "delta"))
     p.add_argument("--postgres-db", default=os.getenv("DELTA_POSTGRES_DB", "delta_job_tracker"))
-    args = p.parse_args(argv)
+    args = p.parse_args(argv_list)
+    args.run_full_mode_explicit = last_run_full_idx > last_no_run_full_idx
 
     for field in (
         "sec_limit",
