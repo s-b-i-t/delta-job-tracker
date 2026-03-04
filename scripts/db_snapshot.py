@@ -24,6 +24,12 @@ GROUP BY COALESCE(ats_type, 'UNKNOWN')
 ORDER BY COUNT(*) DESC, COALESCE(ats_type, 'UNKNOWN');
 """
 QUERY_COMPANIES_WITH_DOMAIN = "SELECT COUNT(DISTINCT company_id) AS value FROM company_domains;"
+QUERY_DB_IDENTITY = """
+SELECT current_database() AS current_database,
+       inet_server_addr()::text AS inet_server_addr,
+       inet_server_port() AS inet_server_port,
+       version() AS version;
+"""
 DEFAULT_QUERY_TIMEOUT_SECONDS = 15
 DEFAULT_DISCOVERY_TIMEOUT_SECONDS = 5
 
@@ -37,6 +43,19 @@ def parse_int(value: Any, default: int = 0) -> int:
         return int(value)
     except Exception:
         return default
+
+
+def parse_bool(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def clean_optional_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def timeout_from_env(env_name: str, default: int) -> int:
@@ -165,19 +184,61 @@ def detect_compose_postgres_container(
     return None
 
 
-def try_docker_psql(
-    repo_root: Path,
-    sql: str,
-    query_timeout_seconds: int,
-    discovery_timeout_seconds: int,
-) -> List[Dict[str, str]]:
+def build_direct_target(env: Dict[str, str]) -> Dict[str, Any]:
+    return {
+        "type": "direct_psql",
+        "host": clean_optional_text(env.get("PGHOST")),
+        "port": clean_optional_text(env.get("PGPORT")),
+        "database": clean_optional_text(env.get("PGDATABASE")),
+        "user": clean_optional_text(env.get("PGUSER")),
+    }
+
+
+def assert_direct_target_safe(env: Dict[str, str], target: Dict[str, Any]) -> None:
+    host = (target.get("host") or "").strip().lower()
+    allow_nonlocal = parse_bool(env.get("SOAK_DB_ALLOW_NONLOCAL_DIRECT"))
+    if allow_nonlocal:
+        target["allow_nonlocal_override"] = True
+        return
+    # Empty host defaults to a local Unix socket for psql.
+    if host in {"", "localhost", "127.0.0.1", "::1"}:
+        return
+    if host.startswith("/"):
+        return
+    raise RuntimeError(
+        f"Refusing direct snapshot for non-local PGHOST={host!r}. "
+        "Set SOAK_DB_ALLOW_NONLOCAL_DIRECT=true to override."
+    )
+
+
+def resolve_docker_target(repo_root: Path, discovery_timeout_seconds: int) -> Dict[str, Any]:
     container = detect_compose_postgres_container(
         repo_root, discovery_timeout_seconds=discovery_timeout_seconds
     )
     if not container:
         raise RuntimeError("Could not find postgres docker container")
-    user = os.getenv("SOAK_POSTGRES_USER", os.getenv("DELTA_POSTGRES_USER", "delta"))
-    database = os.getenv("SOAK_POSTGRES_DB", os.getenv("DELTA_POSTGRES_DB", "delta_job_tracker"))
+    return {
+        "type": "docker_exec",
+        "container": container,
+        "database": clean_optional_text(
+            os.getenv("SOAK_POSTGRES_DB", os.getenv("DELTA_POSTGRES_DB", "delta_job_tracker"))
+        ),
+        "user": clean_optional_text(
+            os.getenv("SOAK_POSTGRES_USER", os.getenv("DELTA_POSTGRES_USER", "delta"))
+        ),
+    }
+
+
+def try_docker_psql(
+    target: Dict[str, Any],
+    sql: str,
+    query_timeout_seconds: int,
+) -> List[Dict[str, str]]:
+    container = clean_optional_text(target.get("container"))
+    if not container:
+        raise RuntimeError("Could not find postgres docker container")
+    user = clean_optional_text(target.get("user")) or "delta"
+    database = clean_optional_text(target.get("database")) or "delta_job_tracker"
     cmd = [
         "docker",
         "exec",
@@ -218,6 +279,22 @@ def build_metrics(queries: Dict[str, List[Dict[str, str]]]) -> Dict[str, Any]:
     }
 
 
+def build_identity(rows: List[Dict[str, str]]) -> Dict[str, Any]:
+    row = rows[0] if rows else {}
+    return {
+        "current_database": clean_optional_text(row.get("current_database")),
+        "inet_server_addr": clean_optional_text(row.get("inet_server_addr")),
+        "inet_server_port": parse_int(row.get("inet_server_port"), default=0),
+        "version": clean_optional_text(row.get("version")),
+    }
+
+
+def snapshot_ok(snapshot: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(snapshot, dict):
+        return False
+    return bool(snapshot.get("ok")) and isinstance(snapshot.get("metrics"), dict)
+
+
 def capture_db_snapshot(
     repo_root: Path,
     mode: str = "auto",
@@ -225,7 +302,7 @@ def capture_db_snapshot(
     discovery_timeout_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
     attempts: List[Dict[str, Any]] = []
-    modes = [mode] if mode != "auto" else ["direct", "docker"]
+    modes = [mode] if mode != "auto" else ["docker", "direct"]
     query_timeout = (
         query_timeout_seconds
         if query_timeout_seconds is not None and query_timeout_seconds > 0
@@ -245,10 +322,23 @@ def capture_db_snapshot(
         "companies_with_ats_endpoint_count": QUERY_ATS_COMPANIES,
         "endpoints_by_type": QUERY_ENDPOINTS_BY_TYPE,
         "companies_with_domain_count": QUERY_COMPANIES_WITH_DOMAIN,
+        "db_identity": QUERY_DB_IDENTITY,
     }
 
     for candidate in modes:
+        connection_target: Optional[Dict[str, Any]] = None
         try:
+            if candidate == "direct":
+                env = dict(os.environ)
+                connection_target = build_direct_target(env)
+                assert_direct_target_safe(env, connection_target)
+            elif candidate == "docker":
+                connection_target = resolve_docker_target(
+                    repo_root, discovery_timeout_seconds=discovery_timeout
+                )
+            else:
+                raise RuntimeError(f"Unsupported mode: {candidate}")
+
             rows: Dict[str, List[Dict[str, str]]] = {}
             for name, sql in query_plan.items():
                 if candidate == "direct":
@@ -259,21 +349,24 @@ def capture_db_snapshot(
                     )
                 elif candidate == "docker":
                     rows[name] = try_docker_psql(
-                        repo_root,
+                        connection_target,
                         sql,
                         query_timeout_seconds=query_timeout,
-                        discovery_timeout_seconds=discovery_timeout,
                     )
                 else:
                     raise RuntimeError(f"Unsupported mode: {candidate}")
             return {
                 "schema_version": "db-snapshot-v1",
                 "captured_at": utc_iso(),
-                "mode": candidate,
+                "ok": True,
+                "mode_requested": mode,
+                "mode_used": candidate,
                 "timeouts": {
                     "query_seconds": query_timeout,
                     "discovery_seconds": discovery_timeout,
                 },
+                "connection_target": connection_target,
+                "db_identity": build_identity(rows.get("db_identity", [])),
                 "metrics": build_metrics(rows),
             }
         except Exception as exc:
@@ -282,13 +375,16 @@ def capture_db_snapshot(
                     "mode": candidate,
                     "error": str(exc),
                     "timeout_seconds": query_timeout,
+                    "connection_target": connection_target,
                 }
             )
 
     return {
         "schema_version": "db-snapshot-v1",
         "captured_at": utc_iso(),
-        "mode": mode,
+        "ok": False,
+        "mode_requested": mode,
+        "mode_used": None,
         "timeouts": {
             "query_seconds": query_timeout,
             "discovery_seconds": discovery_timeout,
@@ -300,15 +396,8 @@ def capture_db_snapshot(
     }
 
 
-def metrics_for_delta(snapshot: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    if not snapshot or not isinstance(snapshot.get("metrics"), dict):
-        return {
-            "ats_endpoints_count": 0,
-            "companies_with_ats_endpoint_count": 0,
-            "companies_with_domain_count": 0,
-            "endpoints_by_type_map": {},
-        }
-    metrics = snapshot["metrics"]
+def metrics_for_delta(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    metrics = snapshot.get("metrics") or {}
     return {
         "ats_endpoints_count": parse_int(metrics.get("ats_endpoints_count")),
         "companies_with_ats_endpoint_count": parse_int(metrics.get("companies_with_ats_endpoint_count")),
@@ -322,9 +411,25 @@ def metrics_for_delta(snapshot: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 def build_db_truth(
     start_snapshot: Optional[Dict[str, Any]], end_snapshot: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    start_metrics = metrics_for_delta(start_snapshot)
-    end_metrics = metrics_for_delta(end_snapshot)
+    start_ok = snapshot_ok(start_snapshot)
+    end_ok = snapshot_ok(end_snapshot)
+    errors: List[Dict[str, Any]] = []
+    if start_snapshot and start_snapshot.get("error"):
+        errors.append({"snapshot": "start", "error": start_snapshot.get("error")})
+    if end_snapshot and end_snapshot.get("error"):
+        errors.append({"snapshot": "end", "error": end_snapshot.get("error")})
 
+    if not (start_ok and end_ok):
+        return {
+            "start": start_snapshot,
+            "end": end_snapshot,
+            "delta_ok": False,
+            "delta": None,
+            "errors": errors,
+        }
+
+    start_metrics = metrics_for_delta(start_snapshot or {})
+    end_metrics = metrics_for_delta(end_snapshot or {})
     type_keys = sorted(
         set(start_metrics["endpoints_by_type_map"].keys())
         | set(end_metrics["endpoints_by_type_map"].keys())
@@ -334,15 +439,11 @@ def build_db_truth(
         - start_metrics["endpoints_by_type_map"].get(key, 0)
         for key in type_keys
     }
-    errors: List[Dict[str, Any]] = []
-    if start_snapshot and start_snapshot.get("error"):
-        errors.append({"snapshot": "start", "error": start_snapshot.get("error")})
-    if end_snapshot and end_snapshot.get("error"):
-        errors.append({"snapshot": "end", "error": end_snapshot.get("error")})
 
     return {
         "start": start_snapshot,
         "end": end_snapshot,
+        "delta_ok": True,
         "delta": {
             "ats_endpoints_count": end_metrics["ats_endpoints_count"]
             - start_metrics["ats_endpoints_count"],

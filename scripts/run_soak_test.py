@@ -79,7 +79,9 @@ def capture_db_snapshot_safe(repo_root: Path) -> Dict[str, Any]:
         return {
             "schema_version": "db-snapshot-v1",
             "captured_at": utc_iso(),
-            "mode": "auto",
+            "ok": False,
+            "mode_requested": "auto",
+            "mode_used": None,
             "error": {
                 "message": "DB snapshot capture failed with unexpected exception",
                 "attempts": [{"mode": "auto", "error": str(exc)}],
