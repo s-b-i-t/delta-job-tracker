@@ -35,6 +35,7 @@ public class CrawlerProperties {
   private Ats ats = new Ats();
   private Run run = new Run();
   private Canary canary = new Canary();
+  private Frontier frontier = new Frontier();
 
   public String getUserAgent() {
     return normalizeUserAgent(userAgent);
@@ -244,6 +245,14 @@ public class CrawlerProperties {
     this.canary = canary;
   }
 
+  public Frontier getFrontier() {
+    return frontier;
+  }
+
+  public void setFrontier(Frontier frontier) {
+    this.frontier = frontier;
+  }
+
   public static String normalizeUserAgent(String candidate) {
     if (candidate == null || candidate.isBlank()) {
       return DEFAULT_USER_AGENT;
@@ -380,7 +389,8 @@ public class CrawlerProperties {
     private int wdqsTimeoutSeconds = 8;
     private int cacheTtlMinutes = 720;
     private int noItemRetryHours = 168;
-    private List<String> heuristicTlds = new ArrayList<>(List.of("com", "io", "ai", "co", "net", "org"));
+    private List<String> heuristicTlds =
+        new ArrayList<>(List.of("com", "io", "ai", "co", "net", "org"));
 
     public int getDefaultLimit() {
       return Math.max(1, defaultLimit);
@@ -908,6 +918,54 @@ public class CrawlerProperties {
 
     public void setMaxAttemptsPerRequest(int maxAttemptsPerRequest) {
       this.maxAttemptsPerRequest = Math.max(1, maxAttemptsPerRequest);
+    }
+  }
+
+  public static class Frontier {
+    private int seedDomainLimit = 50;
+    private int maxSitemapFetchesPerRun = 300;
+    private int maxUrlsParsedPerSitemap = 2000;
+    private int maxJobCandidatesPerSitemap = 300;
+    private int urlLeaseSeconds = 60;
+
+    public int getSeedDomainLimit() {
+      return Math.max(1, seedDomainLimit);
+    }
+
+    public void setSeedDomainLimit(int seedDomainLimit) {
+      this.seedDomainLimit = Math.max(1, seedDomainLimit);
+    }
+
+    public int getMaxSitemapFetchesPerRun() {
+      return Math.max(1, maxSitemapFetchesPerRun);
+    }
+
+    public void setMaxSitemapFetchesPerRun(int maxSitemapFetchesPerRun) {
+      this.maxSitemapFetchesPerRun = Math.max(1, maxSitemapFetchesPerRun);
+    }
+
+    public int getMaxUrlsParsedPerSitemap() {
+      return Math.max(1, maxUrlsParsedPerSitemap);
+    }
+
+    public void setMaxUrlsParsedPerSitemap(int maxUrlsParsedPerSitemap) {
+      this.maxUrlsParsedPerSitemap = Math.max(1, maxUrlsParsedPerSitemap);
+    }
+
+    public int getMaxJobCandidatesPerSitemap() {
+      return Math.max(1, maxJobCandidatesPerSitemap);
+    }
+
+    public void setMaxJobCandidatesPerSitemap(int maxJobCandidatesPerSitemap) {
+      this.maxJobCandidatesPerSitemap = Math.max(1, maxJobCandidatesPerSitemap);
+    }
+
+    public int getUrlLeaseSeconds() {
+      return Math.max(5, urlLeaseSeconds);
+    }
+
+    public void setUrlLeaseSeconds(int urlLeaseSeconds) {
+      this.urlLeaseSeconds = Math.max(5, urlLeaseSeconds);
     }
   }
 }
