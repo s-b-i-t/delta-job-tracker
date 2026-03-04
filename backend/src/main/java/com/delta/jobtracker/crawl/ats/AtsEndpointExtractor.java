@@ -44,6 +44,17 @@ public class AtsEndpointExtractor {
   private static final Pattern SMARTRECRUITERS_API =
       Pattern.compile(
           "(?i)(?:https?:)?//api\\.smartrecruiters\\.com/v1/companies/([A-Za-z0-9._-]+)");
+  private static final Pattern ICIMS_JOBS =
+      Pattern.compile("(?i)(?:https?:)?//([A-Za-z0-9.-]*icims\\.com)/jobs(?:/search[^\"'\\s<>]*)?");
+  private static final Pattern ICIMS_CAREERS =
+      Pattern.compile(
+          "(?i)(?:https?:)?//careers\\.icims\\.com/jobs/([A-Za-z0-9._-]+)(?:/[^\"'\\s<>]*)?");
+  private static final Pattern TALEO_CAREERSECTION =
+      Pattern.compile(
+          "(?i)(?:https?:)?//([A-Za-z0-9.-]*taleo\\.net)/careersection/([A-Za-z0-9._-]+)/jobsearch\\.ftl[^\"'\\s<>]*");
+  private static final Pattern SUCCESSFACTORS_CAREER =
+      Pattern.compile(
+          "(?i)(?:https?:)?//([A-Za-z0-9.-]*(?:successfactors\\.[A-Za-z.]+|jobs\\.sap\\.com))/career[^\"'\\s<>]*");
 
   public List<AtsDetectionRecord> extract(String url, String html) {
     Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
@@ -141,6 +152,9 @@ public class AtsEndpointExtractor {
     }
 
     addSmartRecruitersEndpoints(text, unique);
+    addIcimsEndpoints(text, unique);
+    addTaleoEndpoints(text, unique);
+    addSuccessFactorsEndpoints(text, unique);
   }
 
   private void addSmartRecruitersEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
@@ -183,7 +197,7 @@ public class AtsEndpointExtractor {
     if (endpointUrl == null || endpointUrl.isBlank() || type == null || type == AtsType.UNKNOWN) {
       return;
     }
-    String normalized = normalizeEndpointUrl(endpointUrl);
+    String normalized = normalizeEndpointUrl(type, endpointUrl);
     if (normalized == null) {
       return;
     }
@@ -191,7 +205,7 @@ public class AtsEndpointExtractor {
     unique.putIfAbsent(key, new AtsDetectionRecord(type, normalized));
   }
 
-  private String normalizeEndpointUrl(String raw) {
+  private String normalizeEndpointUrl(AtsType type, String raw) {
     URI uri = safeUri(raw);
     if (uri == null || uri.getHost() == null) {
       return null;
@@ -201,6 +215,29 @@ public class AtsEndpointExtractor {
       host = "boards.greenhouse.io";
     }
     String path = uri.getPath() == null ? "" : uri.getPath();
+    if (type == AtsType.ICIMS) {
+      if (host.equals("careers.icims.com")) {
+        String[] parts = path.split("/");
+        if (parts.length >= 4 && "jobs".equalsIgnoreCase(parts[1]) && !parts[2].isBlank()) {
+          path = "/jobs/" + parts[2] + "/jobs";
+        } else {
+          path = "/jobs/search";
+        }
+      } else {
+        path = "/jobs/search";
+      }
+    } else if (type == AtsType.TALEO) {
+      List<String> segments = pathSegments(path);
+      if (segments.size() >= 4
+          && "careersection".equalsIgnoreCase(segments.get(0))
+          && "jobsearch.ftl".equalsIgnoreCase(segments.get(2))) {
+        path = "/careersection/" + segments.get(1) + "/jobsearch.ftl";
+      } else if (segments.size() >= 2 && "careersection".equalsIgnoreCase(segments.get(0))) {
+        path = "/careersection/" + segments.get(1) + "/jobsearch.ftl";
+      }
+    } else if (type == AtsType.SUCCESSFACTORS) {
+      path = "/career";
+    }
     String normalized = "https://" + host + path;
     if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
       normalized = normalized.substring(0, normalized.length() - 1);
@@ -244,6 +281,49 @@ public class AtsEndpointExtractor {
       return null;
     }
     return "https://careers.smartrecruiters.com/" + company;
+  }
+
+  private void addIcimsEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher jobsMatcher = ICIMS_JOBS.matcher(text);
+    while (jobsMatcher.find()) {
+      String host = cleanToken(jobsMatcher.group(1));
+      if (host != null) {
+        addEndpoint(unique, AtsType.ICIMS, "https://" + host + "/jobs/search");
+      }
+    }
+    Matcher careersMatcher = ICIMS_CAREERS.matcher(text);
+    while (careersMatcher.find()) {
+      String company = cleanToken(careersMatcher.group(1));
+      if (company != null) {
+        addEndpoint(unique, AtsType.ICIMS, "https://careers.icims.com/jobs/" + company + "/jobs");
+      }
+    }
+  }
+
+  private void addTaleoEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher matcher = TALEO_CAREERSECTION.matcher(text);
+    while (matcher.find()) {
+      String host = cleanToken(matcher.group(1));
+      String section = cleanToken(matcher.group(2));
+      if (host == null || section == null) {
+        continue;
+      }
+      addEndpoint(
+          unique,
+          AtsType.TALEO,
+          "https://" + host + "/careersection/" + section + "/jobsearch.ftl");
+    }
+  }
+
+  private void addSuccessFactorsEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher matcher = SUCCESSFACTORS_CAREER.matcher(text);
+    while (matcher.find()) {
+      String host = cleanToken(matcher.group(1));
+      if (host == null) {
+        continue;
+      }
+      addEndpoint(unique, AtsType.SUCCESSFACTORS, "https://" + host + "/career");
+    }
   }
 
   private boolean isLocaleSegment(String segment) {

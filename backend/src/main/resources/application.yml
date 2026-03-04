@@ -70,6 +70,9 @@ crawler:
   careers-discovery:
     default-limit: 50
     max-duration-seconds: 900
+    hard-timeout-seconds: 900
+    global-request-budget-per-run: 5000
+    per-host-failure-cutoff: 6
     max-slug-candidates: 8
     max-careers-paths: 4
     robots-cooldown-days: 14

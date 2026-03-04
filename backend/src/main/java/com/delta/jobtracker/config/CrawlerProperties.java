@@ -487,6 +487,9 @@ public class CrawlerProperties {
     private int semiPermanentRetryHours = 168;
     private int maxDurationSeconds = 900;
     private int maxVendorProbeRequestsPerHost = 200;
+    private int globalRequestBudgetPerRun = 5000;
+    private int hardTimeoutSeconds = 900;
+    private int perHostFailureCutoff = 6;
     private List<Integer> failureBackoffMinutes = new ArrayList<>(DEFAULT_FAILURE_BACKOFF);
 
     public int getDefaultLimit() {
@@ -559,6 +562,30 @@ public class CrawlerProperties {
 
     public void setMaxVendorProbeRequestsPerHost(int maxVendorProbeRequestsPerHost) {
       this.maxVendorProbeRequestsPerHost = Math.max(1, maxVendorProbeRequestsPerHost);
+    }
+
+    public int getGlobalRequestBudgetPerRun() {
+      return Math.max(0, globalRequestBudgetPerRun);
+    }
+
+    public void setGlobalRequestBudgetPerRun(int globalRequestBudgetPerRun) {
+      this.globalRequestBudgetPerRun = Math.max(0, globalRequestBudgetPerRun);
+    }
+
+    public int getHardTimeoutSeconds() {
+      return Math.max(0, hardTimeoutSeconds);
+    }
+
+    public void setHardTimeoutSeconds(int hardTimeoutSeconds) {
+      this.hardTimeoutSeconds = Math.max(0, hardTimeoutSeconds);
+    }
+
+    public int getPerHostFailureCutoff() {
+      return Math.max(1, perHostFailureCutoff);
+    }
+
+    public void setPerHostFailureCutoff(int perHostFailureCutoff) {
+      this.perHostFailureCutoff = Math.max(1, perHostFailureCutoff);
     }
 
     public List<Integer> getFailureBackoffMinutes() {

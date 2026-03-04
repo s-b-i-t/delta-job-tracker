@@ -62,4 +62,45 @@ class AtsEndpointNormalizationTest {
     assertEquals(canonicalUrl, stored);
     assertEquals(1, count);
   }
+
+  @Test
+  void icimsSearchEndpointIsCanonicalizedAndDeduped() {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    long companyId = repository.upsertCompany("IC" + suffix, "iCIMS Norm " + suffix, "Technology");
+
+    String urlA = "https://jobs.icims.com/jobs/search?ss=1&mobile=false";
+    String urlB = "https://jobs.icims.com/jobs/search?mode=job&iis=Careers+Site";
+    String canonicalUrl = "https://jobs.icims.com/jobs/search";
+
+    repository.upsertAtsEndpoint(
+        companyId, AtsType.ICIMS, urlA, null, 0.9, Instant.now(), "test", false);
+    repository.upsertAtsEndpoint(
+        companyId, AtsType.ICIMS, urlB, null, 0.9, Instant.now(), "test", true);
+
+    String stored =
+        jdbc.queryForObject(
+            """
+                SELECT ats_url
+                FROM ats_endpoints
+                WHERE company_id = :companyId
+                  AND ats_type = 'ICIMS'
+                LIMIT 1
+                """,
+            new MapSqlParameterSource().addValue("companyId", companyId),
+            String.class);
+
+    Integer count =
+        jdbc.queryForObject(
+            """
+                SELECT COUNT(*)
+                FROM ats_endpoints
+                WHERE company_id = :companyId
+                  AND ats_type = 'ICIMS'
+                """,
+            new MapSqlParameterSource().addValue("companyId", companyId),
+            Integer.class);
+
+    assertEquals(canonicalUrl, stored);
+    assertEquals(1, count);
+  }
 }

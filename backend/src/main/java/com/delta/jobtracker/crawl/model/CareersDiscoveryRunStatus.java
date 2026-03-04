@@ -34,4 +34,10 @@ public record CareersDiscoveryRunStatus(
     int careersUrlFoundCount,
     int vendorDetectedCount,
     int endpointExtractedCount,
-    Map<String, Long> careersStageFailuresByReason) {}
+    Map<String, Long> careersStageFailuresByReason,
+    int requestBudget,
+    int requestCountTotal,
+    int hardTimeoutSeconds,
+    String stopReason,
+    int hostFailureCutoffCount,
+    int hostFailureCutoffSkips) {}

@@ -5,5 +5,8 @@ public enum AtsType {
   GREENHOUSE,
   LEVER,
   SMARTRECRUITERS,
+  ICIMS,
+  TALEO,
+  SUCCESSFACTORS,
   UNKNOWN
 }

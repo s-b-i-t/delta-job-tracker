@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +41,9 @@ class CareersDiscoveryRunServiceTest {
 
     when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
     when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
-    when(repository.insertCareersDiscoveryRun(1, 1, 1, 1)).thenReturn(99L);
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(99L);
     when(repository.countAtsEndpointsForCompany(1L)).thenReturn(0);
 
     CareersDiscoveryService.DiscoveryFailure failure =
@@ -63,7 +67,11 @@ class CareersDiscoveryRunServiceTest {
 
     verify(repository)
         .completeCareersDiscoveryRun(
-            eq(99L), any(Instant.class), eq("ABORTED"), eq("time_budget_exceeded"));
+            eq(99L),
+            any(Instant.class),
+            eq("ABORTED"),
+            eq("time_budget_exceeded"),
+            eq("time_budget_exceeded"));
 
     ArgumentCaptor<Integer> budgetCaptor = ArgumentCaptor.forClass(Integer.class);
     verify(repository, atLeastOnce())
@@ -86,8 +94,53 @@ class CareersDiscoveryRunServiceTest {
             anyInt(),
             anyInt(),
             anyInt(),
-            budgetCaptor.capture());
+            budgetCaptor.capture(),
+            anyInt(),
+            anyInt());
     assertThat(budgetCaptor.getValue()).isGreaterThanOrEqualTo(1);
+  }
+
+  @Test
+  void discoveryRunAbortsWhenRequestBudgetExceeded() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(1);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    CompanyTarget c1 = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+    CompanyTarget c2 = new CompanyTarget(2L, "BBB", "Beta", null, "beta.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(2);
+    when(repository.findCompaniesWithDomainWithoutAts(2)).thenReturn(List.of(c1, c2));
+    when(repository.insertCareersDiscoveryRun(
+            eq(2), eq(2), eq(2), eq(2), anyInt(), anyInt(), anyInt()))
+        .thenReturn(100L);
+    when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
+
+    CareersDiscoveryService.DiscoveryFailure failure =
+        new CareersDiscoveryService.DiscoveryFailure("discovery_no_match", null, null);
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        new CareersDiscoveryService.DiscoveryOutcome(Map.of(), failure, 0, false, false);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean()))
+        .thenAnswer(
+            invocation -> {
+              CareersDiscoveryService.DiscoveryMetrics metrics = invocation.getArgument(2);
+              metrics.incrementRequestsIssued(2);
+              return outcome;
+            });
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(2, 2, false);
+
+    verify(discoveryService, times(1)).discoverForCompany(any(), any(), any(), any(), anyBoolean());
+    verify(repository)
+        .completeCareersDiscoveryRun(
+            eq(100L),
+            any(Instant.class),
+            eq("ABORTED"),
+            eq("request_budget_exceeded"),
+            eq("request_budget_exceeded"));
   }
 
   private static final class DirectExecutorService extends AbstractExecutorService {

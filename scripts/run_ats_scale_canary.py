@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+"""Bounded ATS scale canary: frontier seed + ATS discovery + DB-truth metrics."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
+
+import run_ats_validation_canary as canary
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Run bounded ATS scale canary and emit DB-truth metrics")
+    p.add_argument("--base-url", default="http://localhost:8080")
+    p.add_argument("--out-dir", default="out")
+    p.add_argument("--domain-limit", type=int, default=50)
+    p.add_argument("--max-sitemap-fetches", type=int, default=50)
+    p.add_argument("--discover-limit", type=int, default=200)
+    p.add_argument("--discover-batch-size", type=int, default=25)
+    p.add_argument("--vendor-probe-only", action="store_true")
+    p.add_argument("--max-wait-seconds", type=int, default=1800)
+    p.add_argument("--poll-interval-seconds", type=int, default=5)
+    p.add_argument("--http-timeout-seconds", type=int, default=30)
+    p.add_argument("--postgres-container", default="delta-job-tracker-postgres")
+    p.add_argument("--postgres-user", default="delta")
+    p.add_argument("--postgres-db", default="delta_job_tracker")
+    return p.parse_args()
+
+
+def first_int(rows: List[Dict[str, str]], key: str) -> int:
+    if not rows:
+        return 0
+    return canary.parse_int(rows[0].get(key))
+
+
+def rate_per_hour(count: int, duration_seconds: float) -> float:
+    if duration_seconds <= 0:
+        return 0.0
+    return round((count * 3600.0) / duration_seconds, 3)
+
+
+def query_sql_snapshots(db: canary.DbClient, run_id: int) -> Dict[str, Any]:
+    table_counts = db.query_csv(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM crawl_hosts) AS crawl_hosts_count,
+            (SELECT COUNT(*) FROM crawl_urls) AS crawl_urls_count,
+            (SELECT COUNT(*) FROM crawl_url_attempts) AS crawl_url_attempts_count
+        """
+    )
+    endpoints_by_vendor = db.query_csv(
+        """
+        SELECT ats_type AS vendor, COUNT(*)::text AS count
+        FROM ats_endpoints
+        GROUP BY ats_type
+        ORDER BY COUNT(*) DESC, ats_type
+        """
+    )
+    validation_counts = db.query_csv(
+        """
+        SELECT CASE WHEN verified THEN 'validated' ELSE 'unvalidated' END AS validation_status,
+               COUNT(*)::text AS count
+        FROM ats_endpoints
+        GROUP BY verified
+        ORDER BY validation_status
+        """
+    )
+    attempts_by_error_bucket = db.query_csv(
+        f"""
+        SELECT COALESCE(reason_code, 'UNKNOWN') AS error_bucket,
+               COUNT(*)::text AS count
+        FROM careers_discovery_company_results
+        WHERE discovery_run_id = {run_id}
+          AND reason_code IS NOT NULL
+        GROUP BY COALESCE(reason_code, 'UNKNOWN')
+        ORDER BY COUNT(*) DESC, error_bucket
+        """
+    )
+    companies_with_endpoint = db.query_csv(
+        """
+        SELECT COUNT(DISTINCT company_id)::text AS companies_with_endpoint_count
+        FROM ats_endpoints
+        """
+    )
+    companies_attempted = db.query_csv(
+        f"""
+        SELECT companies_attempted_count::text AS companies_attempted_count,
+               endpoints_added::text AS endpoints_added,
+               request_count_total::text AS request_count_total,
+               status,
+               stop_reason,
+               started_at::text AS started_at,
+               finished_at::text AS finished_at
+        FROM careers_discovery_runs
+        WHERE id = {run_id}
+        """
+    )
+    return {
+        "table_counts": table_counts,
+        "endpoints_by_vendor": endpoints_by_vendor,
+        "validation_counts": validation_counts,
+        "attempts_by_error_bucket": attempts_by_error_bucket,
+        "companies_with_endpoint": companies_with_endpoint,
+        "run_metrics": companies_attempted,
+    }
+
+
+def main() -> int:
+    args = parse_args()
+    out_dir = canary.ensure_out_dir(Path(args.out_dir))
+    api = canary.ApiClient(args.base_url, args.http_timeout_seconds)
+    db = canary.DbClient(args.postgres_container, args.postgres_user, args.postgres_db)
+
+    preflight = canary.timed_step_safe("preflight_api_status", lambda: api.get_json("/api/status"))
+    canary.write_json(out_dir / "preflight_api_status.json", preflight.payload)
+    if isinstance(preflight.payload, dict) and preflight.payload.get("_error"):
+        canary.write_json(out_dir / "ats_scale_metrics.json", {"error": "preflight_failed", "details": preflight.payload})
+        print(f"ats_scale status=FAILED error=preflight_api_status out_dir={out_dir}", file=sys.stderr)
+        return 2
+
+    frontier_seed = canary.timed_step(
+        "frontier_seed",
+        lambda: api.post_json(
+            "/api/frontier/seed",
+            {"domainLimit": max(1, args.domain_limit), "maxSitemapFetches": max(1, args.max_sitemap_fetches)},
+        ),
+    )
+    canary.write_json(out_dir / "frontier_seed_response.json", frontier_seed.payload)
+
+    discover_start = canary.timed_step(
+        "ats_discovery_start",
+        lambda: api.post_json(
+            "/api/careers/discover",
+            {
+                "limit": max(1, args.discover_limit),
+                "batchSize": max(1, args.discover_batch_size),
+                "vendorProbeOnly": "true" if args.vendor_probe_only else "false",
+            },
+        ),
+    )
+    canary.write_json(out_dir / "ats_discovery_start.json", discover_start.payload)
+    run_id = canary.parse_int((discover_start.payload or {}).get("discoveryRunId"))
+    if run_id <= 0:
+        canary.write_json(out_dir / "ats_scale_metrics.json", {"error": "missing_discovery_run_id", "start_payload": discover_start.payload})
+        print(f"ats_scale status=FAILED error=missing_discovery_run_id out_dir={out_dir}", file=sys.stderr)
+        return 2
+
+    final_status = canary.poll_discovery_run(
+        api, run_id, args.max_wait_seconds, args.poll_interval_seconds, out_dir, "ats_scale_discovery"
+    )
+    canary.write_json(out_dir / "ats_discovery_final_status.json", final_status)
+
+    companies_payload = canary.timed_step_safe(
+        "ats_discovery_companies",
+        lambda: api.get_json(f"/api/careers/discover/run/{run_id}/companies", {"limit": 500}),
+    )
+    canary.write_json(out_dir / "ats_discovery_companies.json", companies_payload.payload)
+    failures_payload = canary.timed_step_safe(
+        "ats_discovery_failures", lambda: api.get_json(f"/api/careers/discover/run/{run_id}/failures")
+    )
+    canary.write_json(out_dir / "ats_discovery_failures.json", failures_payload.payload)
+
+    sql_snapshots = query_sql_snapshots(db, run_id)
+    canary.write_json(out_dir / "ats_scale_sql_snapshots.json", sql_snapshots)
+
+    run_row = (sql_snapshots.get("run_metrics") or [{}])[0]
+    attempted = canary.parse_int(run_row.get("companies_attempted_count"))
+    endpoints_added = canary.parse_int(run_row.get("endpoints_added"))
+    request_count = canary.parse_int(run_row.get("request_count_total"))
+    started_at = run_row.get("started_at")
+    finished_at = run_row.get("finished_at")
+
+    duration_seconds = 0.0
+    if started_at and finished_at:
+        try:
+            s = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+            f = datetime.fromisoformat(finished_at.replace("Z", "+00:00"))
+            duration_seconds = max(0.0, (f - s).total_seconds())
+        except Exception:
+            duration_seconds = 0.0
+
+    endpoints_by_vendor = {
+        str(row.get("vendor")): canary.parse_int(row.get("count"))
+        for row in (sql_snapshots.get("endpoints_by_vendor") or [])
+    }
+    validation_counts = {
+        str(row.get("validation_status")): canary.parse_int(row.get("count"))
+        for row in (sql_snapshots.get("validation_counts") or [])
+    }
+    error_bucket_counts = {
+        str(row.get("error_bucket")): canary.parse_int(row.get("count"))
+        for row in (sql_snapshots.get("attempts_by_error_bucket") or [])
+    }
+
+    metrics = {
+        "schema_version": "ats-scale-metrics-v1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
+        "run_status": final_status.get("status"),
+        "stop_reason": run_row.get("stop_reason") or final_status.get("lastError"),
+        "guardrails": {
+            "request_budget": canary.parse_int(final_status.get("requestBudget")),
+            "hard_timeout_seconds": canary.parse_int(final_status.get("hardTimeoutSeconds")),
+            "host_failure_cutoff_count": canary.parse_int(final_status.get("hostFailureCutoffCount")),
+            "host_failure_cutoff_skips": canary.parse_int(final_status.get("hostFailureCutoffSkips")),
+        },
+        "frontier_seed": {
+            "hostsSeen": canary.parse_int(frontier_seed.payload.get("hostsSeen")),
+            "urlsEnqueued": canary.parse_int(frontier_seed.payload.get("urlsEnqueued")),
+            "urlsFetched": canary.parse_int(frontier_seed.payload.get("urlsFetched")),
+            "blockedByBackoff": canary.parse_int(frontier_seed.payload.get("blockedByBackoff")),
+            "http429Rate": float(frontier_seed.payload.get("http429Rate") or 0.0),
+        },
+        "db_truth": {
+            "companiesAttempted": attempted,
+            "companiesWithAtLeastOneAtsEndpoint": first_int(
+                sql_snapshots.get("companies_with_endpoint") or [], "companies_with_endpoint_count"
+            ),
+            "endpointsByVendor": endpoints_by_vendor,
+            "validatedVsUnvalidated": {
+                "validated": validation_counts.get("validated", 0),
+                "unvalidated": validation_counts.get("unvalidated", 0),
+            },
+            "attemptsByErrorBucket": error_bucket_counts,
+        },
+        "throughput": {
+            "durationSeconds": round(duration_seconds, 3),
+            "domainsPerHour": rate_per_hour(attempted, duration_seconds),
+            "endpointsPerHour": rate_per_hour(endpoints_added, duration_seconds),
+            "requestsPerHour": rate_per_hour(request_count, duration_seconds),
+            "requestCount": request_count,
+            "endpointsAdded": endpoints_added,
+        },
+        "artifacts": {
+            "frontier_seed_response": "frontier_seed_response.json",
+            "ats_discovery_final_status": "ats_discovery_final_status.json",
+            "ats_scale_sql_snapshots": "ats_scale_sql_snapshots.json",
+        },
+    }
+
+    canary.write_json(out_dir / "ats_scale_metrics.json", metrics)
+    print(
+        "ats_scale "
+        f"run_id={run_id} "
+        f"status={final_status.get('status')} "
+        f"attempted={attempted} "
+        f"endpoints_added={endpoints_added} "
+        f"requests={request_count} "
+        f"domains_per_hour={metrics['throughput']['domainsPerHour']:.3f} "
+        f"endpoints_per_hour={metrics['throughput']['endpointsPerHour']:.3f} "
+        f"out_dir={out_dir}",
+        file=sys.stderr,
+    )
+    print(json.dumps({"out_dir": str(out_dir), "run_id": run_id, "status": final_status.get("status")}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

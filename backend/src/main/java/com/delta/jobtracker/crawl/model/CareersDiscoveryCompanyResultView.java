@@ -24,4 +24,5 @@ public record CareersDiscoveryCompanyResultView(
     boolean endpointExtracted,
     String endpointUrl,
     Integer httpStatusFirstFailure,
-    Integer requestCount) {}
+    Integer requestCount,
+    AtsDiscoveryResult atsDiscoveryResult) {}

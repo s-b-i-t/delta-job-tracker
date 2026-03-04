@@ -43,7 +43,11 @@ public final class UrlClassifier {
         || h.contains("jobs.lever.co")
         || h.contains("api.lever.co")
         || h.contains("apply.lever.co")
-        || h.contains("smartrecruiters.com");
+        || h.contains("smartrecruiters.com")
+        || h.contains("icims.com")
+        || h.contains("taleo.net")
+        || h.contains("successfactors.com")
+        || h.contains("jobs.sap.com");
   }
 
   public static URI safeUri(String url) {
