@@ -46,8 +46,8 @@ import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -891,6 +891,7 @@ public class CrawlJdbcRepository {
             """,
         params);
   }
+
   public List<CareersDiscoveryCompanyResultView> findCareersDiscoveryCompanyResults(
       long runId, String status, int limit) {
     int safeLimit = Math.max(1, Math.min(limit, 500));
@@ -971,9 +972,7 @@ public class CrawlJdbcRepository {
         """,
         params,
         (RowCallbackHandler)
-            rs ->
-                counts.put(
-                    rs.getString("careers_discovery_stage_failure"), rs.getLong("total")));
+            rs -> counts.put(rs.getString("careers_discovery_stage_failure"), rs.getLong("total")));
     return counts;
   }
 
@@ -1730,7 +1729,8 @@ public class CrawlJdbcRepository {
     return params;
   }
 
-  private String domainResolutionSelectionWhereClause(String companyAlias, boolean includeNonEmployer) {
+  private String domainResolutionSelectionWhereClause(
+      String companyAlias, boolean includeNonEmployer) {
     String clause = domainResolutionBaseEligibilityClause(companyAlias);
     if (includeNonEmployer) {
       return clause;
@@ -1866,8 +1866,7 @@ public class CrawlJdbcRepository {
     if (tickers == null || tickers.isEmpty()) {
       return List.of();
     }
-    MapSqlParameterSource params =
-        atsDiscoverySelectionParams(limit).addValue("tickers", tickers);
+    MapSqlParameterSource params = atsDiscoverySelectionParams(limit).addValue("tickers", tickers);
     return jdbc.query(
         """
                 SELECT c.id AS company_id,

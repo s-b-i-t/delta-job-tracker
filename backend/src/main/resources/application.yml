@@ -59,6 +59,14 @@ crawler:
     max-consecutive-errors: 25
     max-attempts-per-request: 1
 
+  frontier:
+    seed-domain-limit: 50
+    max-sitemap-fetches-per-run: 300
+    max-urls-parsed-per-sitemap: 2000
+    max-job-candidates-per-sitemap: 300
+    url-lease-seconds: 60
+    respect-robots-for-sitemaps: true
+
   careers-discovery:
     default-limit: 50
     max-duration-seconds: 900

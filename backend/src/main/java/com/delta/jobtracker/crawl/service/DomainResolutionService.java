@@ -186,7 +186,8 @@ public class DomainResolutionService {
     List<CompanyIdentity> missingDomain =
         repository.findCompaniesMissingDomainByTickers(tickers, limit);
     List<CompanyIdentity> companies = missingDomain == null ? List.of() : missingDomain;
-    return resolveCompanies(companies, limit, deadline, companies.size(), companies.size(), 0, List.of());
+    return resolveCompanies(
+        companies, limit, deadline, companies.size(), companies.size(), 0, List.of());
   }
 
   private DomainResolutionResult resolveCompanies(
@@ -712,7 +713,8 @@ public class DomainResolutionService {
     }
     String domain = normalizeDomain(infoboxUrl);
     if (domain == null || domain.isBlank()) {
-      return InfoboxResolutionAttempt.failure(STATUS_INVALID_WEBSITE, "infobox_invalid_website_url");
+      return InfoboxResolutionAttempt.failure(
+          STATUS_INVALID_WEBSITE, "infobox_invalid_website_url");
     }
     if (isParkedHost(domain)) {
       return InfoboxResolutionAttempt.failure(STATUS_INVALID_WEBSITE, "infobox_parked_host");
@@ -764,7 +766,8 @@ public class DomainResolutionService {
       if (header == null || value == null) {
         continue;
       }
-      String headerText = header.text() == null ? "" : header.text().trim().toLowerCase(Locale.ROOT);
+      String headerText =
+          header.text() == null ? "" : header.text().trim().toLowerCase(Locale.ROOT);
       if (!headerText.equals("website") && !headerText.contains("website")) {
         continue;
       }
@@ -1265,7 +1268,9 @@ public class DomainResolutionService {
     if (signals == null || signals.strongTokens().isEmpty()) {
       return false;
     }
-    if (!hasWikipediaTitle(company) && !hasCik(company) && isLowConfidenceHeuristicSignals(signals)) {
+    if (!hasWikipediaTitle(company)
+        && !hasCik(company)
+        && isLowConfidenceHeuristicSignals(signals)) {
       return false;
     }
 
@@ -1287,7 +1292,8 @@ public class DomainResolutionService {
       metrics.incrementHeuristicCandidateTried();
       String candidateTld = topLevelDomain(candidate);
       metrics.recordHeuristicCandidateTld(candidateTld);
-      HttpFetchResult fetch = heuristicFetchCache == null ? null : heuristicFetchCache.get(candidate);
+      HttpFetchResult fetch =
+          heuristicFetchCache == null ? null : heuristicFetchCache.get(candidate);
       boolean cacheHit = fetch != null;
       if (!cacheHit) {
         Instant fetchStartedAt = Instant.now();
@@ -1474,7 +1480,8 @@ public class DomainResolutionService {
     if (!rootMatches) {
       return HeuristicVerdict.reject("root_mismatch");
     }
-    if (tokenMatches == 0 && !hostnameContainsAcceptableRoot(resolvedDomain, signals.acceptableRoots())) {
+    if (tokenMatches == 0
+        && !hostnameContainsAcceptableRoot(resolvedDomain, signals.acceptableRoots())) {
       return HeuristicVerdict.reject("name_not_found");
     }
 
@@ -1825,8 +1832,7 @@ public class DomainResolutionService {
       if (reason == null || reason.isBlank()) {
         return;
       }
-      heuristicSuccessByReason.put(
-          reason, heuristicSuccessByReason.getOrDefault(reason, 0) + 1);
+      heuristicSuccessByReason.put(reason, heuristicSuccessByReason.getOrDefault(reason, 0) + 1);
     }
 
     private DomainResolutionMetrics toModel(long totalDurationMs) {
@@ -1869,7 +1875,8 @@ public class DomainResolutionService {
     }
   }
 
-  private record InfoboxResolutionAttempt(String resolvedDomain, String status, String errorCategory) {
+  private record InfoboxResolutionAttempt(
+      String resolvedDomain, String status, String errorCategory) {
     private static InfoboxResolutionAttempt success(String domain) {
       return new InfoboxResolutionAttempt(domain, STATUS_RESOLVED, null);
     }

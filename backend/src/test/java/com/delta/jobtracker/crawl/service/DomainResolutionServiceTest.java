@@ -3,9 +3,9 @@ package com.delta.jobtracker.crawl.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -25,7 +25,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -180,7 +179,16 @@ class DomainResolutionServiceTest {
   void fallsBackToCikWhenWikipediaLookupMisses() {
     CompanyIdentity company =
         new CompanyIdentity(
-            55L, "AAPL", "Apple Inc.", null, "Apple_Unknown_Title", "0000320193", null, null, null, null);
+            55L,
+            "AAPL",
+            "Apple Inc.",
+            null,
+            "Apple_Unknown_Title",
+            "0000320193",
+            null,
+            null,
+            null,
+            null);
     when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
     when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
         .thenReturn(successFetch(wdqsEmptyResponse()))
@@ -216,8 +224,7 @@ class DomainResolutionServiceTest {
               String url = invocation.getArgument(0, String.class);
               if ("https://en.wikipedia.org/wiki/Test_Corp".equals(url)) {
                 return successHtml(
-                    url,
-                    infoboxHtmlWithWebsite("https://www.testcorp.com/about?utm_source=wiki"));
+                    url, infoboxHtmlWithWebsite("https://www.testcorp.com/about?utm_source=wiki"));
               }
               return failedHtml(url, 404, "http_404");
             });
@@ -333,8 +340,7 @@ class DomainResolutionServiceTest {
   @Test
   void heuristicFallbackAcceptsRedirectToCompanySubdomain() {
     CompanyIdentity company =
-        new CompanyIdentity(
-            56L, "DDOG", "Datadog, Inc.", null, null, null, null, null, null, null);
+        new CompanyIdentity(56L, "DDOG", "Datadog, Inc.", null, null, null, null, null, null, null);
     when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
     when(politeHttpClient.get(anyString(), anyString(), anyInt()))
         .thenReturn(
@@ -379,7 +385,8 @@ class DomainResolutionServiceTest {
             invocation -> {
               String url = invocation.getArgument(0, String.class);
               if ("https://en.wikipedia.org/wiki/Acme_Corp".equals(url)) {
-                return successHtml(url, infoboxHtmlWithWebsite("https://boards.greenhouse.io/acme"));
+                return successHtml(
+                    url, infoboxHtmlWithWebsite("https://boards.greenhouse.io/acme"));
               }
               if ("https://acme.com/".equals(url)) {
                 return successHtml(
@@ -526,8 +533,7 @@ class DomainResolutionServiceTest {
   @Test
   void heuristicFallbackResolvesNonComAndStoresTldSpecificMethod() {
     CompanyIdentity company =
-        new CompanyIdentity(
-            64L, "EXAMP", "Example", null, null, null, null, null, null, null);
+        new CompanyIdentity(64L, "EXAMP", "Example", null, null, null, null, null, null, null);
     when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
     when(politeHttpClient.get(anyString(), anyString(), anyInt()))
         .thenAnswer(
@@ -565,8 +571,7 @@ class DomainResolutionServiceTest {
   @Test
   void heuristicFallbackRejectsParkedRedirectOnNonComTld() {
     CompanyIdentity company =
-        new CompanyIdentity(
-            65L, "ACTAI", "Enact", null, null, null, null, null, null, null);
+        new CompanyIdentity(65L, "ACTAI", "Enact", null, null, null, null, null, null, null);
     when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
     when(politeHttpClient.get(anyString(), anyString(), anyInt()))
         .thenAnswer(
@@ -624,8 +629,7 @@ class DomainResolutionServiceTest {
     when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
     when(politeHttpClient.get(anyString(), anyString(), anyInt()))
         .thenAnswer(
-            invocation ->
-                failedHtml(invocation.getArgument(0, String.class), 404, "http_404"));
+            invocation -> failedHtml(invocation.getArgument(0, String.class), 404, "http_404"));
 
     DomainResolutionResult result = service.resolveMissingDomains(1);
 
@@ -637,8 +641,7 @@ class DomainResolutionServiceTest {
   @Test
   void heuristicTldOrderingTriesComBeforeIo() {
     CompanyIdentity company =
-        new CompanyIdentity(
-            67L, "ORD", "Example", null, null, null, null, null, null, null);
+        new CompanyIdentity(67L, "ORD", "Example", null, null, null, null, null, null, null);
     when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
     java.util.List<String> urls = new java.util.ArrayList<>();
     when(politeHttpClient.get(anyString(), anyString(), anyInt()))
@@ -654,7 +657,8 @@ class DomainResolutionServiceTest {
     assertThat(urls).isNotEmpty();
     assertThat(urls.get(0)).isEqualTo("https://example.com/");
     assertThat(urls).contains("https://example.io/");
-    assertThat(urls.indexOf("https://example.com/")).isLessThan(urls.indexOf("https://example.io/"));
+    assertThat(urls.indexOf("https://example.com/"))
+        .isLessThan(urls.indexOf("https://example.io/"));
   }
 
   @Test
@@ -665,7 +669,8 @@ class DomainResolutionServiceTest {
     CompanyIdentity heuristicResolved =
         new CompanyIdentity(
             10L, "DDOG", "Datadog, Inc.", null, "NoMatch", null, null, null, null, null);
-    when(repository.findCompaniesMissingDomain(2)).thenReturn(List.of(wdqsResolved, heuristicResolved));
+    when(repository.findCompaniesMissingDomain(2))
+        .thenReturn(List.of(wdqsResolved, heuristicResolved));
     when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
         .thenReturn(
             successFetch(

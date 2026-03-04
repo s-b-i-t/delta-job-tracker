@@ -5,8 +5,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.delta.jobtracker.crawl.ats.AtsDetector;
@@ -71,13 +69,14 @@ class CareersLandingPageDiscoveryServiceTest {
   void recordsAllCommonPaths404WhenHomepageMissingHints() {
     String home = "https://example.com/";
     when(httpClient.get(anyString(), anyString(), anyInt()))
-        .thenAnswer(invocation -> {
-          String url = invocation.getArgument(0, String.class);
-          if (home.equals(url)) {
-            return success(home, "<html><body>No jobs link</body></html>");
-          }
-          return failure(url, 404, null, null);
-        });
+        .thenAnswer(
+            invocation -> {
+              String url = invocation.getArgument(0, String.class);
+              if (home.equals(url)) {
+                return success(home, "<html><body>No jobs link</body></html>");
+              }
+              return failure(url, 404, null, null);
+            });
 
     CareersLandingPageDiscoveryService.DiscoveryResult result = service.discover("example.com");
 

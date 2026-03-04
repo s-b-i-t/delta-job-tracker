@@ -66,9 +66,13 @@ class CareersDiscoverySelectionEligibilityTest {
 
     List<CompanyTarget> second = repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 2);
     Set<Long> firstIds =
-        first.stream().map(CompanyTarget::companyId).collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        first.stream()
+            .map(CompanyTarget::companyId)
+            .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     Set<Long> secondIds =
-        second.stream().map(CompanyTarget::companyId).collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        second.stream()
+            .map(CompanyTarget::companyId)
+            .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
 
     assertThat(secondIds).doesNotContainAnyElementsOf(firstIds);
     assertThat(second).extracting(CompanyTarget::ticker).contains(tickerC);
