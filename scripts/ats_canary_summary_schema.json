@@ -19,6 +19,9 @@
   ],
   "key_metrics": [
     "domain_resolution.domain_resolution_rate",
+    "domain_resolution.selection_metrics.selectionEligibleCount",
+    "domain_resolution.selection_metrics.selectionReturnedCount",
+    "domain_resolution.selection_metrics.skippedNotEmployerCount",
     "domain_resolution.fresh_domain_cohort.resolution_rate_in_cohort",
     "ats_vendor_probe.funnel.careers_url_found_rate",
     "ats_vendor_probe.funnel.vendor_detected_rate_among_found",

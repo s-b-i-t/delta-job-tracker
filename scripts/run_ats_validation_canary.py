@@ -675,7 +675,16 @@ def run(args: argparse.Namespace) -> int:
         )
         write_json(out_dir / "domain_fresh_cohort_before.json", fresh_domain_before_step.payload)
 
-    domain_resolve_step = timed_step("domain_resolve", lambda: api.post_json("/api/domains/resolve", {"limit": args.resolve_limit}))
+    domain_resolve_step = timed_step(
+        "domain_resolve",
+        lambda: api.post_json(
+            "/api/domains/resolve",
+            {
+                "limit": args.resolve_limit,
+                "includeNonEmployer": "true" if args.include_non_employer else None,
+            },
+        ),
+    )
     write_json(out_dir / "domain_resolve_response.json", domain_resolve_step.payload)
 
     domain_counts_after = timed_step("domain_counts_after", lambda: query_domain_counts(db))
@@ -794,6 +803,18 @@ def run(args: argparse.Namespace) -> int:
     domain_attempted = parse_int(domain_metrics.get("companiesAttemptedCount"))
     domain_resolved = parse_int(domain_result.get("resolvedCount"))
     domain_resolution_rate = safe_rate(domain_resolved, domain_attempted)
+    skipped_not_employer_sample_raw = domain_metrics.get("skippedNotEmployerSample")
+    skipped_not_employer_sample = (
+        [str(v) for v in skipped_not_employer_sample_raw if str(v)]
+        if isinstance(skipped_not_employer_sample_raw, list)
+        else []
+    )
+    domain_selection_metrics = {
+        "selectionEligibleCount": parse_int(domain_metrics.get("selectionEligibleCount")),
+        "selectionReturnedCount": parse_int(domain_metrics.get("selectionReturnedCount")),
+        "skippedNotEmployerCount": parse_int(domain_metrics.get("skippedNotEmployerCount")),
+        "skippedNotEmployerSample": skipped_not_employer_sample,
+    }
 
     companies_with_domain_before = parse_int(domain_counts_before.payload.get("companies_with_domain_count"))
     companies_with_domain_after = parse_int(domain_counts_after.payload.get("companies_with_domain_count"))
@@ -865,6 +886,7 @@ def run(args: argparse.Namespace) -> int:
             "vendor_probe_success_threshold": args.vendor_probe_success_threshold,
             "run_full_if_good": args.run_full_if_good,
             "domain_fresh_cohort": args.domain_fresh_cohort,
+            "include_non_employer": args.include_non_employer,
             "max_wait_seconds": args.max_wait_seconds,
             "poll_interval_seconds": args.poll_interval_seconds,
         },
@@ -883,6 +905,7 @@ def run(args: argparse.Namespace) -> int:
             "requested_limit": args.resolve_limit,
             "resolved_count": domain_resolved,
             "domain_resolution_rate": domain_resolution_rate,
+            "selection_metrics": domain_selection_metrics,
             "result": domain_result,
             "fresh_domain_cohort": fresh_domain_report,
         },
@@ -918,6 +941,7 @@ def run(args: argparse.Namespace) -> int:
         "domain_backlog_watch": {
             "heuristic_overfit_risk_check": "Compare ATS funnel rates by domain_source; if HEURISTIC underperforms materially vs WIKIDATA/WIKIPEDIA, inspect host quality/brand alias issues.",
             "probe_domain_source_funnel_summary": probe_crosstab.payload.get("summary") if isinstance(probe_crosstab.payload, dict) else [],
+            "domain_resolve_selection_metrics": domain_selection_metrics,
         },
         "bottleneck_assessment": {
             **domain_bottleneck,
@@ -965,6 +989,9 @@ def run(args: argparse.Namespace) -> int:
         ],
         "key_metrics": [
             "domain_resolution.domain_resolution_rate",
+            "domain_resolution.selection_metrics.selectionEligibleCount",
+            "domain_resolution.selection_metrics.selectionReturnedCount",
+            "domain_resolution.selection_metrics.skippedNotEmployerCount",
             "domain_resolution.fresh_domain_cohort.resolution_rate_in_cohort",
             "ats_vendor_probe.funnel.careers_url_found_rate",
             "ats_vendor_probe.funnel.vendor_detected_rate_among_found",
@@ -1011,6 +1038,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--vendor-probe-success-threshold", type=float, default=float(os.getenv("DELTA_VENDOR_PROBE_SUCCESS_THRESHOLD", str(DEFAULT_VENDOR_PROBE_SUCCESS_THRESHOLD))))
     p.add_argument("--run-full-if-good", action="store_true", default=os.getenv("DELTA_RUN_FULL_IF_GOOD", "false").lower() == "true")
     p.add_argument("--domain-fresh-cohort", action="store_true", default=os.getenv("DELTA_DOMAIN_FRESH_COHORT", "false").lower() == "true", help="Sample top missing-domain cohort (ORDER BY ticker) before resolve and report cohort-specific domain outcomes")
+    p.add_argument("--include-non-employer", action="store_true", default=os.getenv("DELTA_INCLUDE_NON_EMPLOYER", "false").lower() == "true", help="Include likely non-employer entities (funds/SPACs/trusts/etc.) in /api/domains/resolve candidate selection")
     p.add_argument("--postgres-container", default=os.getenv("DELTA_POSTGRES_CONTAINER", "delta-job-tracker-postgres"))
     p.add_argument("--postgres-user", default=os.getenv("DELTA_POSTGRES_USER", "delta"))
     p.add_argument("--postgres-db", default=os.getenv("DELTA_POSTGRES_DB", "delta_job_tracker"))
