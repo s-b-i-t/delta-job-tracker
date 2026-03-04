@@ -25,8 +25,10 @@ class FrontierRepositorySeedDomainSelectionTest {
   void findSeedDomainsUsesHighestConfidenceAndNewestResolvedAtPerCompany() {
     String suffix = UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
 
-    long companyA = crawlJdbcRepository.upsertCompany("FSD" + suffix + "A", "Frontier Seed A", "Tech");
-    long companyB = crawlJdbcRepository.upsertCompany("FSD" + suffix + "B", "Frontier Seed B", "Tech");
+    long companyA =
+        crawlJdbcRepository.upsertCompany("FSD" + suffix + "A", "Frontier Seed A", "Tech");
+    long companyB =
+        crawlJdbcRepository.upsertCompany("FSD" + suffix + "B", "Frontier Seed B", "Tech");
 
     Instant now = Instant.now();
 
@@ -34,7 +36,8 @@ class FrontierRepositorySeedDomainSelectionTest {
     String aHighOlder = "a-high-older-" + suffix.toLowerCase(Locale.ROOT) + ".example.com";
     String aHighNewest = "a-high-newest-" + suffix.toLowerCase(Locale.ROOT) + ".example.com";
 
-    crawlJdbcRepository.upsertCompanyDomain(companyA, aLow, null, "TEST", 0.70, now.minus(2, ChronoUnit.HOURS));
+    crawlJdbcRepository.upsertCompanyDomain(
+        companyA, aLow, null, "TEST", 0.70, now.minus(2, ChronoUnit.HOURS));
     crawlJdbcRepository.upsertCompanyDomain(
         companyA, aHighOlder, null, "TEST", 0.95, now.minus(5, ChronoUnit.HOURS));
     crawlJdbcRepository.upsertCompanyDomain(
@@ -43,8 +46,10 @@ class FrontierRepositorySeedDomainSelectionTest {
     String bLow = "b-low-" + suffix.toLowerCase(Locale.ROOT) + ".example.com";
     String bHigh = "b-high-" + suffix.toLowerCase(Locale.ROOT) + ".example.com";
 
-    crawlJdbcRepository.upsertCompanyDomain(companyB, bLow, null, "TEST", 0.40, now.minus(2, ChronoUnit.HOURS));
-    crawlJdbcRepository.upsertCompanyDomain(companyB, bHigh, null, "TEST", 0.99, now.minus(3, ChronoUnit.HOURS));
+    crawlJdbcRepository.upsertCompanyDomain(
+        companyB, bLow, null, "TEST", 0.40, now.minus(2, ChronoUnit.HOURS));
+    crawlJdbcRepository.upsertCompanyDomain(
+        companyB, bHigh, null, "TEST", 0.99, now.minus(3, ChronoUnit.HOURS));
 
     List<String> seeds = frontierRepository.findSeedDomains(1000);
 

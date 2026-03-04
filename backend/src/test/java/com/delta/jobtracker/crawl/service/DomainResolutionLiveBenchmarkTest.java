@@ -74,7 +74,10 @@ class DomainResolutionLiveBenchmarkTest {
             company(110L, "UBER", "Uber Technologies, Inc.", "Uber", "0001543151"));
 
     when(repository.findCompaniesMissingDomain(sample.size())).thenReturn(sample);
-    lenient().doNothing().when(repository).updateCompanyDomainResolutionCache(anyLong(), any(), any(), any(), any());
+    lenient()
+        .doNothing()
+        .when(repository)
+        .updateCompanyDomainResolutionCache(anyLong(), any(), any(), any(), any());
 
     Map<Long, String> resolvedDomainsByCompanyId = new LinkedHashMap<>();
     doAnswer(
@@ -239,8 +242,7 @@ class DomainResolutionLiveBenchmarkTest {
     System.out.println("resolved_by_method=" + metrics.resolvedByMethod());
     System.out.println("heuristic_success_by_reason=" + metrics.heuristicSuccessByReason());
     System.out.println(
-        "resolved_ticker_domain_sample="
-            + resolvedByTicker.entrySet().stream().limit(25).toList());
+        "resolved_ticker_domain_sample=" + resolvedByTicker.entrySet().stream().limit(25).toList());
     System.out.println("sample_errors=" + result.sampleErrors());
   }
 
@@ -264,7 +266,8 @@ class DomainResolutionLiveBenchmarkTest {
             company(20_011L, "SHOPx", "Shopify Inc.", "Shopify", null),
             company(20_012L, "SQx", "Block, Inc.", "Block,_Inc.", null),
             company(20_013L, "SPOTx", "Spotify Technology S.A.", "Spotify", null),
-            company(20_014L, "AMDx", "Advanced Micro Devices, Inc.", "Advanced_Micro_Devices", null),
+            company(
+                20_014L, "AMDx", "Advanced Micro Devices, Inc.", "Advanced_Micro_Devices", null),
             company(20_015L, "AAPLx", "Apple Inc.", "Apple_Inc.", null),
             company(20_016L, "GOOGx", "Alphabet Inc.", "Alphabet_Inc.", null),
             company(20_017L, "PANWx", "Palo Alto Networks, Inc.", "Palo_Alto_Networks", null),
@@ -342,7 +345,8 @@ class DomainResolutionLiveBenchmarkTest {
     System.out.println("resolved_domains_by_company_id=" + resolvedDomainsByCompanyId);
   }
 
-  private CompanyIdentity company(long id, String ticker, String name, String wikiTitle, String cik) {
+  private CompanyIdentity company(
+      long id, String ticker, String name, String wikiTitle, String cik) {
     return new CompanyIdentity(id, ticker, name, null, wikiTitle, cik, null, null, null, null);
   }
 
@@ -352,7 +356,12 @@ class DomainResolutionLiveBenchmarkTest {
     LinkedHashSet<String> knownTickers = new LinkedHashSet<>();
     try (Reader reader = Files.newBufferedReader(domainsPath);
         CSVParser parser =
-            CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(reader)) {
+            CSVFormat.DEFAULT
+                .builder()
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .build()
+                .parse(reader)) {
       for (CSVRecord record : parser) {
         String ticker = record.get("ticker");
         if (ticker != null && !ticker.isBlank()) {
@@ -365,12 +374,19 @@ class DomainResolutionLiveBenchmarkTest {
     long syntheticId = 10_000L;
     try (Reader reader = Files.newBufferedReader(sp500Path);
         CSVParser parser =
-            CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(reader)) {
+            CSVFormat.DEFAULT
+                .builder()
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .build()
+                .parse(reader)) {
       for (CSVRecord record : parser) {
         String ticker = record.get("Symbol");
         String name = record.get("Security");
         String cik = record.get("CIK");
-        if (ticker == null || ticker.isBlank() || knownTickers.contains(ticker.trim().toUpperCase())) {
+        if (ticker == null
+            || ticker.isBlank()
+            || knownTickers.contains(ticker.trim().toUpperCase())) {
           continue;
         }
         if (cik == null || cik.isBlank()) {

@@ -279,8 +279,7 @@ public class CareersDiscoveryService {
           cooldownSkips.get(),
           false,
           false,
-          new DiscoveryFunnel(
-              false, null, null, null, null, false, null, false, null, null, 0));
+          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     boolean hasDomain = company.domain() != null && !company.domain().isBlank();
@@ -292,8 +291,7 @@ public class CareersDiscoveryService {
           cooldownSkips.get(),
           false,
           false,
-          new DiscoveryFunnel(
-              false, null, null, null, null, false, null, false, null, null, 0));
+          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (isCompanyCoolingDown(company.companyId())) {
@@ -305,8 +303,7 @@ public class CareersDiscoveryService {
           cooldownSkips.get(),
           true,
           false,
-          new DiscoveryFunnel(
-              false, null, null, null, null, false, null, false, null, null, 0));
+          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (deadlineExceeded(deadline)) {
@@ -321,8 +318,7 @@ public class CareersDiscoveryService {
           cooldownSkips.get(),
           false,
           true,
-          new DiscoveryFunnel(
-              false, null, null, null, null, false, null, false, null, null, 0));
+          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (!vendorProbeOnly && hasDomain) {
@@ -390,8 +386,7 @@ public class CareersDiscoveryService {
         careersUrlFound = landing.careersUrlFound();
         careersUrlInitial = landing.careersUrlInitial();
         careersUrlFinal = landing.careersUrlFinal();
-        careersDiscoveryMethod =
-            landing.method() == null ? null : landing.method().name();
+        careersDiscoveryMethod = landing.method() == null ? null : landing.method().name();
         httpStatusFirstFailure = landing.httpStatusFirstFailure();
         if (landing.failureReason() != null) {
           careersStageFailure = landing.failureReason().name();
@@ -444,7 +439,8 @@ public class CareersDiscoveryService {
                     httpStatusFirstFailure,
                     requestCount));
           }
-          AtsType detectedFromLanding = atsDetector.detect(landing.careersUrlFinal(), landing.responseBody());
+          AtsType detectedFromLanding =
+              atsDetector.detect(landing.careersUrlFinal(), landing.responseBody());
           if (detectedFromLanding != AtsType.UNKNOWN) {
             vendorDetected = true;
             vendorName = detectedFromLanding.name();
@@ -453,7 +449,8 @@ public class CareersDiscoveryService {
             }
           } else {
             careersStageFailure =
-                CareersLandingPageDiscoveryService.FailureReason.CAREERS_PAGE_200_NO_VENDOR_SIGNATURE
+                CareersLandingPageDiscoveryService.FailureReason
+                    .CAREERS_PAGE_200_NO_VENDOR_SIGNATURE
                     .name();
             if (metrics != null) {
               metrics.incrementCareersStageFailure(careersStageFailure);
@@ -1499,7 +1496,13 @@ public class CareersDiscoveryService {
         int cooldownSkips,
         boolean skipped,
         boolean timeBudgetExceeded) {
-      this(countsByType, failure, cooldownSkips, skipped, timeBudgetExceeded, DiscoveryFunnel.empty());
+      this(
+          countsByType,
+          failure,
+          cooldownSkips,
+          skipped,
+          timeBudgetExceeded,
+          DiscoveryFunnel.empty());
     }
 
     boolean hasEndpoints() {

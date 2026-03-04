@@ -1,7 +1,6 @@
 package com.delta.jobtracker.crawl.service;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -29,7 +28,11 @@ class CareersLandingLinkExtractor {
           "open-positions");
 
   List<String> extractRanked(String html, String baseUrl, int maxCandidates) {
-    if (html == null || html.isBlank() || baseUrl == null || baseUrl.isBlank() || maxCandidates <= 0) {
+    if (html == null
+        || html.isBlank()
+        || baseUrl == null
+        || baseUrl.isBlank()
+        || maxCandidates <= 0) {
       return List.of();
     }
     Document doc = Jsoup.parse(html, baseUrl);
@@ -54,7 +57,10 @@ class CareersLandingLinkExtractor {
       }
     }
     return bestByUrl.values().stream()
-        .sorted(Comparator.comparingInt(CandidateScore::score).reversed().thenComparing(CandidateScore::url))
+        .sorted(
+            Comparator.comparingInt(CandidateScore::score)
+                .reversed()
+                .thenComparing(CandidateScore::url))
         .limit(maxCandidates)
         .map(CandidateScore::url)
         .toList();
@@ -111,7 +117,8 @@ class CareersLandingLinkExtractor {
     }
     String d = domain.trim().toLowerCase(Locale.ROOT);
     LinkedHashSet<String> out = new LinkedHashSet<>();
-    for (String path : List.of("/careers", "/careers/", "/jobs", "/jobs/", "/about/careers", "/careers/jobs")) {
+    for (String path :
+        List.of("/careers", "/careers/", "/jobs", "/jobs/", "/about/careers", "/careers/jobs")) {
       out.add("https://" + d + path);
     }
     out.add("https://careers." + d + "/");

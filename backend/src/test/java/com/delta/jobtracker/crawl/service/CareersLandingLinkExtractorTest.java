@@ -22,7 +22,8 @@ class CareersLandingLinkExtractorTest {
 
     List<String> ranked = extractor.extractRanked(html, "https://example.com/", 5);
 
-    assertThat(ranked).contains("https://example.com/careers", "https://jobs.example.com/open-positions");
+    assertThat(ranked)
+        .contains("https://example.com/careers", "https://jobs.example.com/open-positions");
     assertThat(ranked.getFirst()).isEqualTo("https://jobs.example.com/open-positions");
     assertThat(ranked).allMatch(url -> url.startsWith("http"));
   }
@@ -31,10 +32,11 @@ class CareersLandingLinkExtractorTest {
   void defaultFallbackCandidatesAreBoundedAndOrdered() {
     List<String> candidates = extractor.defaultFallbackCandidates("example.com").stream().toList();
 
-    assertThat(candidates).startsWith(
-        "https://example.com/careers",
-        "https://example.com/careers/",
-        "https://example.com/jobs");
+    assertThat(candidates)
+        .startsWith(
+            "https://example.com/careers",
+            "https://example.com/careers/",
+            "https://example.com/jobs");
     assertThat(candidates).contains("https://careers.example.com/", "https://jobs.example.com/");
   }
 }

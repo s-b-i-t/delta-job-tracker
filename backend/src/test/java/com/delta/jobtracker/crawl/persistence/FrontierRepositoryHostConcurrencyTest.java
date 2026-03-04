@@ -32,26 +32,21 @@ class FrontierRepositoryHostConcurrencyTest {
     frontierRepository.enqueueUrl(
         "https://" + host + "/jobs/two", FrontierUrlKind.CANDIDATE, 10, due);
 
-    FrontierQueueUrl first = frontierRepository.claimNextDueUrl("test-worker", 60, FrontierUrlKind.CANDIDATE);
+    FrontierQueueUrl first =
+        frontierRepository.claimNextDueUrl("test-worker", 60, FrontierUrlKind.CANDIDATE);
     assertThat(first).isNotNull();
 
-    FrontierQueueUrl blocked = frontierRepository.claimNextDueUrl("test-worker", 60, FrontierUrlKind.CANDIDATE);
+    FrontierQueueUrl blocked =
+        frontierRepository.claimNextDueUrl("test-worker", 60, FrontierUrlKind.CANDIDATE);
     assertThat(blocked).isNull();
 
     FrontierFetchOutcome success =
         new FrontierFetchOutcome(
-            "FETCHED",
-            Instant.now(),
-            200,
-            15L,
-            null,
-            null,
-            "HTTP_2XX",
-            Instant.now(),
-            0);
+            "FETCHED", Instant.now(), 200, 15L, null, null, "HTTP_2XX", Instant.now(), 0);
     frontierRepository.completeFetch(first, success);
 
-    FrontierQueueUrl second = frontierRepository.claimNextDueUrl("test-worker", 60, FrontierUrlKind.CANDIDATE);
+    FrontierQueueUrl second =
+        frontierRepository.claimNextDueUrl("test-worker", 60, FrontierUrlKind.CANDIDATE);
     assertThat(second).isNotNull();
     assertThat(second.id()).isNotEqualTo(first.id());
   }

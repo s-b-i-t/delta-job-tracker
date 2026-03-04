@@ -5,7 +5,6 @@ import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,7 +39,8 @@ public class CareersLandingPageDiscoveryService {
 
   public DiscoveryResult discover(String domain, int requestBudget, int topHomepageCandidates) {
     if (domain == null || domain.isBlank()) {
-      return DiscoveryResult.failure(FailureReason.NETWORK_ERROR, null, null, null, 0, 0, null, null);
+      return DiscoveryResult.failure(
+          FailureReason.NETWORK_ERROR, null, null, null, 0, 0, null, null);
     }
     String normalizedDomain = domain.trim().toLowerCase(Locale.ROOT);
     int budget = Math.max(1, requestBudget);
@@ -50,26 +50,60 @@ public class CareersLandingPageDiscoveryService {
     String homepageUrl = "https://" + normalizedDomain + "/";
 
     if (!robotsTxtService.isAllowed(homepageUrl)) {
-      return DiscoveryResult.failure(FailureReason.BOT_PROTECTION_403, homepageUrl, null, Method.HOMEPAGE_LINK, 0, 403, redirects, probes);
+      return DiscoveryResult.failure(
+          FailureReason.BOT_PROTECTION_403,
+          homepageUrl,
+          null,
+          Method.HOMEPAGE_LINK,
+          0,
+          403,
+          redirects,
+          probes);
     }
 
     requests++;
     HttpFetchResult homepage = httpClient.get(homepageUrl, HTML_ACCEPT, MAX_BYTES);
     probes.add(ProbeRecord.fromFetch(Method.HOMEPAGE_LINK, homepageUrl, homepage));
     if (isBlocked(homepage, 403)) {
-      return DiscoveryResult.failure(FailureReason.BOT_PROTECTION_403, homepageUrl, finalUrl(homepage), Method.HOMEPAGE_LINK, requests, 403, redirectChain(homepageUrl, homepage), probes);
+      return DiscoveryResult.failure(
+          FailureReason.BOT_PROTECTION_403,
+          homepageUrl,
+          finalUrl(homepage),
+          Method.HOMEPAGE_LINK,
+          requests,
+          403,
+          redirectChain(homepageUrl, homepage),
+          probes);
     }
     if (isBlocked(homepage, 429)) {
-      return DiscoveryResult.failure(FailureReason.RATE_LIMIT_429, homepageUrl, finalUrl(homepage), Method.HOMEPAGE_LINK, requests, 429, redirectChain(homepageUrl, homepage), probes);
+      return DiscoveryResult.failure(
+          FailureReason.RATE_LIMIT_429,
+          homepageUrl,
+          finalUrl(homepage),
+          Method.HOMEPAGE_LINK,
+          requests,
+          429,
+          redirectChain(homepageUrl, homepage),
+          probes);
     }
     if (hasNetworkLikeError(homepage)) {
-      return DiscoveryResult.failure(mapNetworkFailure(homepage), homepageUrl, finalUrl(homepage), Method.HOMEPAGE_LINK, requests, null, redirectChain(homepageUrl, homepage), probes);
+      return DiscoveryResult.failure(
+          mapNetworkFailure(homepage),
+          homepageUrl,
+          finalUrl(homepage),
+          Method.HOMEPAGE_LINK,
+          requests,
+          null,
+          redirectChain(homepageUrl, homepage),
+          probes);
     }
 
     List<String> homepageCandidates = List.of();
     if (homepage.isSuccessful() && homepage.body() != null) {
       String homeFinal = finalUrl(homepage) == null ? homepageUrl : finalUrl(homepage);
-      homepageCandidates = linkExtractor.extractRanked(homepage.body(), homeFinal, Math.max(1, topHomepageCandidates));
+      homepageCandidates =
+          linkExtractor.extractRanked(
+              homepage.body(), homeFinal, Math.max(1, topHomepageCandidates));
       AtsType vendorFromHome = atsDetector.detect(homeFinal, homepage.body());
       if (vendorFromHome != null && vendorFromHome != AtsType.UNKNOWN) {
         return DiscoveryResult.success(
@@ -89,7 +123,8 @@ public class CareersLandingPageDiscoveryService {
       if (requests >= budget) {
         break;
       }
-      ProbeAttemptResult attempted = attemptCandidate(candidate, Method.HOMEPAGE_LINK, requests, probes);
+      ProbeAttemptResult attempted =
+          attemptCandidate(candidate, Method.HOMEPAGE_LINK, requests, probes);
       requests = attempted.requestsUsed();
       if (attempted.result() != null) {
         return attempted.result();
@@ -97,7 +132,8 @@ public class CareersLandingPageDiscoveryService {
     }
 
     if (!homepageCandidates.isEmpty()) {
-      // We had candidates but none worked; continue to path/subdomain fallbacks, but preserve stage if all fail.
+      // We had candidates but none worked; continue to path/subdomain fallbacks, but preserve stage
+      // if all fail.
     }
 
     FailureReason pathFailure = null;
@@ -106,9 +142,10 @@ public class CareersLandingPageDiscoveryService {
       if (requests >= budget) {
         break;
       }
-      Method method = candidate.contains("://careers.") || candidate.contains("://jobs.")
-          ? Method.SUBDOMAIN_GUESS
-          : Method.PATH_GUESS;
+      Method method =
+          candidate.contains("://careers.") || candidate.contains("://jobs.")
+              ? Method.SUBDOMAIN_GUESS
+              : Method.PATH_GUESS;
       ProbeAttemptResult attempted = attemptCandidate(candidate, method, requests, probes);
       requests = attempted.requestsUsed();
       if (attempted.result() != null) {
@@ -135,24 +172,34 @@ public class CareersLandingPageDiscoveryService {
       finalFailure = subdomainFailure;
       failureMethod = Method.SUBDOMAIN_GUESS;
     } else {
-      finalFailure = pathFailure != null ? pathFailure : (subdomainFailure != null ? subdomainFailure : FailureReason.ALL_COMMON_PATHS_404);
+      finalFailure =
+          pathFailure != null
+              ? pathFailure
+              : (subdomainFailure != null ? subdomainFailure : FailureReason.ALL_COMMON_PATHS_404);
       failureMethod = pathFailure != null ? Method.PATH_GUESS : Method.SUBDOMAIN_GUESS;
     }
 
-    return DiscoveryResult.failure(finalFailure, homepageUrl, finalUrl(homepage), failureMethod, requests, null, redirectChain(homepageUrl, homepage), probes);
+    return DiscoveryResult.failure(
+        finalFailure,
+        homepageUrl,
+        finalUrl(homepage),
+        failureMethod,
+        requests,
+        null,
+        redirectChain(homepageUrl, homepage),
+        probes);
   }
 
   private ProbeAttemptResult attemptCandidate(
-      String candidate,
-      Method method,
-      int requestsUsed,
-      List<ProbeRecord> probes) {
+      String candidate, Method method, int requestsUsed, List<ProbeRecord> probes) {
     if (!robotsTxtService.isAllowed(candidate)) {
       return new ProbeAttemptResult(
           null,
           requestsUsed,
           FailureReason.BOT_PROTECTION_403,
-          method == Method.SUBDOMAIN_GUESS ? FailureReason.SUBDOMAIN_PROBES_404 : FailureReason.ALL_COMMON_PATHS_404);
+          method == Method.SUBDOMAIN_GUESS
+              ? FailureReason.SUBDOMAIN_PROBES_404
+              : FailureReason.ALL_COMMON_PATHS_404);
     }
     int nextRequests = requestsUsed + 1;
     HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT, MAX_BYTES);
@@ -177,21 +224,48 @@ public class CareersLandingPageDiscoveryService {
     }
     if (isBlocked(fetch, 403)) {
       return new ProbeAttemptResult(
-          DiscoveryResult.failure(FailureReason.BOT_PROTECTION_403, candidate, finalUrl, method, nextRequests, 403, chain, probes, fetch.body()),
+          DiscoveryResult.failure(
+              FailureReason.BOT_PROTECTION_403,
+              candidate,
+              finalUrl,
+              method,
+              nextRequests,
+              403,
+              chain,
+              probes,
+              fetch.body()),
           nextRequests,
           FailureReason.BOT_PROTECTION_403,
           null);
     }
     if (isBlocked(fetch, 429)) {
       return new ProbeAttemptResult(
-          DiscoveryResult.failure(FailureReason.RATE_LIMIT_429, candidate, finalUrl, method, nextRequests, 429, chain, probes, fetch.body()),
+          DiscoveryResult.failure(
+              FailureReason.RATE_LIMIT_429,
+              candidate,
+              finalUrl,
+              method,
+              nextRequests,
+              429,
+              chain,
+              probes,
+              fetch.body()),
           nextRequests,
           FailureReason.RATE_LIMIT_429,
           null);
     }
     if (hasNetworkLikeError(fetch)) {
       return new ProbeAttemptResult(
-          DiscoveryResult.failure(mapNetworkFailure(fetch), candidate, finalUrl, method, nextRequests, null, chain, probes, null),
+          DiscoveryResult.failure(
+              mapNetworkFailure(fetch),
+              candidate,
+              finalUrl,
+              method,
+              nextRequests,
+              null,
+              chain,
+              probes,
+              null),
           nextRequests,
           mapNetworkFailure(fetch),
           null);
@@ -218,7 +292,10 @@ public class CareersLandingPageDiscoveryService {
           null);
     }
     if (fetch.statusCode() == 404) {
-      FailureReason aggregate = method == Method.SUBDOMAIN_GUESS ? FailureReason.SUBDOMAIN_PROBES_404 : FailureReason.ALL_COMMON_PATHS_404;
+      FailureReason aggregate =
+          method == Method.SUBDOMAIN_GUESS
+              ? FailureReason.SUBDOMAIN_PROBES_404
+              : FailureReason.ALL_COMMON_PATHS_404;
       return new ProbeAttemptResult(null, nextRequests, aggregate, aggregate);
     }
     return new ProbeAttemptResult(null, nextRequests, null, null);
@@ -289,7 +366,8 @@ public class CareersLandingPageDiscoveryService {
     CAREERS_PAGE_200_NO_VENDOR_SIGNATURE
   }
 
-  public record ProbeRecord(Method method, String requestedUrl, String finalUrl, Integer httpStatus, String errorCode) {
+  public record ProbeRecord(
+      Method method, String requestedUrl, String finalUrl, Integer httpStatus, String errorCode) {
     static ProbeRecord fromFetch(Method method, String requestedUrl, HttpFetchResult fetch) {
       return new ProbeRecord(
           method,
@@ -345,7 +423,8 @@ public class CareersLandingPageDiscoveryService {
         Integer httpStatus,
         List<String> redirectChain,
         List<ProbeRecord> probes) {
-      return failure(reason, initial, fin, method, requestCount, httpStatus, redirectChain, probes, null);
+      return failure(
+          reason, initial, fin, method, requestCount, httpStatus, redirectChain, probes, null);
     }
 
     static DiscoveryResult failure(
@@ -374,5 +453,8 @@ public class CareersLandingPageDiscoveryService {
   }
 
   private record ProbeAttemptResult(
-      DiscoveryResult result, int requestsUsed, FailureReason failureReason, FailureReason aggregateFailureReason) {}
+      DiscoveryResult result,
+      int requestsUsed,
+      FailureReason failureReason,
+      FailureReason aggregateFailureReason) {}
 }

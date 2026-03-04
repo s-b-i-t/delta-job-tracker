@@ -212,9 +212,15 @@ public class CareersDiscoveryRunService {
               httpStatus,
               errorDetail,
               outcome != null && outcome.funnel() != null && outcome.funnel().careersUrlFound(),
-              outcome == null || outcome.funnel() == null ? null : outcome.funnel().careersUrlInitial(),
-              outcome == null || outcome.funnel() == null ? null : outcome.funnel().careersUrlFinal(),
-              outcome == null || outcome.funnel() == null ? null : outcome.funnel().careersDiscoveryMethod(),
+              outcome == null || outcome.funnel() == null
+                  ? null
+                  : outcome.funnel().careersUrlInitial(),
+              outcome == null || outcome.funnel() == null
+                  ? null
+                  : outcome.funnel().careersUrlFinal(),
+              outcome == null || outcome.funnel() == null
+                  ? null
+                  : outcome.funnel().careersDiscoveryMethod(),
               outcome == null || outcome.funnel() == null
                   ? null
                   : outcome.funnel().careersDiscoveryStageFailure(),
