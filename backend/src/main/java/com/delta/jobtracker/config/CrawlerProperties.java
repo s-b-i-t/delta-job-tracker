@@ -473,6 +473,8 @@ public class CrawlerProperties {
     private int maxSlugCandidates = 8;
     private int maxCareersPaths = 4;
     private int robotsCooldownDays = 14;
+    private int cacheTtlMinutes = 720;
+    private int semiPermanentRetryHours = 168;
     private int maxDurationSeconds = 900;
     private int maxVendorProbeRequestsPerHost = 200;
     private List<Integer> failureBackoffMinutes = new ArrayList<>(DEFAULT_FAILURE_BACKOFF);
@@ -515,6 +517,22 @@ public class CrawlerProperties {
 
     public void setRobotsCooldownDays(int robotsCooldownDays) {
       this.robotsCooldownDays = Math.max(1, robotsCooldownDays);
+    }
+
+    public int getCacheTtlMinutes() {
+      return Math.max(0, cacheTtlMinutes);
+    }
+
+    public void setCacheTtlMinutes(int cacheTtlMinutes) {
+      this.cacheTtlMinutes = Math.max(0, cacheTtlMinutes);
+    }
+
+    public int getSemiPermanentRetryHours() {
+      return Math.max(0, semiPermanentRetryHours);
+    }
+
+    public void setSemiPermanentRetryHours(int semiPermanentRetryHours) {
+      this.semiPermanentRetryHours = Math.max(0, semiPermanentRetryHours);
     }
 
     public int getMaxDurationSeconds() {

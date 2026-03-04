@@ -307,6 +307,11 @@ def summarize_batch_statuses(statuses: List[Dict[str, Any]]) -> Dict[str, Any]:
     processed = sum(canary.parse_int(s.get("processedCount")) for s in statuses)
     succeeded = sum(canary.parse_int(s.get("succeededCount")) for s in statuses)
     failed = sum(canary.parse_int(s.get("failedCount")) for s in statuses)
+    selection_eligible = sum(canary.parse_int(s.get("selectionEligibleCount")) for s in statuses)
+    selection_returned = sum(canary.parse_int(s.get("selectionReturnedCount")) for s in statuses)
+    companies_input = sum(canary.parse_int(s.get("companiesInputCount")) for s in statuses)
+    companies_attempted = sum(canary.parse_int(s.get("companiesAttemptedCount")) for s in statuses)
+    cached_skip = sum(canary.parse_int(s.get("cachedSkipCount")) for s in statuses)
     careers_url_found = sum(canary.parse_int(s.get("careersUrlFoundCount")) for s in statuses)
     vendor_detected = sum(canary.parse_int(s.get("vendorDetectedCount")) for s in statuses)
     endpoint_extracted = sum(canary.parse_int(s.get("endpointExtractedCount")) for s in statuses)
@@ -324,6 +329,11 @@ def summarize_batch_statuses(statuses: List[Dict[str, Any]]) -> Dict[str, Any]:
         "succeeded": succeeded,
         "failed": failed,
         "success_rate": canary.safe_rate(succeeded, processed),
+        "selection_eligible_count": selection_eligible,
+        "selection_returned_count": selection_returned,
+        "companies_input_count": companies_input,
+        "companies_attempted_count": companies_attempted,
+        "cached_skip_count": cached_skip,
         "careers_url_found_count": careers_url_found,
         "vendor_detected_count": vendor_detected,
         "endpoint_extracted_count": endpoint_extracted,
@@ -422,6 +432,39 @@ def summarize_rollup_for_stderr(label: str, rollup: Dict[str, Any]) -> str:
         f"vendorDetected={canary.parse_int(rollup.get('vendor_detected_count'))} "
         f"endpointsExtracted={canary.parse_int(rollup.get('endpoint_extracted_count'))}"
     )
+
+
+def summarize_selection_rollup_for_stderr(label: str, rollup: Dict[str, Any]) -> str:
+    return (
+        f"[{label}] "
+        f"selectionEligible={canary.parse_int(rollup.get('selection_eligible_count'))} "
+        f"selectionReturned={canary.parse_int(rollup.get('selection_returned_count'))} "
+        f"companiesInput={canary.parse_int(rollup.get('companies_input_count'))} "
+        f"companiesAttempted={canary.parse_int(rollup.get('companies_attempted_count'))} "
+        f"cachedSkip={canary.parse_int(rollup.get('cached_skip_count'))}"
+    )
+
+
+def summarize_selection_metrics_by_batch(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for result in results:
+        final = result.get("final") or {}
+        rows.append(
+            {
+                "batch": canary.parse_int(result.get("batch")),
+                "run_id": canary.parse_int(result.get("run_id")),
+                "status": final.get("status"),
+                "selectionEligibleCount": canary.parse_int(final.get("selectionEligibleCount")),
+                "selectionReturnedCount": canary.parse_int(final.get("selectionReturnedCount")),
+                "companiesInputCount": canary.parse_int(final.get("companiesInputCount")),
+                "companiesAttemptedCount": canary.parse_int(final.get("companiesAttemptedCount")),
+                "cachedSkipCount": canary.parse_int(final.get("cachedSkipCount")),
+                "vendorDetectedCount": canary.parse_int(final.get("vendorDetectedCount")),
+                "endpointExtractedCount": canary.parse_int(final.get("endpointExtractedCount")),
+                "processedCount": canary.parse_int(final.get("processedCount")),
+            }
+        )
+    return rows
 
 
 def evaluate_vendor_probe_gate(
@@ -650,6 +693,15 @@ def generate_canary_summary(
             "ats_discovery_attempted_count": vendor_rollup["processed"],
             "ats_discovery_success_count": vendor_rollup["succeeded"],
             "ats_discovery_success_rate": vendor_rollup["success_rate"],
+            "selection_metrics": {
+                "selectionEligibleCount": vendor_rollup["selection_eligible_count"],
+                "selectionReturnedCount": vendor_rollup["selection_returned_count"],
+                "companiesInputCount": vendor_rollup["companies_input_count"],
+                "companiesAttemptedCount": vendor_rollup["companies_attempted_count"],
+                "cachedSkipCount": vendor_rollup["cached_skip_count"],
+                "vendorDetectedCount": vendor_rollup["vendor_detected_count"],
+                "endpointExtractedCount": vendor_rollup["endpoint_extracted_count"],
+            },
             "stage_failure_buckets": vendor_rollup["careers_stage_failures_by_reason"],
             "failures_by_reason": vendor_rollup["failures_by_reason"],
             "latest_run_status": vendor_statuses[-1] if vendor_statuses else {},
@@ -967,6 +1019,10 @@ def run(args: argparse.Namespace) -> int:
             vendor_rollup=vendor_rollup,
         )
         print(summarize_rollup_for_stderr("vendor_probe_summary", vendor_rollup), file=sys.stderr)
+        print(
+            summarize_selection_rollup_for_stderr("vendor_probe_selection_summary", vendor_rollup),
+            file=sys.stderr,
+        )
         original_gate = full_mode_gate_decision.get("original_gate") or {}
         if not original_gate.get("pass"):
             print(
@@ -1063,6 +1119,10 @@ def run(args: argparse.Namespace) -> int:
         canary.write_json(out_dir / "final_run_statuses.json", final_run_statuses)
         full_rollup = summarize_batch_statuses([r.get("final") or {} for r in full_results])
         print(summarize_rollup_for_stderr("full_mode_summary", full_rollup), file=sys.stderr)
+        print(
+            summarize_selection_rollup_for_stderr("full_mode_selection_summary", full_rollup),
+            file=sys.stderr,
+        )
 
         coverage_step = canary.timed_step_safe(
             "coverage_diagnostics", lambda: api.get_json("/api/diagnostics/coverage")
@@ -1131,10 +1191,34 @@ def run(args: argparse.Namespace) -> int:
                 "full_mode_forced": bool(full_mode_gate_decision.get("full_mode_forced")),
                 "full_mode_skip_reason": full_mode_skip_reason,
                 "full_mode_gate_decision": full_mode_gate_decision,
+                "ats_selection_metrics": {
+                    "vendor_probe": {
+                        "selectionEligibleCount": vendor_rollup.get("selection_eligible_count"),
+                        "selectionReturnedCount": vendor_rollup.get("selection_returned_count"),
+                        "companiesInputCount": vendor_rollup.get("companies_input_count"),
+                        "companiesAttemptedCount": vendor_rollup.get("companies_attempted_count"),
+                        "cachedSkipCount": vendor_rollup.get("cached_skip_count"),
+                        "vendorDetectedCount": vendor_rollup.get("vendor_detected_count"),
+                        "endpointExtractedCount": vendor_rollup.get("endpoint_extracted_count"),
+                    },
+                    "full": {
+                        "selectionEligibleCount": full_rollup.get("selection_eligible_count"),
+                        "selectionReturnedCount": full_rollup.get("selection_returned_count"),
+                        "companiesInputCount": full_rollup.get("companies_input_count"),
+                        "companiesAttemptedCount": full_rollup.get("companies_attempted_count"),
+                        "cachedSkipCount": full_rollup.get("cached_skip_count"),
+                        "vendorDetectedCount": full_rollup.get("vendor_detected_count"),
+                        "endpointExtractedCount": full_rollup.get("endpoint_extracted_count"),
+                    },
+                },
             },
             "batch_rollup": {
                 "vendor_probe": vendor_rollup,
                 "full": full_rollup,
+            },
+            "batch_selection_metrics": {
+                "vendor_probe": summarize_selection_metrics_by_batch(vendor_results),
+                "full": summarize_selection_metrics_by_batch(full_results),
             },
             "durations_ms": {
                 "per_step": durations_ms,
@@ -1285,7 +1369,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     for field in (
         "sec_limit",
-        "resolve_limit",
         "resolve_batch_size",
         "discover_batch_size",
         "num_batches",
@@ -1295,6 +1378,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     ):
         if getattr(args, field) <= 0:
             p.error(f"{field} must be > 0")
+    if args.resolve_limit < 0:
+        p.error("resolve_limit must be >= 0")
     if args.overall_timeout_seconds < 0:
         p.error("overall_timeout_seconds must be >= 0")
     if not (0.0 <= args.vendor_probe_threshold_for_full <= 1.0):

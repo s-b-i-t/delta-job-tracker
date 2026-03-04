@@ -37,8 +37,9 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setMaxDurationSeconds(1);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
     when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
-    when(repository.insertCareersDiscoveryRun(1)).thenReturn(99L);
+    when(repository.insertCareersDiscoveryRun(1, 1, 1, 1)).thenReturn(99L);
     when(repository.countAtsEndpointsForCompany(1L)).thenReturn(0);
 
     CareersDiscoveryService.DiscoveryFailure failure =
@@ -73,6 +74,8 @@ class CareersDiscoveryRunServiceTest {
             anyInt(),
             anyInt(),
             any(),
+            anyInt(),
+            anyInt(),
             anyInt(),
             anyInt(),
             anyMap(),

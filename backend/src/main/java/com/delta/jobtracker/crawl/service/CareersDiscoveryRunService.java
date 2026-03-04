@@ -50,8 +50,13 @@ public class CareersDiscoveryRunService {
     int safeBatchSize = batchSize == null ? DEFAULT_BATCH_SIZE : Math.max(1, batchSize);
     boolean vendorProbeOnlyMode = vendorProbeOnly != null && vendorProbeOnly;
 
+    int selectionEligibleCount = repository.countCompaniesWithDomainWithoutAtsEligible();
     List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(companyLimit);
-    long runId = repository.insertCareersDiscoveryRun(companyLimit);
+    int selectionReturnedCount = companies == null ? 0 : companies.size();
+    int companiesInputCount = selectionReturnedCount;
+    long runId =
+        repository.insertCareersDiscoveryRun(
+            companyLimit, selectionEligibleCount, selectionReturnedCount, companiesInputCount);
     discoveryExecutor.submit(
         () -> runDiscovery(runId, companies, safeBatchSize, vendorProbeOnlyMode));
     return new CareersDiscoveryRunResponse(runId, "RUNNING", "/api/careers/discover/run/" + runId);
@@ -106,6 +111,8 @@ public class CareersDiscoveryRunService {
     String lastError = null;
     Instant runStarted = Instant.now();
     int companiesConsidered = 0;
+    int companiesAttemptedCount = 0;
+    int cachedSkipCount = 0;
     boolean aborted = false;
     String abortReason = null;
     int maxDurationSeconds = properties.getCareersDiscovery().getMaxDurationSeconds();
@@ -140,6 +147,7 @@ public class CareersDiscoveryRunService {
               reasonCode = ReasonCodeClassifier.NO_DOMAIN;
               stage = "DOMAIN";
             } else {
+              companiesAttemptedCount++;
               int beforeCount = repository.countAtsEndpointsForCompany(company.companyId());
               outcome =
                   discoveryService.discoverForCompany(
@@ -157,6 +165,7 @@ public class CareersDiscoveryRunService {
                 reasonCode = null;
                 stage = "ATS_DETECTED";
               } else if (outcome != null && outcome.skipped()) {
+                cachedSkipCount++;
                 status = "SKIPPED";
                 CareersDiscoveryService.DiscoveryFailure failure = outcome.primaryFailure();
                 FailureMapping mapping = mapFailure(failure);
@@ -231,6 +240,8 @@ public class CareersDiscoveryRunService {
               endpointsAdded,
               lastError,
               companiesConsidered,
+              companiesAttemptedCount,
+              cachedSkipCount,
               metrics.homepageScanned(),
               toAtsTypeMap(metrics.endpointsFoundHomepage()),
               toAtsTypeMap(metrics.endpointsFoundVendorProbe()),
@@ -259,6 +270,8 @@ public class CareersDiscoveryRunService {
             endpointsAdded,
             abortReason,
             companiesConsidered,
+            companiesAttemptedCount,
+            cachedSkipCount,
             metrics.homepageScanned(),
             toAtsTypeMap(metrics.endpointsFoundHomepage()),
             toAtsTypeMap(metrics.endpointsFoundVendorProbe()),
@@ -368,6 +381,11 @@ public class CareersDiscoveryRunService {
         status.finishedAt(),
         status.status(),
         status.companyLimit(),
+        status.selectionEligibleCount(),
+        status.selectionReturnedCount(),
+        status.companiesInputCount(),
+        status.companiesAttemptedCount(),
+        status.cachedSkipCount(),
         status.processedCount(),
         status.succeededCount(),
         status.failedCount(),
