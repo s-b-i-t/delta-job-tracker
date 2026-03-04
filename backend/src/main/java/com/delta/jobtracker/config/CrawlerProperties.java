@@ -927,6 +927,7 @@ public class CrawlerProperties {
     private int maxUrlsParsedPerSitemap = 2000;
     private int maxJobCandidatesPerSitemap = 300;
     private int urlLeaseSeconds = 60;
+    private boolean respectRobotsForSitemaps = true;
 
     public int getSeedDomainLimit() {
       return Math.max(1, seedDomainLimit);
@@ -966,6 +967,14 @@ public class CrawlerProperties {
 
     public void setUrlLeaseSeconds(int urlLeaseSeconds) {
       this.urlLeaseSeconds = Math.max(5, urlLeaseSeconds);
+    }
+
+    public boolean isRespectRobotsForSitemaps() {
+      return respectRobotsForSitemaps;
+    }
+
+    public void setRespectRobotsForSitemaps(boolean respectRobotsForSitemaps) {
+      this.respectRobotsForSitemaps = respectRobotsForSitemaps;
     }
   }
 }

@@ -12,6 +12,7 @@ import com.delta.jobtracker.crawl.model.FrontierSitemapParseResult;
 import com.delta.jobtracker.crawl.model.FrontierUrlKind;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.persistence.FrontierRepository;
+import com.delta.jobtracker.crawl.robots.RobotsTxtService;
 import com.delta.jobtracker.crawl.sitemap.FrontierSitemapParser;
 import com.delta.jobtracker.crawl.util.FrontierJobSignalHeuristics;
 import java.io.IOException;
@@ -29,6 +30,7 @@ public class FrontierSchedulerService {
   private final FrontierBackoffPolicy backoffPolicy;
   private final FrontierSitemapParser sitemapParser;
   private final FrontierJobSignalHeuristics jobSignalHeuristics;
+  private final RobotsTxtService robotsTxtService;
   private final CrawlerProperties properties;
 
   public FrontierSchedulerService(
@@ -37,12 +39,14 @@ public class FrontierSchedulerService {
       FrontierBackoffPolicy backoffPolicy,
       FrontierSitemapParser sitemapParser,
       FrontierJobSignalHeuristics jobSignalHeuristics,
+      RobotsTxtService robotsTxtService,
       CrawlerProperties properties) {
     this.frontierRepository = frontierRepository;
     this.httpClient = httpClient;
     this.backoffPolicy = backoffPolicy;
     this.sitemapParser = sitemapParser;
     this.jobSignalHeuristics = jobSignalHeuristics;
+    this.robotsTxtService = robotsTxtService;
     this.properties = properties;
   }
 
@@ -104,6 +108,28 @@ public class FrontierSchedulerService {
     int http429Count = 0;
 
     try {
+      if (properties.getFrontier().isRespectRobotsForSitemaps()
+          && !robotsTxtService.isAllowed(claimed.url())) {
+        FrontierFetchOutcome outcome =
+            new FrontierFetchOutcome(
+                "BLOCKED",
+                now,
+                null,
+                0L,
+                "blocked_by_robots",
+                "blocked_by_robots",
+                "ROBOTS_BLOCKED",
+                now.plusMillis(properties.getPerHostDelayMs()),
+                Math.max(0, currentBackoffState));
+        return new FrontierProcessingResult(
+            outcome,
+            urlsEnqueued,
+            sitemapUrlsEnqueued,
+            candidateUrlsEnqueued,
+            httpRequestCount,
+            http429Count);
+      }
+
       HttpFetchResult fetch =
           httpClient.get(
               claimed.url(), "application/xml,text/xml;q=0.9,*/*;q=0.1", MAX_SITEMAP_BYTES);
