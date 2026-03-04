@@ -33,6 +33,7 @@ public class FrontierRepository {
 
   public List<String> findSeedDomains(int limit) {
     int safeLimit = Math.max(1, limit);
+    int oversampledLimit = (int) Math.min(10000L, Math.max((long) safeLimit * 5L, safeLimit));
     List<String> rows =
         jdbc.query(
             """
@@ -51,7 +52,7 @@ public class FrontierRepository {
                 ORDER BY c.ticker
                 LIMIT :limit
                 """,
-            new MapSqlParameterSource().addValue("limit", safeLimit),
+            new MapSqlParameterSource().addValue("limit", oversampledLimit),
             (rs, rowNum) -> rs.getString("domain"));
     Set<String> deduped = new LinkedHashSet<>();
     for (String row : rows) {
@@ -60,7 +61,7 @@ public class FrontierRepository {
         deduped.add(normalized);
       }
     }
-    return deduped.stream().toList();
+    return deduped.stream().limit(safeLimit).toList();
   }
 
   public FrontierEnqueueResult enqueueUrl(
