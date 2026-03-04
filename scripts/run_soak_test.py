@@ -72,6 +72,21 @@ def safe_read_json(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
+def capture_db_snapshot_safe(repo_root: Path) -> Dict[str, Any]:
+    try:
+        return dbsnap.capture_db_snapshot(repo_root, mode="auto")
+    except Exception as exc:
+        return {
+            "schema_version": "db-snapshot-v1",
+            "captured_at": utc_iso(),
+            "mode": "auto",
+            "error": {
+                "message": "DB snapshot capture failed with unexpected exception",
+                "attempts": [{"mode": "auto", "error": str(exc)}],
+            },
+        }
+
+
 def collect_new_run_dir(base_dir: Path, before: set[str]) -> Optional[Path]:
     after = {p.name for p in base_dir.iterdir() if p.is_dir()} if base_dir.exists() else set()
     created = sorted(after - before)
@@ -421,7 +436,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     out_root.mkdir(parents=True, exist_ok=False)
 
     started_at = utc_now()
-    db_snapshot_start = dbsnap.capture_db_snapshot(repo_root, mode="auto")
+    db_snapshot_start = capture_db_snapshot_safe(repo_root)
     write_json(out_root / "db_snapshot_start.json", db_snapshot_start)
     db_truth_running = dbsnap.build_db_truth(db_snapshot_start, None)
     manifest = {
@@ -485,7 +500,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
 
     finished_at = utc_now()
-    db_snapshot_end = dbsnap.capture_db_snapshot(repo_root, mode="auto")
+    db_snapshot_end = capture_db_snapshot_safe(repo_root)
     write_json(out_root / "db_snapshot_end.json", db_snapshot_end)
     db_truth = dbsnap.build_db_truth(db_snapshot_start, db_snapshot_end)
     write_report(

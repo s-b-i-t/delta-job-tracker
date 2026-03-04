@@ -24,6 +24,8 @@ GROUP BY COALESCE(ats_type, 'UNKNOWN')
 ORDER BY COUNT(*) DESC, COALESCE(ats_type, 'UNKNOWN');
 """
 QUERY_COMPANIES_WITH_DOMAIN = "SELECT COUNT(DISTINCT company_id) AS value FROM company_domains;"
+DEFAULT_QUERY_TIMEOUT_SECONDS = 15
+DEFAULT_DISCOVERY_TIMEOUT_SECONDS = 5
 
 
 def utc_iso() -> str:
@@ -33,6 +35,17 @@ def utc_iso() -> str:
 def parse_int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
+    except Exception:
+        return default
+
+
+def timeout_from_env(env_name: str, default: int) -> int:
+    raw = os.getenv(env_name)
+    if not raw:
+        return default
+    try:
+        parsed = int(raw)
+        return parsed if parsed > 0 else default
     except Exception:
         return default
 
@@ -52,8 +65,21 @@ def read_json(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def run_psql_csv(cmd: List[str], env: Optional[Dict[str, str]] = None) -> List[Dict[str, str]]:
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
+def run_psql_csv(
+    cmd: List[str],
+    env: Optional[Dict[str, str]] = None,
+    timeout_seconds: int = DEFAULT_QUERY_TIMEOUT_SECONDS,
+) -> List[Dict[str, str]]:
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"command timed out after {timeout_seconds}s: {' '.join(cmd)}") from exc
     if proc.returncode != 0:
         stderr = (proc.stderr or "").strip()
         stdout = (proc.stdout or "").strip()
@@ -64,12 +90,33 @@ def run_psql_csv(cmd: List[str], env: Optional[Dict[str, str]] = None) -> List[D
     return list(csv.DictReader(io.StringIO(out)))
 
 
-def try_direct_psql(sql: str, env: Dict[str, str]) -> List[Dict[str, str]]:
-    cmd = ["psql", "--csv", "-v", "ON_ERROR_STOP=1", "-c", sql]
-    return run_psql_csv(cmd, env=env)
+def try_direct_psql(sql: str, env: Dict[str, str], query_timeout_seconds: int) -> List[Dict[str, str]]:
+    psql_env = dict(env)
+    # Ensure libpq does not wait indefinitely on a broken connection path.
+    psql_env.setdefault("PGCONNECT_TIMEOUT", str(query_timeout_seconds))
+    cmd = [
+        "psql",
+        "--no-password",
+        "--no-psqlrc",
+        "--csv",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-c",
+        sql,
+    ]
+    return run_psql_csv(cmd, env=psql_env, timeout_seconds=query_timeout_seconds)
 
 
-def detect_compose_postgres_container(repo_root: Path) -> Optional[str]:
+def run_check_output(cmd: List[str], timeout_seconds: int) -> str:
+    try:
+        return subprocess.check_output(cmd, text=True, timeout=timeout_seconds).strip()
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"command timed out after {timeout_seconds}s: {' '.join(cmd)}") from exc
+
+
+def detect_compose_postgres_container(
+    repo_root: Path, discovery_timeout_seconds: int
+) -> Optional[str]:
     candidates = []
     explicit = os.getenv("SOAK_POSTGRES_CONTAINER")
     if explicit:
@@ -78,20 +125,17 @@ def detect_compose_postgres_container(repo_root: Path) -> Optional[str]:
     compose_file = repo_root / "infra" / "docker-compose.yml"
     if compose_file.exists():
         try:
-            cid = (
-                subprocess.check_output(
-                    [
-                        "docker",
-                        "compose",
-                        "-f",
-                        str(compose_file),
-                        "ps",
-                        "-q",
-                        "postgres",
-                    ],
-                    text=True,
-                )
-                .strip()
+            cid = run_check_output(
+                [
+                    "docker",
+                    "compose",
+                    "-f",
+                    str(compose_file),
+                    "ps",
+                    "-q",
+                    "postgres",
+                ],
+                timeout_seconds=discovery_timeout_seconds,
             )
             if cid:
                 candidates.append(cid)
@@ -99,19 +143,16 @@ def detect_compose_postgres_container(repo_root: Path) -> Optional[str]:
             pass
 
     try:
-        fallback = (
-            subprocess.check_output(
-                [
-                    "docker",
-                    "ps",
-                    "--filter",
-                    "name=delta-job-tracker-postgres",
-                    "--format",
-                    "{{.ID}}",
-                ],
-                text=True,
-            )
-            .strip()
+        fallback = run_check_output(
+            [
+                "docker",
+                "ps",
+                "--filter",
+                "name=delta-job-tracker-postgres",
+                "--format",
+                "{{.ID}}",
+            ],
+            timeout_seconds=discovery_timeout_seconds,
         )
         if fallback:
             candidates.append(fallback.splitlines()[0].strip())
@@ -124,8 +165,15 @@ def detect_compose_postgres_container(repo_root: Path) -> Optional[str]:
     return None
 
 
-def try_docker_psql(repo_root: Path, sql: str) -> List[Dict[str, str]]:
-    container = detect_compose_postgres_container(repo_root)
+def try_docker_psql(
+    repo_root: Path,
+    sql: str,
+    query_timeout_seconds: int,
+    discovery_timeout_seconds: int,
+) -> List[Dict[str, str]]:
+    container = detect_compose_postgres_container(
+        repo_root, discovery_timeout_seconds=discovery_timeout_seconds
+    )
     if not container:
         raise RuntimeError("Could not find postgres docker container")
     user = os.getenv("SOAK_POSTGRES_USER", os.getenv("DELTA_POSTGRES_USER", "delta"))
@@ -146,7 +194,7 @@ def try_docker_psql(repo_root: Path, sql: str) -> List[Dict[str, str]]:
         "-c",
         sql,
     ]
-    return run_psql_csv(cmd)
+    return run_psql_csv(cmd, timeout_seconds=query_timeout_seconds)
 
 
 def build_metrics(queries: Dict[str, List[Dict[str, str]]]) -> Dict[str, Any]:
@@ -170,9 +218,27 @@ def build_metrics(queries: Dict[str, List[Dict[str, str]]]) -> Dict[str, Any]:
     }
 
 
-def capture_db_snapshot(repo_root: Path, mode: str = "auto") -> Dict[str, Any]:
+def capture_db_snapshot(
+    repo_root: Path,
+    mode: str = "auto",
+    query_timeout_seconds: Optional[int] = None,
+    discovery_timeout_seconds: Optional[int] = None,
+) -> Dict[str, Any]:
     attempts: List[Dict[str, Any]] = []
     modes = [mode] if mode != "auto" else ["direct", "docker"]
+    query_timeout = (
+        query_timeout_seconds
+        if query_timeout_seconds is not None and query_timeout_seconds > 0
+        else timeout_from_env("SOAK_DB_QUERY_TIMEOUT_SECONDS", DEFAULT_QUERY_TIMEOUT_SECONDS)
+    )
+    discovery_timeout = (
+        discovery_timeout_seconds
+        if discovery_timeout_seconds is not None and discovery_timeout_seconds > 0
+        else timeout_from_env(
+            "SOAK_DB_DISCOVERY_TIMEOUT_SECONDS",
+            DEFAULT_DISCOVERY_TIMEOUT_SECONDS,
+        )
+    )
 
     query_plan = {
         "ats_endpoints_count": QUERY_ATS_ENDPOINT_ROWS,
@@ -186,24 +252,47 @@ def capture_db_snapshot(repo_root: Path, mode: str = "auto") -> Dict[str, Any]:
             rows: Dict[str, List[Dict[str, str]]] = {}
             for name, sql in query_plan.items():
                 if candidate == "direct":
-                    rows[name] = try_direct_psql(sql, dict(os.environ))
+                    rows[name] = try_direct_psql(
+                        sql,
+                        dict(os.environ),
+                        query_timeout_seconds=query_timeout,
+                    )
                 elif candidate == "docker":
-                    rows[name] = try_docker_psql(repo_root, sql)
+                    rows[name] = try_docker_psql(
+                        repo_root,
+                        sql,
+                        query_timeout_seconds=query_timeout,
+                        discovery_timeout_seconds=discovery_timeout,
+                    )
                 else:
                     raise RuntimeError(f"Unsupported mode: {candidate}")
             return {
                 "schema_version": "db-snapshot-v1",
                 "captured_at": utc_iso(),
                 "mode": candidate,
+                "timeouts": {
+                    "query_seconds": query_timeout,
+                    "discovery_seconds": discovery_timeout,
+                },
                 "metrics": build_metrics(rows),
             }
         except Exception as exc:
-            attempts.append({"mode": candidate, "error": str(exc)})
+            attempts.append(
+                {
+                    "mode": candidate,
+                    "error": str(exc),
+                    "timeout_seconds": query_timeout,
+                }
+            )
 
     return {
         "schema_version": "db-snapshot-v1",
         "captured_at": utc_iso(),
         "mode": mode,
+        "timeouts": {
+            "query_seconds": query_timeout,
+            "discovery_seconds": discovery_timeout,
+        },
         "error": {
             "message": "Could not capture DB snapshot in any supported mode",
             "attempts": attempts,

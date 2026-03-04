@@ -113,10 +113,15 @@ The harness captures DB-truth snapshots at the start and end of the soak.
 Connection modes (auto-detected):
 1. Direct `psql` using environment variables:
    - `PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, `PGPASSWORD`
+   - direct mode is non-interactive (`psql --no-password`), so missing credentials fail fast
 2. Docker exec into compose Postgres:
    - detects container from `infra/docker-compose.yml` service `postgres`
    - or falls back to container name match `delta-job-tracker-postgres`
    - optional overrides: `SOAK_POSTGRES_CONTAINER`, `SOAK_POSTGRES_USER`, `SOAK_POSTGRES_DB`
+
+Timeout controls (bounded to avoid hangs):
+- `SOAK_DB_QUERY_TIMEOUT_SECONDS` (default `15`)
+- `SOAK_DB_DISCOVERY_TIMEOUT_SECONDS` (default `5`)
 
 If neither mode works, snapshot files are still written with a clear `error` object and the soak
 continues.
