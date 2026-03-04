@@ -54,6 +54,8 @@ python3 scripts/run_soak_test.py \
 In `out/<timestamp>/`:
 - `soak_manifest.json`: git commit, timestamps, args
 - `soak_report.json`: aggregated metrics and throughput
+- `db_snapshot_start.json`: DB-truth snapshot at soak start
+- `db_snapshot_end.json`: DB-truth snapshot at soak end
 - `runs/warmup/<run_ts>/...`: per-cycle warmup overnight artifacts
 - `runs/soak/<run_ts>/...`: per-cycle soak overnight artifacts
 - `logs/*.log`: stack-run command logs per cycle
@@ -102,4 +104,51 @@ The harness reads these fields from each cycle’s `overnight_summary.json`:
 .pipeline.ats_selection_metrics.vendor_probe.companiesAttemptedCount
 .pipeline.ats_selection_metrics.vendor_probe.vendorDetectedCount
 .pipeline.ats_selection_metrics.vendor_probe.endpointExtractedCount
+```
+
+## DB access and DB-truth
+
+The harness captures DB-truth snapshots at the start and end of the soak.
+
+Connection modes (auto-detected):
+1. Direct `psql` using environment variables:
+   - `PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, `PGPASSWORD`
+   - direct mode is non-interactive (`psql --no-password`), so missing credentials fail fast
+2. Docker exec into compose Postgres:
+   - detects container from `infra/docker-compose.yml` service `postgres`
+   - or falls back to container name match `delta-job-tracker-postgres`
+   - optional overrides: `SOAK_POSTGRES_CONTAINER`, `SOAK_POSTGRES_USER`, `SOAK_POSTGRES_DB`
+
+Timeout controls (bounded to avoid hangs):
+- `SOAK_DB_QUERY_TIMEOUT_SECONDS` (default `15`)
+- `SOAK_DB_DISCOVERY_TIMEOUT_SECONDS` (default `5`)
+
+If neither mode works, snapshot files are still written with a clear `error` object and the soak
+continues.
+
+`db_truth` in `soak_report.json` includes:
+- `start` / `end` snapshots
+- `delta`:
+  - `ats_endpoints_count`
+  - `companies_with_ats_endpoint_count`
+  - `companies_with_domain_count`
+  - `endpoints_by_type`
+- `errors`: start/end snapshot errors, if any
+
+DB-truth vs runner metrics:
+- Runner metrics are per-run rollups from API summaries.
+- DB-truth is direct database state and is authoritative for total rows and total company coverage.
+
+## Post-hoc snapshot helper
+
+For already-finished runs:
+
+```bash
+python3 scripts/db_snapshot.py --out-dir out/<timestamp>
+```
+
+Patch `soak_report.json` with `db_truth`:
+
+```bash
+python3 scripts/db_snapshot.py --out-dir out/<timestamp> --emit-db-truth
 ```

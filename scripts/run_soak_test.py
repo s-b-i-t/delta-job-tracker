@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+import db_snapshot as dbsnap
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -68,6 +70,23 @@ def safe_read_json(path: Path) -> Optional[Dict[str, Any]]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def capture_db_snapshot_safe(repo_root: Path) -> Dict[str, Any]:
+    try:
+        return dbsnap.capture_db_snapshot(repo_root, mode="auto")
+    except Exception as exc:
+        return {
+            "schema_version": "db-snapshot-v1",
+            "captured_at": utc_iso(),
+            "ok": False,
+            "mode_requested": "auto",
+            "mode_used": None,
+            "error": {
+                "message": "DB snapshot capture failed with unexpected exception",
+                "attempts": [{"mode": "auto", "error": str(exc)}],
+            },
+        }
 
 
 def collect_new_run_dir(base_dir: Path, before: set[str]) -> Optional[Path]:
@@ -207,6 +226,7 @@ def write_report(
     started_at: datetime,
     finished_at: Optional[datetime],
     cycles: List[Dict[str, Any]],
+    db_truth: Dict[str, Any],
     status: str,
 ) -> None:
     completed = [c for c in cycles if c.get("metrics")]
@@ -278,6 +298,7 @@ def write_report(
         "cycles": cycles,
         "artifact_pointers": artifact_pointers,
         "jq_snippets_used": JQ_SNIPPETS,
+        "db_truth": db_truth,
     }
     write_json(report_path, payload)
 
@@ -417,6 +438,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     out_root.mkdir(parents=True, exist_ok=False)
 
     started_at = utc_now()
+    db_snapshot_start = capture_db_snapshot_safe(repo_root)
+    write_json(out_root / "db_snapshot_start.json", db_snapshot_start)
+    db_truth_running = dbsnap.build_db_truth(db_snapshot_start, None)
     manifest = {
         "schema_version": "soak-manifest-v1",
         "started_at": utc_iso(started_at),
@@ -463,7 +487,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         backend_running,
         cycles,
     )
-    write_report(out_root / "soak_report.json", started_at, None, cycles, "RUNNING")
+    write_report(out_root / "soak_report.json", started_at, None, cycles, db_truth_running, "RUNNING")
     if ok:
         ok, backend_running = run_phase(
             repo_root,
@@ -478,11 +502,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
 
     finished_at = utc_now()
+    db_snapshot_end = capture_db_snapshot_safe(repo_root)
+    write_json(out_root / "db_snapshot_end.json", db_snapshot_end)
+    db_truth = dbsnap.build_db_truth(db_snapshot_start, db_snapshot_end)
     write_report(
         out_root / "soak_report.json",
         started_at,
         finished_at,
         cycles,
+        db_truth,
         "SUCCEEDED" if ok else "FAILED",
     )
 
