@@ -6,6 +6,11 @@
 
 It writes all artifacts under `out/<timestamp>/`.
 
+Defaults tuned for ATS-heavy soak:
+- `--soak-resolve-limit 0` (domain resolution mostly disabled during soak)
+- `--run-full-mode` enabled
+- backend is kept running between cycles unless `--stop-backend` is set
+
 ## How To Run
 
 ### 1 hour domain warmup + 12 hour ATS soak
@@ -13,6 +18,7 @@ It writes all artifacts under `out/<timestamp>/`.
 python3 scripts/run_soak_test.py \
   --warmup-hours 1 \
   --soak-hours 12 \
+  --run-full-mode \
   --crawler-max-duration-seconds 45 \
   --warmup-sec-limit 5000 \
   --warmup-resolve-limit 400 \
@@ -21,7 +27,7 @@ python3 scripts/run_soak_test.py \
   --warmup-num-batches 1 \
   --warmup-sleep-between-batches 2 \
   --soak-sec-limit 2000 \
-  --soak-resolve-limit 120 \
+  --soak-resolve-limit 0 \
   --soak-resolve-batch-size 100 \
   --soak-discover-batch-size 20 \
   --soak-num-batches 2 \
@@ -33,9 +39,10 @@ python3 scripts/run_soak_test.py \
 python3 scripts/run_soak_test.py \
   --warmup-hours 0 \
   --soak-hours 12 \
+  --run-full-mode \
   --crawler-max-duration-seconds 45 \
   --soak-sec-limit 2000 \
-  --soak-resolve-limit 120 \
+  --soak-resolve-limit 0 \
   --soak-resolve-batch-size 100 \
   --soak-discover-batch-size 20 \
   --soak-num-batches 2 \
@@ -50,6 +57,10 @@ In `out/<timestamp>/`:
 - `runs/warmup/<run_ts>/...`: per-cycle warmup overnight artifacts
 - `runs/soak/<run_ts>/...`: per-cycle soak overnight artifacts
 - `logs/*.log`: stack-run command logs per cycle
+
+Use `--stop-backend` if you want each cycle to tear down backend after completion.
+Without `--stop-backend`, the harness starts backend via `run_overnight_stack.sh` and reuses it
+in subsequent cycles by calling `run_overnight_crawler.py` directly.
 
 ## Metrics In `soak_report.json`
 
