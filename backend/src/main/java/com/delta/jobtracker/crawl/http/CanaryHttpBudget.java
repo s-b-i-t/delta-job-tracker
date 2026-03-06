@@ -131,6 +131,10 @@ public class CanaryHttpBudget {
     return abortReason;
   }
 
+  public synchronized int totalRequests() {
+    return totalRequests;
+  }
+
   private boolean isError(HttpFetchResult result) {
     if (result.errorCode() != null && !result.errorCode().isBlank()) {
       return true;

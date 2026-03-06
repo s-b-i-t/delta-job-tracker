@@ -1,6 +1,9 @@
 package com.delta.jobtracker.crawl.service;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryAbortException;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyFailureView;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryCompanyResultView;
@@ -15,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
@@ -190,15 +194,33 @@ public class CareersDiscoveryRunService {
               companiesAttemptedCount++;
               int beforeCount = repository.countAtsEndpointsForCompany(company.companyId());
               int requestsBefore = metrics.requestsIssuedCount();
-              outcome =
-                  discoveryService.discoverForCompany(
-                      company,
-                      deadline,
-                      metrics,
-                      vendorProbeLimiter,
-                      vendorProbeOnly,
-                      hostFailureCutoff);
-              int requestDelta = Math.max(0, metrics.requestsIssuedCount() - requestsBefore);
+              boolean budgetAbort = false;
+              CanaryHttpBudget runBudget = buildRunBudget(requestBudget, requestCountTotal, deadline);
+              try (CanaryHttpBudgetContext.Scope scope = CanaryHttpBudgetContext.activate(runBudget)) {
+                outcome =
+                    discoveryService.discoverForCompany(
+                        company,
+                        deadline,
+                        metrics,
+                        vendorProbeLimiter,
+                        vendorProbeOnly,
+                        hostFailureCutoff);
+              } catch (CanaryAbortException budgetAbortException) {
+                String mappedAbortReason = mapRunAbortReason(budgetAbortException.getMessage());
+                if (mappedAbortReason == null) {
+                  throw budgetAbortException;
+                }
+                aborted = true;
+                abortReason = mappedAbortReason;
+                reasonCode = ReasonCodeClassifier.TIMEOUT;
+                stage = "BUDGET";
+                errorDetail = mappedAbortReason;
+                budgetAbort = true;
+              }
+              int requestDelta = Math.max(0, runBudget.totalRequests());
+              if (requestDelta == 0) {
+                requestDelta = Math.max(0, metrics.requestsIssuedCount() - requestsBefore);
+              }
               if (requestDelta == 0
                   && outcome != null
                   && outcome.funnel() != null
@@ -214,7 +236,9 @@ public class CareersDiscoveryRunService {
                 }
               }
 
-              if (outcome != null && outcome.hasEndpoints()) {
+              if (budgetAbort) {
+                // Keep the explicit budget-abort classification from the catch block.
+              } else if (outcome != null && outcome.hasEndpoints()) {
                 status = "SUCCEEDED";
                 reasonCode = null;
                 stage = "ATS_DETECTED";
@@ -524,6 +548,36 @@ public class CareersDiscoveryRunService {
       }
     }
     return mapped;
+  }
+
+  private CanaryHttpBudget buildRunBudget(
+      int requestBudget, int requestCountTotal, Instant deadline) {
+    int remainingRequestBudget =
+        requestBudget > 0 ? Math.max(0, requestBudget - requestCountTotal) : 0;
+    int maxAttemptsPerRequest = Math.max(1, 1 + properties.getRequestMaxRetries());
+    return new CanaryHttpBudget(
+        0,
+        remainingRequestBudget,
+        0.0,
+        1,
+        0,
+        maxAttemptsPerRequest,
+        properties.getRequestTimeoutSeconds(),
+        deadline);
+  }
+
+  private String mapRunAbortReason(String budgetAbortReason) {
+    if (budgetAbortReason == null || budgetAbortReason.isBlank()) {
+      return null;
+    }
+    String lower = budgetAbortReason.toLowerCase(Locale.ROOT);
+    if (lower.contains("total_request_budget_exceeded")) {
+      return "request_budget_exceeded";
+    }
+    if (lower.contains("canary_time_budget_exceeded")) {
+      return "time_budget_exceeded";
+    }
+    return null;
   }
 
   private boolean isHostFailureCutoffReached(CompanyTarget company, int cutoff) {

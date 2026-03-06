@@ -14,6 +14,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.HostCrawlState;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -371,6 +373,154 @@ class CareersDiscoveryRunServiceTest {
             eq("ABORTED"),
             eq("request_budget_exceeded"),
             eq("request_budget_exceeded"));
+  }
+
+  @Test
+  void discoveryRunEnforcesRequestBudgetMidCompany() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(1);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(105L);
+    when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
+              budget.beforeRequest("alpha.com");
+              budget.beforeRequest("alpha.com");
+              return new CareersDiscoveryService.DiscoveryOutcome(
+                  Map.of(),
+                  new CareersDiscoveryService.DiscoveryFailure("discovery_no_match", null, null),
+                  0,
+                  false,
+                  false);
+            });
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    verify(repository)
+        .upsertCareersDiscoveryCompanyResult(
+            eq(105L),
+            eq(1L),
+            eq("FAILED"),
+            eq("TIMEOUT"),
+            eq("BUDGET"),
+            anyInt(),
+            any(),
+            any(),
+            eq("request_budget_exceeded"),
+            anyBoolean(),
+            any(),
+            any(),
+            any(),
+            any(),
+            anyBoolean(),
+            any(),
+            anyBoolean(),
+            any(),
+            any(),
+            any());
+    verify(repository)
+        .completeCareersDiscoveryRun(
+            eq(105L),
+            any(Instant.class),
+            eq("ABORTED"),
+            eq("request_budget_exceeded"),
+            eq("request_budget_exceeded"));
+    ArgumentCaptor<Integer> requestCountCaptor = ArgumentCaptor.forClass(Integer.class);
+    verify(repository, atLeastOnce())
+        .updateCareersDiscoveryRunProgress(
+            eq(105L),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            any(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            requestCountCaptor.capture(),
+            anyInt());
+    assertThat(requestCountCaptor.getValue()).isEqualTo(1);
+  }
+
+  @Test
+  void discoveryRunCountsSitemapPathRequestsFromRunBudgetContext() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(10);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(106L);
+    when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              CanaryHttpBudget budget = CanaryHttpBudgetContext.current();
+              budget.beforeRequest("sitemap.alpha.com");
+              return new CareersDiscoveryService.DiscoveryOutcome(
+                  Map.of(),
+                  new CareersDiscoveryService.DiscoveryFailure("discovery_no_match", null, null),
+                  0,
+                  false,
+                  false);
+            });
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    ArgumentCaptor<Integer> requestCountCaptor = ArgumentCaptor.forClass(Integer.class);
+    verify(repository, atLeastOnce())
+        .updateCareersDiscoveryRunProgress(
+            eq(106L),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            any(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            requestCountCaptor.capture(),
+            anyInt());
+    assertThat(requestCountCaptor.getValue()).isEqualTo(1);
   }
 
   private static final class DirectExecutorService extends AbstractExecutorService {
