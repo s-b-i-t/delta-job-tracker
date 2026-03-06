@@ -7,12 +7,14 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.model.HostCrawlState;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import java.time.Instant;
@@ -141,6 +143,110 @@ class CareersDiscoveryRunServiceTest {
             eq("ABORTED"),
             eq("request_budget_exceeded"),
             eq("request_budget_exceeded"));
+  }
+
+  @Test
+  void discoveryRunMarksStopReasonAsExceptionWhenUnexpectedErrorEscapesLoop() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(100);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(101L);
+    when(repository.countAtsEndpointsForCompany(1L)).thenReturn(0);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean()))
+        .thenReturn(new CareersDiscoveryService.DiscoveryOutcome(Map.of(), null, 0, false, false));
+    doThrow(new IllegalStateException("progress write failed"))
+        .when(repository)
+        .updateCareersDiscoveryRunProgress(
+            anyLong(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            any(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt());
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    verify(repository)
+        .completeCareersDiscoveryRun(
+            eq(101L),
+            any(Instant.class),
+            eq("FAILED"),
+            eq("progress write failed"),
+            eq("exception"));
+  }
+
+  @Test
+  void discoveryRunTracksHostFailureCutoffSkipsInProgressMetrics() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(100);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    properties.getCareersDiscovery().setPerHostFailureCutoff(6);
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(102L);
+    when(repository.findHostCrawlState("alpha.com"))
+        .thenReturn(new HostCrawlState("alpha.com", 6, "timeout", Instant.now(), Instant.now()));
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    ArgumentCaptor<Integer> hostSkipCaptor = ArgumentCaptor.forClass(Integer.class);
+    verify(repository, atLeastOnce())
+        .updateCareersDiscoveryRunProgress(
+            eq(102L),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            any(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            hostSkipCaptor.capture());
+    assertThat(hostSkipCaptor.getValue()).isEqualTo(1);
   }
 
   private static final class DirectExecutorService extends AbstractExecutorService {
