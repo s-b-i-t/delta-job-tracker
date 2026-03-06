@@ -16,6 +16,8 @@ import com.delta.jobtracker.crawl.ats.AtsDetector;
 import com.delta.jobtracker.crawl.ats.AtsEndpointExtractor;
 import com.delta.jobtracker.crawl.ats.AtsFingerprintFromHtmlLinksDetector;
 import com.delta.jobtracker.crawl.ats.AtsFingerprintFromSitemapsDetector;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
+import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
@@ -227,6 +229,30 @@ class CareersDiscoveryServiceTest {
     assertThat(outcome.primaryFailure()).isNotNull();
     assertThat(outcome.primaryFailure().reasonCode()).isEqualTo("discovery_host_failure_cutoff");
     verify(httpClient, never()).get(anyString(), anyString());
+  }
+
+  @Test
+  void homepageFetchUsesActiveRunBudgetContext() {
+    CompanyTarget company = new CompanyTarget(6L, "ACME", "Acme Corp", null, "acme.com", null);
+    String homepage = "https://acme.com/";
+    CanaryHttpBudget runBudget =
+        new CanaryHttpBudget(0, 5, 0.0, 1, 0, 1, 30, Instant.now().plusSeconds(30));
+
+    when(repository.findCareersDiscoveryState(6L)).thenReturn(null);
+    when(robotsTxtService.isAllowed(homepage)).thenReturn(true);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              assertThat(CanaryHttpBudgetContext.current()).isSameAs(runBudget);
+              return successHtml(
+                  homepage, "<a href=\"https://boards.greenhouse.io/acme\">Careers</a>");
+            });
+
+    try (CanaryHttpBudgetContext.Scope scope = CanaryHttpBudgetContext.activate(runBudget)) {
+      CareersDiscoveryService.DiscoveryOutcome outcome =
+          service.discoverForCompany(company, null, null, null, false);
+      assertThat(outcome.hasEndpoints()).isTrue();
+    }
   }
 
   private HttpFetchResult successHtml(String url, String body) {

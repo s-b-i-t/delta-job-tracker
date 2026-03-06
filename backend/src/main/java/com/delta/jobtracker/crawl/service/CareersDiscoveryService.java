@@ -1066,6 +1066,10 @@ public class CareersDiscoveryService {
   }
 
   private HttpFetchResult fetchHomepage(String homepageUrl, DiscoveryMetrics metrics) {
+    // Respect any active run-level budget so per-run accounting/enforcement remains authoritative.
+    if (CanaryHttpBudgetContext.current() != null) {
+      return fetchTracked(homepageUrl, HTML_ACCEPT, MAX_HOMEPAGE_BYTES, metrics);
+    }
     CanaryHttpBudget budget =
         new CanaryHttpBudget(
             2,
