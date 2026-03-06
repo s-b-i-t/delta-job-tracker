@@ -201,7 +201,7 @@ def main() -> int:
         print(f"ats_scale status=FAILED error=preflight_api_status out_dir={out_dir}", file=sys.stderr)
         return 2
 
-    frontier_seed = canary.timed_step(
+    frontier_seed = canary.timed_step_safe(
         "frontier_seed",
         lambda: api.post_json(
             "/api/frontier/seed",
@@ -209,6 +209,13 @@ def main() -> int:
         ),
     )
     canary.write_json(out_dir / "frontier_seed_response.json", frontier_seed.payload)
+    if isinstance(frontier_seed.payload, dict) and frontier_seed.payload.get("_error"):
+        canary.write_json(
+            out_dir / "ats_scale_metrics.json",
+            {"error": "frontier_seed_failed", "details": frontier_seed.payload},
+        )
+        print(f"ats_scale status=FAILED error=frontier_seed out_dir={out_dir}", file=sys.stderr)
+        return 2
 
     discover_start = canary.timed_step(
         "ats_discovery_start",
