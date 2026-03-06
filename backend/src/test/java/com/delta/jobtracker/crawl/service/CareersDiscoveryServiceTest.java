@@ -213,6 +213,22 @@ class CareersDiscoveryServiceTest {
     assertThat(nextAttemptCaptor.getValue()).isAfter(Instant.now());
   }
 
+  @Test
+  void vendorProbeHostFailureCutoffReturnsSkippedOutcome() {
+    CompanyTarget company = new CompanyTarget(5L, "ACME", "Acme Corp", null, "acme.com", null);
+    when(repository.findCareersDiscoveryState(5L)).thenReturn(null);
+    when(robotsTxtService.isAllowed(anyString())).thenReturn(false);
+    when(hostCrawlStateService.hasReachedFailureCutoff(anyString(), eq(6))).thenReturn(true);
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, true, 6);
+
+    assertThat(outcome.skipped()).isTrue();
+    assertThat(outcome.primaryFailure()).isNotNull();
+    assertThat(outcome.primaryFailure().reasonCode()).isEqualTo("discovery_host_failure_cutoff");
+    verify(httpClient, never()).get(anyString(), anyString());
+  }
+
   private HttpFetchResult successHtml(String url, String body) {
     return new HttpFetchResult(
         url,

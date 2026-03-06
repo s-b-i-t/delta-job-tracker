@@ -55,10 +55,11 @@ public class CareersDiscoveryRunService {
     int selectionReturnedCount = companies == null ? 0 : companies.size();
     int companiesInputCount = selectionReturnedCount;
     int requestBudget = properties.getCareersDiscovery().getGlobalRequestBudgetPerRun();
-    int hardTimeoutSeconds = properties.getCareersDiscovery().getHardTimeoutSeconds();
-    if (hardTimeoutSeconds <= 0) {
-      hardTimeoutSeconds = properties.getCareersDiscovery().getMaxDurationSeconds();
+    int configuredHardTimeoutSeconds = properties.getCareersDiscovery().getHardTimeoutSeconds();
+    if (configuredHardTimeoutSeconds <= 0) {
+      configuredHardTimeoutSeconds = properties.getCareersDiscovery().getMaxDurationSeconds();
     }
+    final int hardTimeoutSeconds = configuredHardTimeoutSeconds;
     int hostFailureCutoff = properties.getCareersDiscovery().getPerHostFailureCutoff();
     long runId =
         repository.insertCareersDiscoveryRun(
@@ -70,7 +71,15 @@ public class CareersDiscoveryRunService {
             hardTimeoutSeconds,
             hostFailureCutoff);
     discoveryExecutor.submit(
-        () -> runDiscovery(runId, companies, safeBatchSize, vendorProbeOnlyMode));
+        () ->
+            runDiscovery(
+                runId,
+                companies,
+                safeBatchSize,
+                vendorProbeOnlyMode,
+                requestBudget,
+                hardTimeoutSeconds,
+                hostFailureCutoff));
     return new CareersDiscoveryRunResponse(runId, "RUNNING", "/api/careers/discover/run/" + runId);
   }
 
@@ -115,7 +124,13 @@ public class CareersDiscoveryRunService {
   }
 
   private void runDiscovery(
-      long runId, List<CompanyTarget> companies, int batchSize, boolean vendorProbeOnly) {
+      long runId,
+      List<CompanyTarget> companies,
+      int batchSize,
+      boolean vendorProbeOnly,
+      int requestBudget,
+      int hardTimeoutSeconds,
+      int hostFailureCutoff) {
     int processed = 0;
     int succeeded = 0;
     int failed = 0;
@@ -129,12 +144,6 @@ public class CareersDiscoveryRunService {
     int hostFailureCutoffSkips = 0;
     boolean aborted = false;
     String abortReason = null;
-    int requestBudget = properties.getCareersDiscovery().getGlobalRequestBudgetPerRun();
-    int hardTimeoutSeconds = properties.getCareersDiscovery().getHardTimeoutSeconds();
-    if (hardTimeoutSeconds <= 0) {
-      hardTimeoutSeconds = properties.getCareersDiscovery().getMaxDurationSeconds();
-    }
-    int hostFailureCutoff = properties.getCareersDiscovery().getPerHostFailureCutoff();
     Instant deadline = hardTimeoutSeconds > 0 ? runStarted.plusSeconds(hardTimeoutSeconds) : null;
     CareersDiscoveryService.DiscoveryMetrics metrics =
         new CareersDiscoveryService.DiscoveryMetrics();
@@ -183,7 +192,12 @@ public class CareersDiscoveryRunService {
               int requestsBefore = metrics.requestsIssuedCount();
               outcome =
                   discoveryService.discoverForCompany(
-                      company, deadline, metrics, vendorProbeLimiter, vendorProbeOnly);
+                      company,
+                      deadline,
+                      metrics,
+                      vendorProbeLimiter,
+                      vendorProbeOnly,
+                      hostFailureCutoff);
               int requestDelta = Math.max(0, metrics.requestsIssuedCount() - requestsBefore);
               if (requestDelta == 0
                   && outcome != null
@@ -213,6 +227,9 @@ public class CareersDiscoveryRunService {
                 stage = mapping.stage();
                 httpStatus = mapping.httpStatus();
                 errorDetail = mapping.errorDetail();
+                if (isHostFailureCutoffReason(failure)) {
+                  hostFailureCutoffSkips++;
+                }
               } else {
                 CareersDiscoveryService.DiscoveryFailure failure =
                     outcome == null ? null : outcome.primaryFailure();
@@ -221,6 +238,11 @@ public class CareersDiscoveryRunService {
                 stage = mapping.stage();
                 httpStatus = mapping.httpStatus();
                 errorDetail = mapping.errorDetail();
+                if (isHostFailureCutoffReason(failure)) {
+                  status = "SKIPPED";
+                  cachedSkipCount++;
+                  hostFailureCutoffSkips++;
+                }
                 if (outcome != null && outcome.timeBudgetExceeded()) {
                   aborted = true;
                   abortReason = "time_budget_exceeded";
@@ -515,6 +537,10 @@ public class CareersDiscoveryRunService {
     } catch (Exception ignored) {
       return false;
     }
+  }
+
+  private boolean isHostFailureCutoffReason(CareersDiscoveryService.DiscoveryFailure failure) {
+    return failure != null && "discovery_host_failure_cutoff".equals(failure.reasonCode());
   }
 
   private record FailureMapping(
