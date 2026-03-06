@@ -13,6 +13,50 @@ import run_e2e_pipeline_proof as proof
 
 
 class E2EPipelineProofConfigTest(unittest.TestCase):
+    def test_normalize_stop_reason_maps_expected_buckets(self) -> None:
+        self.assertEqual(proof.normalize_stop_reason(None), "NONE")
+        self.assertEqual(proof.normalize_stop_reason("request_budget_exceeded"), "REQUEST_BUDGET_EXCEEDED")
+        self.assertEqual(proof.normalize_stop_reason("hard_timeout_reached"), "TIMEOUT")
+        self.assertEqual(proof.normalize_stop_reason("host_failure_cutoff"), "HOST_FAILURE_CUTOFF")
+        self.assertEqual(proof.normalize_stop_reason("FAILED"), "FAILED")
+
+    def test_build_canonical_efficiency_report_has_scope_tags_and_rates(self) -> None:
+        payload = proof.build_canonical_efficiency_report(
+            run_root=Path("out/20260306T000000Z/e2e_pipeline_run"),
+            preset="S",
+            fetch_elapsed_seconds=120.0,
+            fetch_attempts=60,
+            fetch_successes=45,
+            queued_before_fetch=100,
+            queued_after_fetch=40,
+            fetch_error_buckets={"timeout": 6, "robots": 3},
+            ats_stage={
+                "resolve_batches": [
+                    {"attempted": 10, "resolvedCount": 6, "duration_seconds": 30.0},
+                    {"attempted": 5, "resolvedCount": 2, "duration_seconds": 15.0},
+                ],
+                "discovery_wait_seconds": 180.0,
+                "discovery_final": {
+                    "companiesAttemptedCount": 12,
+                    "succeededCount": 7,
+                    "failedCount": 5,
+                    "endpointExtractedCount": 4,
+                    "stopReason": "request_budget_exceeded",
+                },
+            },
+            ats_endpoints_created=3,
+            domain_before=1000,
+            domain_after=1008,
+        )
+        self.assertEqual(payload["schema_version"], "canonical-efficiency-report-v1")
+        self.assertEqual(payload["phases"]["domain_resolution"]["scope_tag"], "run_scope")
+        self.assertEqual(payload["phases"]["queue_fetch"]["scope_tag"], "run_scope")
+        self.assertEqual(payload["phases"]["ats_discovery"]["scope_tag"], "run_scope")
+        self.assertEqual(payload["global_snapshots"]["scope_tag"], "global_snapshot")
+        self.assertEqual(payload["phases"]["queue_fetch"]["rates_per_min"]["urls_fetch_attempted_per_min"], 30.0)
+        self.assertEqual(payload["phases"]["ats_discovery"]["stop_reason"]["normalized"], "REQUEST_BUDGET_EXCEEDED")
+        self.assertEqual(payload["phases"]["queue_fetch"]["error_breakdown"]["error_rate_per_attempt"], 0.15)
+
     def test_preset_s_applies_expected_defaults(self) -> None:
         args = proof.parse_args(["--preset", "S"])
         cfg, applied = proof.resolve_effective_config(args, {"--preset"})
@@ -98,8 +142,10 @@ class E2EPipelineProofConfigTest(unittest.TestCase):
             run_dir = run_dirs[0]
             self.assertTrue((run_dir / "db_snapshot_start.json").exists())
             self.assertTrue((run_dir / "db_snapshot_end.json").exists())
+            self.assertTrue((run_dir / "canonical_efficiency_report.json").exists())
             summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
             self.assertIn("db_truth", summary)
+            self.assertIn("canonical_efficiency_report", summary)
             self.assertTrue(summary["db_truth"]["enabled"])
             self.assertTrue(summary["db_truth"]["delta_ok"])
             self.assertEqual(summary["db_truth"]["delta"]["ats_endpoints_count"], 2)
@@ -127,6 +173,7 @@ class E2EPipelineProofConfigTest(unittest.TestCase):
             run_dir = run_dirs[0]
             summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
             self.assertIn("db_truth", summary)
+            self.assertIn("canonical_efficiency_report", summary)
             self.assertTrue(summary["db_truth"]["enabled"])
             self.assertFalse(summary["db_truth"]["delta_ok"])
             self.assertIn("error", summary["db_truth"]["start"])

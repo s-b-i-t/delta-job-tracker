@@ -158,6 +158,13 @@ def ts_dir_name(ts: datetime | None = None) -> str:
     return value.strftime("%Y%m%dT%H%M%SZ")
 
 
+def parse_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + ".tmp")
@@ -719,6 +726,151 @@ def metric_map(rows: list[dict[str, Any]], metric: str) -> dict[str, int]:
     return output
 
 
+def rate_per_min(count: int, duration_seconds: float) -> float | None:
+    if duration_seconds <= 0:
+        return None
+    return round((count * 60.0) / duration_seconds, 4)
+
+
+def ratio(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    return round(numerator / denominator, 6)
+
+
+def normalize_stop_reason(raw: Any) -> str:
+    text = str(raw or "").strip().lower()
+    if not text:
+        return "NONE"
+    if "request_budget" in text or "budget_exceeded" in text:
+        return "REQUEST_BUDGET_EXCEEDED"
+    if "hard_timeout" in text or ("timeout" in text and "wdqs" not in text):
+        return "TIMEOUT"
+    if "host_failure_cutoff" in text:
+        return "HOST_FAILURE_CUTOFF"
+    if "cancel" in text:
+        return "CANCELLED"
+    if "abort" in text:
+        return "ABORTED"
+    if "fail" in text or "error" in text:
+        return "FAILED"
+    if "complete" in text or "succeed" in text:
+        return "COMPLETED"
+    return "OTHER"
+
+
+def build_canonical_efficiency_report(
+    *,
+    run_root: Path,
+    preset: str | None,
+    fetch_elapsed_seconds: float,
+    fetch_attempts: int,
+    fetch_successes: int,
+    queued_before_fetch: int,
+    queued_after_fetch: int,
+    fetch_error_buckets: dict[str, int],
+    ats_stage: dict[str, Any],
+    ats_endpoints_created: int,
+    domain_before: int | None,
+    domain_after: int | None,
+) -> dict[str, Any]:
+    resolve_batches = ats_stage.get("resolve_batches") if isinstance(ats_stage.get("resolve_batches"), list) else []
+    domain_attempted = sum(parse_int((batch or {}).get("attempted")) for batch in resolve_batches)
+    domain_resolved = sum(parse_int((batch or {}).get("resolvedCount")) for batch in resolve_batches)
+    domain_duration_seconds = round(
+        sum(float((batch or {}).get("duration_seconds") or 0.0) for batch in resolve_batches), 3
+    )
+
+    discovery_final = ats_stage.get("discovery_final") if isinstance(ats_stage.get("discovery_final"), dict) else {}
+    discovery_elapsed_seconds = float(ats_stage.get("discovery_wait_seconds") or 0.0)
+    attempted_companies = parse_int(discovery_final.get("companiesAttemptedCount"))
+    succeeded_companies = parse_int(discovery_final.get("succeededCount"))
+    failed_companies = parse_int(discovery_final.get("failedCount"))
+    endpoints_extracted = parse_int(discovery_final.get("endpointExtractedCount"))
+    stop_reason_raw = discovery_final.get("stopReason") or discovery_final.get("lastError")
+    normalized_stop_reason = normalize_stop_reason(stop_reason_raw)
+
+    fetch_error_total = sum(parse_int(v) for v in fetch_error_buckets.values())
+    fetch_queue_delta = queued_after_fetch - queued_before_fetch
+
+    return {
+        "schema_version": "canonical-efficiency-report-v1",
+        "generated_at": utc_iso(),
+        "context": {
+            "source": "run_e2e_pipeline_proof.py",
+            "preset": preset,
+            "run_root": str(run_root),
+        },
+        "phases": {
+            "domain_resolution": {
+                "scope_tag": "run_scope",
+                "duration_seconds": domain_duration_seconds,
+                "counters": {
+                    "companies_attempted": domain_attempted,
+                    "domains_resolved": domain_resolved,
+                },
+                "rates_per_min": {
+                    "domains_resolved_per_min": rate_per_min(domain_resolved, domain_duration_seconds),
+                },
+                "error_rates": {
+                    "unresolved_per_attempt": ratio(max(0, domain_attempted - domain_resolved), domain_attempted),
+                },
+            },
+            "queue_fetch": {
+                "scope_tag": "run_scope",
+                "duration_seconds": round(fetch_elapsed_seconds, 3),
+                "counters": {
+                    "urls_fetch_attempted": fetch_attempts,
+                    "urls_fetch_succeeded": fetch_successes,
+                    "urls_queued_before": queued_before_fetch,
+                    "urls_queued_after": queued_after_fetch,
+                    "urls_queued_net_delta": fetch_queue_delta,
+                },
+                "rates_per_min": {
+                    "urls_fetch_attempted_per_min": rate_per_min(fetch_attempts, fetch_elapsed_seconds),
+                    "urls_fetch_succeeded_per_min": rate_per_min(fetch_successes, fetch_elapsed_seconds),
+                    "urls_queued_net_delta_per_min": rate_per_min(fetch_queue_delta, fetch_elapsed_seconds),
+                },
+                "error_breakdown": {
+                    "bucket_counts": fetch_error_buckets,
+                    "total_errors": fetch_error_total,
+                    "error_rate_per_attempt": ratio(fetch_error_total, fetch_attempts),
+                },
+            },
+            "ats_discovery": {
+                "scope_tag": "run_scope",
+                "duration_seconds": round(discovery_elapsed_seconds, 3),
+                "counters": {
+                    "companies_attempted": attempted_companies,
+                    "companies_succeeded": succeeded_companies,
+                    "companies_failed": failed_companies,
+                    "endpoints_extracted": endpoints_extracted,
+                    "endpoints_created_run_scope": ats_endpoints_created,
+                },
+                "rates_per_min": {
+                    "endpoints_extracted_per_min": rate_per_min(endpoints_extracted, discovery_elapsed_seconds),
+                    "endpoints_created_per_min": rate_per_min(ats_endpoints_created, discovery_elapsed_seconds),
+                },
+                "error_rates": {
+                    "failed_per_attempted": ratio(failed_companies, attempted_companies),
+                },
+                "stop_reason": {
+                    "raw": str(stop_reason_raw) if stop_reason_raw is not None else None,
+                    "normalized": normalized_stop_reason,
+                },
+            },
+        },
+        "global_snapshots": {
+            "scope_tag": "global_snapshot",
+            "companies_with_domain_count_before": domain_before,
+            "companies_with_domain_count_after": domain_after,
+            "companies_with_domain_count_delta": (
+                None if domain_before is None or domain_after is None else (domain_after - domain_before)
+            ),
+        },
+    }
+
+
 def poll_discovery_run(
     base_url: str,
     run_id: int,
@@ -881,7 +1033,30 @@ def run(args: argparse.Namespace, explicit_options: set[str]) -> int:
                     "reason": "dry_run_only",
                 },
             }
+            key_metrics = db_truth.get("key_metrics") if isinstance(db_truth.get("key_metrics"), dict) else {}
+            domain_before_global = None
+            domain_after_global = None
+            if isinstance(key_metrics.get("start"), dict):
+                domain_before_global = int((key_metrics.get("start") or {}).get("companies_with_domain_count") or 0)
+            if isinstance(key_metrics.get("end"), dict):
+                domain_after_global = int((key_metrics.get("end") or {}).get("companies_with_domain_count") or 0)
+            canonical_efficiency = build_canonical_efficiency_report(
+                run_root=run_root,
+                preset=args.preset,
+                fetch_elapsed_seconds=0.0,
+                fetch_attempts=0,
+                fetch_successes=0,
+                queued_before_fetch=0,
+                queued_after_fetch=0,
+                fetch_error_buckets={},
+                ats_stage={},
+                ats_endpoints_created=0,
+                domain_before=domain_before_global,
+                domain_after=domain_after_global,
+            )
+            summary["canonical_efficiency_report"] = canonical_efficiency
             write_json(run_root / "summary.json", summary)
+            write_json(run_root / "canonical_efficiency_report.json", canonical_efficiency)
             print(json.dumps({"run_root": str(run_root), "dry_run": True}, indent=2))
             return 0
 
@@ -1065,6 +1240,7 @@ def run(args: argparse.Namespace, explicit_options: set[str]) -> int:
                     ats_stage["sec_ingest"] = {"skipped": True, "reason": "sec_limit <= 0"}
 
                 for idx in range(1, int(resolved_config["resolve_cycles"]) + 1):
+                    resolve_started = time.monotonic()
                     batch_resp = post_json(
                         args.base_url,
                         "/api/domains/resolve",
@@ -1084,6 +1260,7 @@ def run(args: argparse.Namespace, explicit_options: set[str]) -> int:
                             if isinstance(batch_resp, dict)
                             else 0,
                             "metrics": metrics if isinstance(metrics, dict) else {},
+                            "duration_seconds": round(time.monotonic() - resolve_started, 3),
                         }
                     )
                     if attempted <= 0:
@@ -1110,12 +1287,14 @@ def run(args: argparse.Namespace, explicit_options: set[str]) -> int:
                         message=f"Missing discoveryRunId in response: {discover_start}",
                     )
 
+                discover_wait_started = time.monotonic()
                 ats_stage["discovery_final"] = poll_discovery_run(
                     args.base_url,
                     run_id,
                     poll_interval_seconds=int(resolved_config["discover_poll_interval_seconds"]),
                     max_wait_seconds=int(resolved_config["discover_max_wait_seconds"]),
                 )
+                ats_stage["discovery_wait_seconds"] = round(time.monotonic() - discover_wait_started, 3)
 
                 try:
                     ats_stage["discovery_failures"] = get_json(
@@ -1152,6 +1331,9 @@ def run(args: argparse.Namespace, explicit_options: set[str]) -> int:
         queued_before_fetch = metric_value(post_seed_rows, "queued_total")
         queued_after_fetch = metric_value(post_fetch_rows, "queued_total")
         fetch_attempts = metric_value(post_fetch_rows, "attempts_created_run_scope")
+        fetch_successes = sum(
+            parse_int((item.get("seed_response") or {}).get("urlsFetched")) for item in fetch_progress
+        )
 
         attempts_per_min = 0.0
         if fetch_elapsed_seconds > 0:
@@ -1258,7 +1440,32 @@ def run(args: argparse.Namespace, explicit_options: set[str]) -> int:
             end_snapshot=db_snapshot_end,
         )
         summary["db_truth"] = db_truth
+
+        domain_before_global: int | None = None
+        domain_after_global: int | None = None
+        key_metrics = db_truth.get("key_metrics") if isinstance(db_truth.get("key_metrics"), dict) else {}
+        if isinstance(key_metrics.get("start"), dict):
+            domain_before_global = int((key_metrics.get("start") or {}).get("companies_with_domain_count") or 0)
+        if isinstance(key_metrics.get("end"), dict):
+            domain_after_global = int((key_metrics.get("end") or {}).get("companies_with_domain_count") or 0)
+
+        canonical_efficiency = build_canonical_efficiency_report(
+            run_root=run_root,
+            preset=args.preset,
+            fetch_elapsed_seconds=fetch_elapsed_seconds,
+            fetch_attempts=fetch_attempts,
+            fetch_successes=fetch_successes,
+            queued_before_fetch=queued_before_fetch,
+            queued_after_fetch=queued_after_fetch,
+            fetch_error_buckets=metric_map(post_fetch_rows, "attempt_error_bucket_run_scope"),
+            ats_stage=ats_stage,
+            ats_endpoints_created=ats_endpoints_created,
+            domain_before=domain_before_global,
+            domain_after=domain_after_global,
+        )
+        summary["canonical_efficiency_report"] = canonical_efficiency
         write_json(run_root / "summary.json", summary)
+        write_json(run_root / "canonical_efficiency_report.json", canonical_efficiency)
 
         report_date = utc_now().strftime("%Y-%m-%d")
         report_paths = compute_report_paths(run_root, report_date, bool(args.write_docs_report))
@@ -1362,7 +1569,23 @@ def run(args: argparse.Namespace, explicit_options: set[str]) -> int:
             warnings=warnings,
         )
         failure_summary["db_truth"] = db_truth
+        canonical_efficiency = build_canonical_efficiency_report(
+            run_root=run_root,
+            preset=args.preset,
+            fetch_elapsed_seconds=0.0,
+            fetch_attempts=0,
+            fetch_successes=0,
+            queued_before_fetch=0,
+            queued_after_fetch=0,
+            fetch_error_buckets={},
+            ats_stage={},
+            ats_endpoints_created=0,
+            domain_before=None,
+            domain_after=None,
+        )
+        failure_summary["canonical_efficiency_report"] = canonical_efficiency
         write_json(run_root / "summary.json", failure_summary)
+        write_json(run_root / "canonical_efficiency_report.json", canonical_efficiency)
         print(json.dumps({"run_root": str(run_root), "fatal_error": failure_summary["fatal_error"]}, indent=2), file=sys.stderr)
         return 1
 
