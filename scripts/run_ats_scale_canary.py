@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+import efficiency_reporting_contract as erc
 import run_ats_validation_canary as canary
 
 
@@ -41,6 +42,84 @@ def rate_per_hour(count: int, duration_seconds: float) -> float:
     if duration_seconds <= 0:
         return 0.0
     return round((count * 3600.0) / duration_seconds, 3)
+
+
+def build_canonical_efficiency_report(
+    *,
+    args: argparse.Namespace,
+    out_dir: Path,
+    final_status: Dict[str, Any],
+    frontier_seed_payload: Dict[str, Any],
+    duration_seconds: float,
+    attempted: int,
+    endpoints_added: int,
+    request_count: int,
+    error_bucket_counts: Dict[str, int],
+    stop_reason_raw: Any,
+) -> Dict[str, Any]:
+    return erc.build_payload(
+        source="run_ats_scale_canary.py",
+        context={
+            "base_url": args.base_url,
+            "discover_limit": args.discover_limit,
+            "out_dir": str(out_dir),
+            "scope_tags": ["run_scope"],
+        },
+        phases={
+            "domain_resolution": {
+                "scope_tag": "run_scope",
+                "availability": "not_collected_in_this_surface",
+            },
+            "queue_fetch": {
+                "scope_tag": "run_scope",
+                "duration_seconds": None,
+                "rate_denominator_seconds": None,
+                "counters": {
+                    "urls_enqueued": canary.parse_int(frontier_seed_payload.get("urlsEnqueued")),
+                    "urls_fetched": canary.parse_int(frontier_seed_payload.get("urlsFetched")),
+                    "hosts_seen": canary.parse_int(frontier_seed_payload.get("hostsSeen")),
+                },
+                "rates_per_min": {
+                    "urls_enqueued_per_min": None,
+                    "urls_fetched_per_min": None,
+                },
+            },
+            "ats_discovery": {
+                "scope_tag": "run_scope",
+                "duration_seconds": round(duration_seconds, 3),
+                "rate_denominator_seconds": round(duration_seconds, 3),
+                "counters": {
+                    "companies_attempted": attempted,
+                    "endpoints_created": endpoints_added,
+                    "request_count_total": request_count,
+                },
+                "rates_per_min": {
+                    "companies_attempted_per_min": erc.rate_per_min(attempted, duration_seconds),
+                    "endpoints_created_per_min": erc.rate_per_min(endpoints_added, duration_seconds),
+                    "requests_per_min": erc.rate_per_min(request_count, duration_seconds),
+                },
+                "error_rates": {
+                    "error_bucket_count_per_attempted": erc.ratio(
+                        sum(erc.parse_int(v) for v in error_bucket_counts.values()),
+                        attempted,
+                    ),
+                },
+                "stop_reason": {
+                    "raw": str(stop_reason_raw) if stop_reason_raw is not None else None,
+                    "normalized": erc.normalize_stop_reason(stop_reason_raw),
+                },
+                "guardrails": {
+                    "request_budget": canary.parse_int(final_status.get("requestBudget")),
+                    "hard_timeout_seconds": canary.parse_int(final_status.get("hardTimeoutSeconds")),
+                    "host_failure_cutoff_count": canary.parse_int(final_status.get("hostFailureCutoffCount")),
+                    "host_failure_cutoff_skips": canary.parse_int(final_status.get("hostFailureCutoffSkips")),
+                },
+                "error_breakdown": {
+                    "bucket_counts": {str(k): erc.parse_int(v) for k, v in error_bucket_counts.items()},
+                },
+            },
+        },
+    )
 
 
 def query_sql_snapshots(db: canary.DbClient, run_id: int) -> Dict[str, Any]:
@@ -241,8 +320,22 @@ def main() -> int:
             "ats_scale_sql_snapshots": "ats_scale_sql_snapshots.json",
         },
     }
+    canonical_efficiency_report = build_canonical_efficiency_report(
+        args=args,
+        out_dir=out_dir,
+        final_status=final_status,
+        frontier_seed_payload=frontier_seed.payload if isinstance(frontier_seed.payload, dict) else {},
+        duration_seconds=duration_seconds,
+        attempted=attempted,
+        endpoints_added=endpoints_added,
+        request_count=request_count,
+        error_bucket_counts=error_bucket_counts,
+        stop_reason_raw=run_row.get("stop_reason") or final_status.get("lastError"),
+    )
+    metrics["canonical_efficiency_report"] = canonical_efficiency_report
 
     canary.write_json(out_dir / "ats_scale_metrics.json", metrics)
+    canary.write_json(out_dir / "canonical_efficiency_report.json", canonical_efficiency_report)
     print(
         "ats_scale "
         f"run_id={run_id} "
