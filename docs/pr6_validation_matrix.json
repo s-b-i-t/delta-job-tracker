@@ -1,0 +1,108 @@
+{
+  "schema_version": "pr6-validation-matrix-v1",
+  "generated_at": "2026-03-06T03:40:00Z",
+  "master_ref": "a01b3ac",
+  "candidate_ref": "42890ef",
+  "notes": [
+    "Candidate ref includes Team C blocker-fix branch head at run time.",
+    "Candidate worktree did not contain scripts/run_e2e_pipeline_proof.py; canonical harness from master was used against candidate backend without modifying candidate code."
+  ],
+  "runs": [
+    {
+      "id": "A",
+      "command": "python3 scripts/run_e2e_pipeline_proof.py --preset S",
+      "worktree": "/tmp/djt-master-validate",
+      "code_ref": "a01b3ac",
+      "status": "success",
+      "stop_reason": null,
+      "artifact_dir": "/tmp/djt-master-validate/out/20260306T031231Z/e2e_pipeline_run",
+      "key_counts": {
+        "go_no_go": "GO",
+        "frontier_pass": true,
+        "fetch_pass": true,
+        "ats_pass": true,
+        "crawl_hosts_count": 1794,
+        "crawl_urls_count": 13950,
+        "crawl_url_attempts_count": 1167,
+        "ats_endpoints_count": 254,
+        "ats_companies_count": 240
+      }
+    },
+    {
+      "id": "B",
+      "command": "python3 /tmp/djt-master-validate/scripts/run_e2e_pipeline_proof.py --preset S --out-dir out",
+      "worktree": "/tmp/djt-pr6-validate2",
+      "code_ref": "42890ef",
+      "status": "success",
+      "stop_reason": null,
+      "artifact_dir": "/tmp/djt-pr6-validate2/out/20260306T031604Z/e2e_pipeline_run",
+      "key_counts": {
+        "go_no_go": "NO-GO",
+        "frontier_pass": true,
+        "fetch_pass": true,
+        "ats_pass": false,
+        "crawl_hosts_count": 1794,
+        "crawl_urls_count": 13971,
+        "crawl_url_attempts_count": 1188,
+        "ats_endpoints_count": 254,
+        "ats_companies_count": 240
+      }
+    },
+    {
+      "id": "C",
+      "command": "python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 200 --discover-limit 50 --domain-fresh-cohort",
+      "worktree": "/tmp/djt-pr6-validate2",
+      "code_ref": "42890ef",
+      "status": "failed",
+      "stop_reason": "TimeoutError during POST /api/domains/resolve",
+      "artifact_dir": "/tmp/djt-pr6-validate2/out/20260306T031749Z",
+      "key_counts": {
+        "domain_counts_before_companies_with_domain_count": 1809,
+        "partial_outputs_only": true
+      }
+    },
+    {
+      "id": "D",
+      "command": "python3 scripts/run_ats_validation_canary.py --sec-limit 5000 --resolve-limit 200 --discover-limit 50 --domain-fresh-cohort --http-timeout-seconds 300",
+      "worktree": "/tmp/djt-pr6-validate2",
+      "code_ref": "42890ef",
+      "status": "success",
+      "stop_reason": null,
+      "artifact_dir": "/tmp/djt-pr6-validate2/out/20260306T032009Z",
+      "key_counts": {
+        "domain_resolution_rate": 0.18,
+        "ats_discovery_success_rate": 0.52,
+        "processed_discover_count": 50,
+        "vendor_detected_count": 27,
+        "endpoint_extracted_count": 26,
+        "companies_with_domain_count_before": 1849,
+        "companies_with_domain_count_after": 1892
+      }
+    },
+    {
+      "id": "E",
+      "command": "python3 scripts/run_ats_scale_canary.py",
+      "worktree": "/tmp/djt-pr6-validate2",
+      "code_ref": "42890ef",
+      "status": "failed",
+      "stop_reason": "TimeoutError during POST /api/frontier/seed",
+      "artifact_dir": "/tmp/djt-pr6-validate2/out/20260306T033653Z",
+      "key_counts": {
+        "preflight_db_connectivity": true,
+        "companies_with_domain_count": 1892,
+        "ats_endpoints_count": 291
+      }
+    }
+  ],
+  "recommendations": {
+    "harness_compatibility": "GO",
+    "canary_operational_readiness": "NO-GO (default timeout), GO with --http-timeout-seconds 300 or reduced resolve-limit",
+    "scale_canary_readiness": "NO-GO (default timeout at frontier seed)",
+    "overall_pr6_merge_readiness": "GO for compatibility/correctness; NO-GO as release-gate default ops until timeout defaults or runbook limits are adjusted"
+  },
+  "smallest_actionable_fix_list": [
+    "Increase default HTTP timeout in canary/scale runners or expose per-stage timeout for long resolve/seed calls.",
+    "Document release command alternatives: --http-timeout-seconds 300 or reduce --resolve-limit.",
+    "Add timeout classification to summary output so failures are recorded as operational-tuning blockers rather than silent tracebacks."
+  ]
+}
