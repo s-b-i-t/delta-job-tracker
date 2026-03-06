@@ -247,7 +247,13 @@ public class CareersDiscoveryService {
   }
 
   DiscoveryOutcome discoverForCompany(CompanyTarget company, Instant deadline) {
-    return discoverForCompany(company, deadline, null, null, false);
+    return discoverForCompany(
+        company,
+        deadline,
+        null,
+        null,
+        false,
+        properties.getCareersDiscovery().getPerHostFailureCutoff());
   }
 
   DiscoveryOutcome discoverForCompany(
@@ -256,6 +262,22 @@ public class CareersDiscoveryService {
       DiscoveryMetrics metrics,
       VendorProbeLimiter vendorProbeLimiter,
       boolean vendorProbeOnly) {
+    return discoverForCompany(
+        company,
+        deadline,
+        metrics,
+        vendorProbeLimiter,
+        vendorProbeOnly,
+        properties.getCareersDiscovery().getPerHostFailureCutoff());
+  }
+
+  DiscoveryOutcome discoverForCompany(
+      CompanyTarget company,
+      Instant deadline,
+      DiscoveryMetrics metrics,
+      VendorProbeLimiter vendorProbeLimiter,
+      boolean vendorProbeOnly,
+      int hostFailureCutoff) {
     LinkedHashSet<String> seen = new LinkedHashSet<>();
     Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
     List<DiscoveryFailure> failures = new ArrayList<>();
@@ -511,7 +533,7 @@ public class CareersDiscoveryService {
         return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
       }
       AtsDetectionRecord vendorEndpoint =
-          probeVendorSlug(slug, metrics, vendorProbeLimiter, failures);
+          probeVendorSlug(slug, metrics, vendorProbeLimiter, failures, hostFailureCutoff);
       if (vendorEndpoint != null) {
         registerEndpoints(
             company,
@@ -664,7 +686,7 @@ public class CareersDiscoveryService {
         countsByType,
         failure,
         cooldownSkips.get(),
-        false,
+        isHostFailureCutoffFailure(failure),
         false,
         new DiscoveryFunnel(
             careersUrlFound,
@@ -1095,7 +1117,8 @@ public class CareersDiscoveryService {
       String slug,
       DiscoveryMetrics metrics,
       VendorProbeLimiter vendorProbeLimiter,
-      List<DiscoveryFailure> failures) {
+      List<DiscoveryFailure> failures,
+      int hostFailureCutoff) {
     if (slug == null || slug.isBlank()) {
       return null;
     }
@@ -1107,7 +1130,8 @@ public class CareersDiscoveryService {
             this::isGreenhouseSignature,
             metrics,
             vendorProbeLimiter,
-            failures);
+            failures,
+            hostFailureCutoff);
     if (greenhouse != null) {
       return greenhouse;
     }
@@ -1119,7 +1143,8 @@ public class CareersDiscoveryService {
             this::isLeverSignature,
             metrics,
             vendorProbeLimiter,
-            failures);
+            failures,
+            hostFailureCutoff);
     if (lever != null) {
       return lever;
     }
@@ -1130,7 +1155,8 @@ public class CareersDiscoveryService {
         this::isSmartRecruitersSignature,
         metrics,
         vendorProbeLimiter,
-        failures);
+        failures,
+        hostFailureCutoff);
   }
 
   private SitemapDetectionOutcome discoverAtsFromSitemaps(
@@ -1202,8 +1228,9 @@ public class CareersDiscoveryService {
       Predicate<String> signatureCheck,
       DiscoveryMetrics metrics,
       VendorProbeLimiter vendorProbeLimiter,
-      List<DiscoveryFailure> failures) {
-    if (isHostCoolingDown(url) || isHostAtFailureCutoff(url)) {
+      List<DiscoveryFailure> failures,
+      int hostFailureCutoff) {
+    if (isHostCoolingDown(url) || isHostAtFailureCutoff(url, hostFailureCutoff)) {
       if (failures != null) {
         failures.add(
             new DiscoveryFailure(
@@ -1442,7 +1469,7 @@ public class CareersDiscoveryService {
     return hostCrawlStateService.nextAllowedAt(host) != null;
   }
 
-  private boolean isHostAtFailureCutoff(String url) {
+  private boolean isHostAtFailureCutoff(String url, int hostFailureCutoff) {
     if (hostCrawlStateService == null) {
       return false;
     }
@@ -1450,7 +1477,7 @@ public class CareersDiscoveryService {
     if (host == null) {
       return false;
     }
-    int cutoff = properties.getCareersDiscovery().getPerHostFailureCutoff();
+    int cutoff = Math.max(1, hostFailureCutoff);
     return hostCrawlStateService.hasReachedFailureCutoff(host, cutoff);
   }
 
@@ -1555,6 +1582,10 @@ public class CareersDiscoveryService {
       }
     }
     return failures.getFirst();
+  }
+
+  private boolean isHostFailureCutoffFailure(DiscoveryFailure failure) {
+    return failure != null && "discovery_host_failure_cutoff".equals(failure.reasonCode());
   }
 
   record SitemapDetectionOutcome(Map<AtsDetectionRecord, String> endpoints) {
