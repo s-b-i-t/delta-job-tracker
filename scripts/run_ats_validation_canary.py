@@ -21,6 +21,7 @@ import io
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -91,6 +92,8 @@ class ApiClient:
             raise RuntimeError(f"HTTP {e.code} for {method} {url}: {body}") from e
         except URLError as e:
             raise RuntimeError(f"Request failed for {method} {url}: {e}") from e
+        except (TimeoutError, socket.timeout) as e:
+            raise RuntimeError(f"Request timed out for {method} {url} after {self.timeout_seconds}s") from e
         try:
             return json.loads(raw)
         except json.JSONDecodeError as e:
