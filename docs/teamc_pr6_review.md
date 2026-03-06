@@ -160,3 +160,18 @@ Missing/high-value tests:
 ## Verdict
 
 Request changes before merge, primarily on guardrail correctness/reporting (items 1-5).
+
+## Post-Merge Validation (2026-03-06)
+
+PR #6 has now been merged to `master` (`4ccfae8`) and revalidated against the canonical proof harness:
+
+- Command: `python3 scripts/run_e2e_pipeline_proof.py --preset S`
+- Artifact: `out/20260306T022432Z/e2e_pipeline_run`
+- Result: Harness executed successfully on real post-merge `master`; behavior matched isolated validation (frontier/fetch stages passed, ATS-stage gate remained data-dependent and did not indicate schema/API breakage).
+
+Operational note for ATS canary at higher resolve load:
+
+- The high-load canary command can exceed default HTTP timeout during `/api/domains/resolve`.
+- Use either:
+  - `--http-timeout-seconds 300`
+  - or lower `--resolve-limit` to keep request duration under client timeout.
