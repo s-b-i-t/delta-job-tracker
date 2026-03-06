@@ -32,6 +32,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+import efficiency_reporting_contract as erc
+
 DEFAULT_VENDOR_PROBE_SUCCESS_THRESHOLD = 0.45
 TERMINAL_STATUSES = {"SUCCEEDED", "FAILED", "COMPLETED", "CANCELLED", "ABORTED"}
 VENDOR_HOST_HINTS = (
@@ -218,6 +220,96 @@ def parse_bool(value: Any) -> bool:
 
 def safe_rate(num: int, den: int) -> Optional[float]:
     return round(num / den, 4) if den else None
+
+
+def build_canonical_efficiency_report(
+    *,
+    args: argparse.Namespace,
+    out_dir: Path,
+    domain_attempted: int,
+    domain_resolved: int,
+    domain_before: int,
+    domain_after: int,
+    domain_resolve_duration_ms: int,
+    probe_final_status: Dict[str, Any],
+    probe_duration_ms: int,
+    stage_failure_buckets: Dict[str, Any],
+) -> Dict[str, Any]:
+    domain_discovered_net_new = max(0, domain_after - domain_before)
+    domain_duration_seconds = max(0.0, domain_resolve_duration_ms / 1000.0)
+    probe_duration_seconds = max(0.0, probe_duration_ms / 1000.0)
+
+    probe_attempted = parse_int(probe_final_status.get("companiesAttemptedCount"))
+    probe_failed = parse_int(probe_final_status.get("failedCount"))
+    probe_succeeded = parse_int(probe_final_status.get("succeededCount"))
+    endpoints_extracted = parse_int(probe_final_status.get("endpointExtractedCount"))
+    stop_reason_raw = probe_final_status.get("stopReason") or probe_final_status.get("lastError")
+
+    return erc.build_payload(
+        source="run_ats_validation_canary.py",
+        context={
+            "base_url": args.base_url,
+            "discover_limit": args.discover_limit,
+            "out_dir": str(out_dir),
+            "scope_tags": ["run_scope", "global_snapshot"],
+        },
+        phases={
+            "domain_resolution": {
+                "scope_tag": "run_scope",
+                "duration_seconds": round(domain_duration_seconds, 3),
+                "rate_denominator_seconds": round(domain_duration_seconds, 3),
+                "counters": {
+                    "companies_attempted": domain_attempted,
+                    "domains_resolved": domain_resolved,
+                    "domains_discovered_net_new_global": domain_discovered_net_new,
+                },
+                "rates_per_min": {
+                    "domains_resolved_per_min": erc.rate_per_min(domain_resolved, domain_duration_seconds),
+                    "domains_discovered_per_min": erc.rate_per_min(domain_discovered_net_new, domain_duration_seconds),
+                },
+                "error_rates": {
+                    "unresolved_per_attempt": erc.ratio(max(0, domain_attempted - domain_resolved), domain_attempted),
+                },
+            },
+            "queue_fetch": {
+                "scope_tag": "run_scope",
+                "availability": "not_collected_in_this_surface",
+            },
+            "ats_discovery": {
+                "scope_tag": "run_scope",
+                "duration_seconds": round(probe_duration_seconds, 3),
+                "rate_denominator_seconds": round(probe_duration_seconds, 3),
+                "counters": {
+                    "companies_attempted": probe_attempted,
+                    "companies_succeeded": probe_succeeded,
+                    "companies_failed": probe_failed,
+                    "endpoints_extracted": endpoints_extracted,
+                },
+                "rates_per_min": {
+                    "endpoints_extracted_per_min": erc.rate_per_min(endpoints_extracted, probe_duration_seconds),
+                    "companies_attempted_per_min": erc.rate_per_min(probe_attempted, probe_duration_seconds),
+                },
+                "error_rates": {
+                    "failed_per_attempted": erc.ratio(probe_failed, probe_attempted),
+                },
+                "stop_reason": {
+                    "raw": str(stop_reason_raw) if stop_reason_raw is not None else None,
+                    "normalized": erc.normalize_stop_reason(stop_reason_raw),
+                },
+                "error_breakdown": {
+                    "stage_failure_buckets": {
+                        str(k): erc.parse_int(v) for k, v in (stage_failure_buckets or {}).items()
+                    }
+                },
+            },
+        },
+        global_snapshots={
+            "scope_tag": "global_snapshot",
+            "companies_with_domain_count_before": domain_before,
+            "companies_with_domain_count_after": domain_after,
+            "companies_with_domain_count_delta": domain_after - domain_before,
+        },
+    )
 
 
 def top_n_map(m: Any, n: int = 3) -> List[Dict[str, Any]]:
@@ -966,7 +1058,21 @@ def run(args: argparse.Namespace) -> int:
         },
         "raw_files": sorted(p.name for p in out_dir.iterdir() if p.is_file()),
     }
+    canonical_efficiency_report = build_canonical_efficiency_report(
+        args=args,
+        out_dir=out_dir,
+        domain_attempted=domain_attempted,
+        domain_resolved=domain_resolved,
+        domain_before=companies_with_domain_before,
+        domain_after=companies_with_domain_after,
+        domain_resolve_duration_ms=domain_resolve_step.duration_ms,
+        probe_final_status=probe_final_status,
+        probe_duration_ms=probe_status_step.duration_ms,
+        stage_failure_buckets=stage_failure_buckets,
+    )
+    summary["canonical_efficiency_report"] = canonical_efficiency_report
     write_json(out_dir / "canary_summary.json", summary)
+    write_json(out_dir / "canonical_efficiency_report.json", canonical_efficiency_report)
 
     schema = {
         "schema_version": "ats-canary-summary-schema-v2",
