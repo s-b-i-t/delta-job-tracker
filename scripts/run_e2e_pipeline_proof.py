@@ -144,7 +144,9 @@ def parse_int(value: Any, default: int = 0) -> int:
 
 def ensure_out_dir(base: Path) -> Path:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_dir = base / stamp / "e2e_pipeline_run"
+    stamp_dir = base / stamp
+    stamp_dir.mkdir(parents=True, exist_ok=False)
+    out_dir = stamp_dir / "e2e_pipeline_run"
     out_dir.mkdir(parents=True, exist_ok=False)
     return out_dir
 
@@ -248,6 +250,83 @@ def get_ats_endpoint_counts(container: str, user: str, database: str) -> Dict[st
         "endpoints_total": parse_int(rows[0].get("endpoints_total")),
         "companies_with_endpoint": parse_int(rows[0].get("companies_with_endpoint")),
     }
+
+
+def get_companies_with_domain_count(container: str, user: str, database: str) -> int:
+    rows = run_psql_csv(
+        container,
+        user,
+        database,
+        """
+        SELECT COUNT(DISTINCT company_id) AS companies_with_domain
+        FROM company_domains
+        """,
+    )
+    if not rows:
+        return 0
+    return parse_int(rows[0].get("companies_with_domain"))
+
+
+def build_proof_report(
+    run_dir: Path,
+    *,
+    preset: str,
+    go_no_go: str,
+    crawl_url_attempts: int | None,
+    ats_before: Dict[str, int] | None,
+    ats_after: Dict[str, int] | None,
+    domains_before: int | None,
+    domains_after: int | None,
+    error: str | None = None,
+) -> Dict[str, Any]:
+    stamp_dir = run_dir.parent
+
+    endpoints_before = parse_int((ats_before or {}).get("endpoints_total"))
+    endpoints_after = parse_int((ats_after or {}).get("endpoints_total"))
+    companies_with_endpoint_before = parse_int((ats_before or {}).get("companies_with_endpoint"))
+    companies_with_endpoint_after = parse_int((ats_after or {}).get("companies_with_endpoint"))
+
+    domains_before_i = parse_int(domains_before)
+    domains_after_i = parse_int(domains_after)
+
+    payload: Dict[str, Any] = {
+        "schemaVersion": "e2e-pipeline-proof-report-v1",
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "preset": preset,
+        "stampDir": str(stamp_dir),
+        "runDir": str(run_dir),
+        "go_no_go": go_no_go,
+        "evidence": {
+            "crawl_url_attempts": crawl_url_attempts,
+            "ats_endpoints_count": {
+                "before": endpoints_before,
+                "after": endpoints_after,
+                "delta": endpoints_after - endpoints_before,
+            },
+            "companies_with_ats_endpoint_count": {
+                "before": companies_with_endpoint_before,
+                "after": companies_with_endpoint_after,
+                "delta": companies_with_endpoint_after - companies_with_endpoint_before,
+            },
+            "companies_with_domain_count": {
+                "before": domains_before_i,
+                "after": domains_after_i,
+                "delta": domains_after_i - domains_before_i,
+            },
+        },
+        "successCriteria": {
+            "crawl_url_attempts_gt_0": bool(crawl_url_attempts is not None and crawl_url_attempts > 0),
+            "go_no_go_is_go": go_no_go == "GO",
+        },
+        "artifacts": {
+            "proofReportPath": str(stamp_dir / "proof_report.json"),
+            "summaryPath": str(run_dir / "summary.json"),
+            "apiCallsPath": str(run_dir / "api_calls.json"),
+        },
+    }
+    if error:
+        payload["error"] = {"message": error}
+    return payload
 
 
 def poll_discovery_run(
@@ -380,6 +459,7 @@ def build_go_no_go(ats_stage: Dict[str, Any], blockers: List[str]) -> str:
 def run_pipeline(args: argparse.Namespace) -> Tuple[Dict[str, Any], Path]:
     preset = PRESETS[args.preset]
     out_dir = ensure_out_dir(Path(args.out_base))
+    stamp_dir = out_dir.parent
     api = ApiRecorder(args.base_url, args.http_timeout_seconds)
 
     status_payload = api.request_json("preflight", "GET", "/api/status")
@@ -393,6 +473,9 @@ def run_pipeline(args: argparse.Namespace) -> Tuple[Dict[str, Any], Path]:
     write_json(out_dir / "ats_fixture_seed.json", fixtures_payload)
 
     ats_before = get_ats_endpoint_counts(args.postgres_container, args.postgres_user, args.postgres_db)
+    domains_before = get_companies_with_domain_count(
+        args.postgres_container, args.postgres_user, args.postgres_db
+    )
 
     frontier_seed_payload = api.request_json(
         "frontier_seed",
@@ -448,6 +531,7 @@ def run_pipeline(args: argparse.Namespace) -> Tuple[Dict[str, Any], Path]:
     write_json(out_dir / "ats_discovery_failures.json", failures_payload)
 
     ats_after = get_ats_endpoint_counts(args.postgres_container, args.postgres_user, args.postgres_db)
+    domains_after = get_companies_with_domain_count(args.postgres_container, args.postgres_user, args.postgres_db)
     created_endpoints = max(0, ats_after["endpoints_total"] - ats_before["endpoints_total"])
     created_companies = max(
         0, ats_after["companies_with_endpoint"] - ats_before["companies_with_endpoint"]
@@ -556,6 +640,19 @@ def run_pipeline(args: argparse.Namespace) -> Tuple[Dict[str, Any], Path]:
 
     write_json(out_dir / "api_calls.json", [call.__dict__ for call in api.calls])
     write_json(out_dir / "summary.json", summary)
+    write_json(
+        stamp_dir / "proof_report.json",
+        build_proof_report(
+            out_dir,
+            preset=args.preset,
+            go_no_go=str(summary.get("go_no_go") or ""),
+            crawl_url_attempts=parse_int(fetch_stage.get("httpRequestCount")),
+            ats_before=ats_before,
+            ats_after=ats_after,
+            domains_before=domains_before,
+            domains_after=domains_after,
+        ),
+    )
     return summary, out_dir
 
 
@@ -586,6 +683,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         }
         fallback_dir = ensure_out_dir(Path(args.out_base))
         write_json(fallback_dir / "summary.json", error_payload)
+        write_json(
+            fallback_dir.parent / "proof_report.json",
+            build_proof_report(
+                fallback_dir,
+                preset=args.preset,
+                go_no_go="NO-GO",
+                crawl_url_attempts=None,
+                ats_before=None,
+                ats_after=None,
+                domains_before=None,
+                domains_after=None,
+                error=str(exc),
+            ),
+        )
         print(f"e2e_pipeline_proof status=NO-GO error={exc} out_dir={fallback_dir}", file=sys.stderr)
         return 2
 
@@ -597,7 +708,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         f"out_dir={out_dir}",
         file=sys.stderr,
     )
-    print(json.dumps({"out_dir": str(out_dir), "go_no_go": summary.get("go_no_go")}, indent=2))
+    print(
+        json.dumps(
+            {"out_dir": str(out_dir), "stamp_dir": str(out_dir.parent), "go_no_go": summary.get("go_no_go")},
+            indent=2,
+        )
+    )
     return 0 if summary.get("go_no_go") == "GO" else 1
 
 
