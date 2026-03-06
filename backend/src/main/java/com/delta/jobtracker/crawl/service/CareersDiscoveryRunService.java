@@ -54,9 +54,21 @@ public class CareersDiscoveryRunService {
     List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(companyLimit);
     int selectionReturnedCount = companies == null ? 0 : companies.size();
     int companiesInputCount = selectionReturnedCount;
+    int requestBudget = properties.getCareersDiscovery().getGlobalRequestBudgetPerRun();
+    int hardTimeoutSeconds = properties.getCareersDiscovery().getHardTimeoutSeconds();
+    if (hardTimeoutSeconds <= 0) {
+      hardTimeoutSeconds = properties.getCareersDiscovery().getMaxDurationSeconds();
+    }
+    int hostFailureCutoff = properties.getCareersDiscovery().getPerHostFailureCutoff();
     long runId =
         repository.insertCareersDiscoveryRun(
-            companyLimit, selectionEligibleCount, selectionReturnedCount, companiesInputCount);
+            companyLimit,
+            selectionEligibleCount,
+            selectionReturnedCount,
+            companiesInputCount,
+            requestBudget,
+            hardTimeoutSeconds,
+            hostFailureCutoff);
     discoveryExecutor.submit(
         () -> runDiscovery(runId, companies, safeBatchSize, vendorProbeOnlyMode));
     return new CareersDiscoveryRunResponse(runId, "RUNNING", "/api/careers/discover/run/" + runId);
@@ -113,10 +125,17 @@ public class CareersDiscoveryRunService {
     int companiesConsidered = 0;
     int companiesAttemptedCount = 0;
     int cachedSkipCount = 0;
+    int requestCountTotal = 0;
+    int hostFailureCutoffSkips = 0;
     boolean aborted = false;
     String abortReason = null;
-    int maxDurationSeconds = properties.getCareersDiscovery().getMaxDurationSeconds();
-    Instant deadline = maxDurationSeconds > 0 ? runStarted.plusSeconds(maxDurationSeconds) : null;
+    int requestBudget = properties.getCareersDiscovery().getGlobalRequestBudgetPerRun();
+    int hardTimeoutSeconds = properties.getCareersDiscovery().getHardTimeoutSeconds();
+    if (hardTimeoutSeconds <= 0) {
+      hardTimeoutSeconds = properties.getCareersDiscovery().getMaxDurationSeconds();
+    }
+    int hostFailureCutoff = properties.getCareersDiscovery().getPerHostFailureCutoff();
+    Instant deadline = hardTimeoutSeconds > 0 ? runStarted.plusSeconds(hardTimeoutSeconds) : null;
     CareersDiscoveryService.DiscoveryMetrics metrics =
         new CareersDiscoveryService.DiscoveryMetrics();
     CareersDiscoveryService.VendorProbeLimiter vendorProbeLimiter = buildVendorProbeLimiter();
@@ -129,6 +148,11 @@ public class CareersDiscoveryRunService {
             aborted = true;
             abortReason = "time_budget_exceeded";
             metrics.incrementTimeBudgetExceeded();
+            break;
+          }
+          if (requestBudget > 0 && requestCountTotal >= requestBudget) {
+            aborted = true;
+            abortReason = "request_budget_exceeded";
             break;
           }
           Instant startedAt = Instant.now();
@@ -146,12 +170,28 @@ public class CareersDiscoveryRunService {
               status = "SKIPPED";
               reasonCode = ReasonCodeClassifier.NO_DOMAIN;
               stage = "DOMAIN";
+            } else if (isHostFailureCutoffReached(company, hostFailureCutoff)) {
+              status = "SKIPPED";
+              reasonCode = ReasonCodeClassifier.HOST_COOLDOWN;
+              stage = "COOLDOWN";
+              errorDetail = "host_failure_cutoff_exceeded";
+              cachedSkipCount++;
+              hostFailureCutoffSkips++;
             } else {
               companiesAttemptedCount++;
               int beforeCount = repository.countAtsEndpointsForCompany(company.companyId());
+              int requestsBefore = metrics.requestsIssuedCount();
               outcome =
                   discoveryService.discoverForCompany(
                       company, deadline, metrics, vendorProbeLimiter, vendorProbeOnly);
+              int requestDelta = Math.max(0, metrics.requestsIssuedCount() - requestsBefore);
+              if (requestDelta == 0
+                  && outcome != null
+                  && outcome.funnel() != null
+                  && outcome.funnel().requestCount() > 0) {
+                requestDelta = outcome.funnel().requestCount();
+              }
+              requestCountTotal += Math.max(0, requestDelta);
               int afterCount = repository.countAtsEndpointsForCompany(company.companyId());
               endpointsAdded += Math.max(0, afterCount - beforeCount);
               if (outcome != null && outcome.countsByType() != null) {
@@ -185,6 +225,10 @@ public class CareersDiscoveryRunService {
                   aborted = true;
                   abortReason = "time_budget_exceeded";
                 }
+              }
+              if (requestBudget > 0 && requestCountTotal >= requestBudget) {
+                aborted = true;
+                abortReason = "request_budget_exceeded";
               }
             }
           } catch (Exception e) {
@@ -257,7 +301,9 @@ public class CareersDiscoveryRunService {
               metrics.careersPathsChecked(),
               metrics.robotsBlockedCount(),
               metrics.fetchFailedCount(),
-              metrics.timeBudgetExceededCount());
+              metrics.timeBudgetExceededCount(),
+              requestCountTotal,
+              hostFailureCutoffSkips);
           if (aborted) {
             break;
           }
@@ -287,16 +333,20 @@ public class CareersDiscoveryRunService {
             metrics.careersPathsChecked(),
             metrics.robotsBlockedCount(),
             metrics.fetchFailedCount(),
-            metrics.timeBudgetExceededCount());
+            metrics.timeBudgetExceededCount(),
+            requestCountTotal,
+            hostFailureCutoffSkips);
       }
       if (aborted) {
-        repository.completeCareersDiscoveryRun(runId, Instant.now(), "ABORTED", abortReason);
+        repository.completeCareersDiscoveryRun(
+            runId, Instant.now(), "ABORTED", abortReason, abortReason);
       } else {
         repository.completeCareersDiscoveryRun(runId, Instant.now(), "SUCCEEDED", lastError);
       }
     } catch (Exception e) {
       lastError = e.getMessage();
-      repository.completeCareersDiscoveryRun(runId, Instant.now(), "FAILED", lastError);
+      repository.completeCareersDiscoveryRun(
+          runId, Instant.now(), "FAILED", lastError, "exception");
       log.warn(
           "Careers discovery run {} failed after {} ms",
           runId,
@@ -338,6 +388,9 @@ public class CareersDiscoveryRunService {
       return new FailureMapping(mapped, "PAGE_SCAN", httpStatus, detail);
     }
     if ("discovery_host_cooldown".equals(reason) || "discovery_company_cooldown".equals(reason)) {
+      return new FailureMapping(ReasonCodeClassifier.HOST_COOLDOWN, "COOLDOWN", null, detail);
+    }
+    if ("discovery_host_failure_cutoff".equals(reason)) {
       return new FailureMapping(ReasonCodeClassifier.HOST_COOLDOWN, "COOLDOWN", null, detail);
     }
     if ("discovery_time_budget_exceeded".equals(reason)) {
@@ -412,7 +465,13 @@ public class CareersDiscoveryRunService {
         funnelCounts == null ? 0 : funnelCounts.careersUrlFoundCount(),
         funnelCounts == null ? 0 : funnelCounts.vendorDetectedCount(),
         funnelCounts == null ? 0 : funnelCounts.endpointExtractedCount(),
-        careersStageFailuresByReason == null ? Map.of() : careersStageFailuresByReason);
+        careersStageFailuresByReason == null ? Map.of() : careersStageFailuresByReason,
+        status.requestBudget(),
+        status.requestCountTotal(),
+        status.hardTimeoutSeconds(),
+        status.stopReason(),
+        status.hostFailureCutoffCount(),
+        status.hostFailureCutoffSkips());
   }
 
   private CareersDiscoveryService.VendorProbeLimiter buildVendorProbeLimiter() {
@@ -443,6 +502,19 @@ public class CareersDiscoveryRunService {
       }
     }
     return mapped;
+  }
+
+  private boolean isHostFailureCutoffReached(CompanyTarget company, int cutoff) {
+    if (company == null || company.domain() == null || company.domain().isBlank()) {
+      return false;
+    }
+    try {
+      com.delta.jobtracker.crawl.model.HostCrawlState hostState =
+          repository.findHostCrawlState(company.domain().trim().toLowerCase());
+      return hostState != null && hostState.consecutiveFailures() >= Math.max(1, cutoff);
+    } catch (Exception ignored) {
+      return false;
+    }
   }
 
   private record FailureMapping(

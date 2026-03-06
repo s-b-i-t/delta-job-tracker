@@ -2,6 +2,7 @@ package com.delta.jobtracker.crawl.persistence;
 
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.AtsAttemptSample;
+import com.delta.jobtracker.crawl.model.AtsDiscoveryResult;
 import com.delta.jobtracker.crawl.model.AtsEndpointRecord;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CanaryRunStatus;
@@ -36,6 +37,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -204,7 +206,7 @@ public class CrawlJdbcRepository {
   }
 
   public long insertCareersDiscoveryRun(int companyLimit) {
-    return insertCareersDiscoveryRun(companyLimit, 0, 0, 0);
+    return insertCareersDiscoveryRun(companyLimit, 0, 0, 0, 0, 0, 0);
   }
 
   public long insertCareersDiscoveryRun(
@@ -212,12 +214,27 @@ public class CrawlJdbcRepository {
       int selectionEligibleCount,
       int selectionReturnedCount,
       int companiesInputCount) {
+    return insertCareersDiscoveryRun(
+        companyLimit, selectionEligibleCount, selectionReturnedCount, companiesInputCount, 0, 0, 0);
+  }
+
+  public long insertCareersDiscoveryRun(
+      int companyLimit,
+      int selectionEligibleCount,
+      int selectionReturnedCount,
+      int companiesInputCount,
+      int requestBudget,
+      int hardTimeoutSeconds,
+      int hostFailureCutoffCount) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("companyLimit", companyLimit)
             .addValue("selectionEligibleCount", Math.max(0, selectionEligibleCount))
             .addValue("selectionReturnedCount", Math.max(0, selectionReturnedCount))
-            .addValue("companiesInputCount", Math.max(0, companiesInputCount));
+            .addValue("companiesInputCount", Math.max(0, companiesInputCount))
+            .addValue("requestBudget", Math.max(0, requestBudget))
+            .addValue("hardTimeoutSeconds", Math.max(0, hardTimeoutSeconds))
+            .addValue("hostFailureCutoffCount", Math.max(0, hostFailureCutoffCount));
     KeyHolder keyHolder = new GeneratedKeyHolder();
     jdbc.update(
         """
@@ -226,14 +243,20 @@ public class CrawlJdbcRepository {
                     company_limit,
                     selection_eligible_count,
                     selection_returned_count,
-                    companies_input_count
+                    companies_input_count,
+                    request_budget,
+                    hard_timeout_seconds,
+                    host_failure_cutoff_count
                 )
                 VALUES (
                     'RUNNING',
                     :companyLimit,
                     :selectionEligibleCount,
                     :selectionReturnedCount,
-                    :companiesInputCount
+                    :companiesInputCount,
+                    :requestBudget,
+                    :hardTimeoutSeconds,
+                    :hostFailureCutoffCount
                 )
                 """,
         params,
@@ -280,7 +303,9 @@ public class CrawlJdbcRepository {
         careersPathsChecked,
         robotsBlockedCount,
         fetchFailedCount,
-        timeBudgetExceededCount);
+        timeBudgetExceededCount,
+        0,
+        0);
   }
 
   public void updateCareersDiscoveryRunProgress(
@@ -302,7 +327,9 @@ public class CrawlJdbcRepository {
       int careersPathsChecked,
       int robotsBlockedCount,
       int fetchFailedCount,
-      int timeBudgetExceededCount) {
+      int timeBudgetExceededCount,
+      int requestCountTotal,
+      int hostFailureCutoffSkips) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("runId", runId)
@@ -323,7 +350,9 @@ public class CrawlJdbcRepository {
             .addValue("careersPathsChecked", Math.max(0, careersPathsChecked))
             .addValue("robotsBlockedCount", Math.max(0, robotsBlockedCount))
             .addValue("fetchFailedCount", Math.max(0, fetchFailedCount))
-            .addValue("timeBudgetExceededCount", Math.max(0, timeBudgetExceededCount));
+            .addValue("timeBudgetExceededCount", Math.max(0, timeBudgetExceededCount))
+            .addValue("requestCountTotal", Math.max(0, requestCountTotal))
+            .addValue("hostFailureCutoffSkips", Math.max(0, hostFailureCutoffSkips));
     jdbc.update(
         """
                 UPDATE careers_discovery_runs
@@ -344,7 +373,9 @@ public class CrawlJdbcRepository {
                     careers_paths_checked = :careersPathsChecked,
                     robots_blocked_count = :robotsBlockedCount,
                     fetch_failed_count = :fetchFailedCount,
-                    time_budget_exceeded_count = :timeBudgetExceededCount
+                    time_budget_exceeded_count = :timeBudgetExceededCount,
+                    request_count_total = :requestCountTotal,
+                    host_failure_cutoff_skips = :hostFailureCutoffSkips
                 WHERE id = :runId
                 """,
         params);
@@ -352,18 +383,25 @@ public class CrawlJdbcRepository {
 
   public void completeCareersDiscoveryRun(
       long runId, Instant finishedAt, String status, String lastError) {
+    completeCareersDiscoveryRun(runId, finishedAt, status, lastError, null);
+  }
+
+  public void completeCareersDiscoveryRun(
+      long runId, Instant finishedAt, String status, String lastError, String stopReason) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("runId", runId)
             .addValue("finishedAt", toTimestamp(finishedAt))
             .addValue("status", status)
-            .addValue("lastError", truncateErrorDetail(lastError));
+            .addValue("lastError", truncateErrorDetail(lastError))
+            .addValue("stopReason", stopReason);
     jdbc.update(
         """
                 UPDATE careers_discovery_runs
                 SET finished_at = :finishedAt,
                     status = :status,
-                    last_error = COALESCE(:lastError, last_error)
+                    last_error = COALESCE(:lastError, last_error),
+                    stop_reason = COALESCE(:stopReason, stop_reason)
                 WHERE id = :runId
                 """,
         params);
@@ -548,7 +586,13 @@ public class CrawlJdbcRepository {
                        careers_paths_checked,
                        robots_blocked_count,
                        fetch_failed_count,
-                       time_budget_exceeded_count
+                       time_budget_exceeded_count,
+                       request_budget,
+                       request_count_total,
+                       hard_timeout_seconds,
+                       stop_reason,
+                       host_failure_cutoff_count,
+                       host_failure_cutoff_skips
                 FROM careers_discovery_runs
                 WHERE id = :runId
                 """,
@@ -585,7 +629,13 @@ public class CrawlJdbcRepository {
                     0,
                     0,
                     0,
-                    Map.of()));
+                    Map.of(),
+                    rs.getInt("request_budget"),
+                    rs.getInt("request_count_total"),
+                    rs.getInt("hard_timeout_seconds"),
+                    rs.getString("stop_reason"),
+                    rs.getInt("host_failure_cutoff_count"),
+                    rs.getInt("host_failure_cutoff_skips")));
     return rows.isEmpty() ? null : rows.getFirst();
   }
 
@@ -618,7 +668,13 @@ public class CrawlJdbcRepository {
                        careers_paths_checked,
                        robots_blocked_count,
                        fetch_failed_count,
-                       time_budget_exceeded_count
+                       time_budget_exceeded_count,
+                       request_budget,
+                       request_count_total,
+                       hard_timeout_seconds,
+                       stop_reason,
+                       host_failure_cutoff_count,
+                       host_failure_cutoff_skips
                 FROM careers_discovery_runs
                 ORDER BY started_at DESC
                 LIMIT 1
@@ -656,7 +712,13 @@ public class CrawlJdbcRepository {
                     0,
                     0,
                     0,
-                    Map.of()));
+                    Map.of(),
+                    rs.getInt("request_budget"),
+                    rs.getInt("request_count_total"),
+                    rs.getInt("hard_timeout_seconds"),
+                    rs.getString("stop_reason"),
+                    rs.getInt("host_failure_cutoff_count"),
+                    rs.getInt("host_failure_cutoff_skips")));
     return rows.isEmpty() ? null : rows.getFirst();
   }
 
@@ -955,7 +1017,13 @@ public class CrawlJdbcRepository {
                 rs.getBoolean("endpoint_extracted"),
                 rs.getString("endpoint_url"),
                 rs.getObject("http_status_first_failure", Integer.class),
-                rs.getObject("request_count", Integer.class)));
+                rs.getObject("request_count", Integer.class),
+                AtsDiscoveryResult.fromPersistence(
+                    rs.getString("vendor_name"),
+                    rs.getString("endpoint_url"),
+                    rs.getBoolean("endpoint_extracted"),
+                    rs.getString("careers_discovery_method"),
+                    rs.getString("reason_code"))));
   }
 
   public Map<String, Long> countCareersDiscoveryStageFailures(long runId) {
@@ -4137,6 +4205,28 @@ public class CrawlJdbcRepository {
     String path = uri.getPath() == null ? "" : uri.getPath();
     if (atsType == AtsType.WORKDAY) {
       path = stripTrailingPunctuation(path);
+    } else if (atsType == AtsType.ICIMS) {
+      if (host.equals("careers.icims.com")) {
+        List<String> segments = pathSegments(path);
+        if (segments.size() >= 3 && "jobs".equalsIgnoreCase(segments.get(0))) {
+          path = "/jobs/" + segments.get(1) + "/jobs";
+        } else {
+          path = "/jobs/search";
+        }
+      } else {
+        path = "/jobs/search";
+      }
+    } else if (atsType == AtsType.TALEO) {
+      List<String> segments = pathSegments(path);
+      if (segments.size() >= 3
+          && "careersection".equalsIgnoreCase(segments.get(0))
+          && "jobsearch.ftl".equalsIgnoreCase(segments.get(2))) {
+        path = "/careersection/" + segments.get(1) + "/jobsearch.ftl";
+      } else if (segments.size() >= 2 && "careersection".equalsIgnoreCase(segments.get(0))) {
+        path = "/careersection/" + segments.get(1) + "/jobsearch.ftl";
+      }
+    } else if (atsType == AtsType.SUCCESSFACTORS) {
+      path = "/career";
     }
     String normalized = "https://" + host + path;
     if (greenhouseApi) {
@@ -4196,6 +4286,20 @@ public class CrawlJdbcRepository {
       break;
     }
     return trimmed;
+  }
+
+  private List<String> pathSegments(String rawPath) {
+    if (rawPath == null || rawPath.isBlank()) {
+      return List.of();
+    }
+    String[] split = rawPath.split("/");
+    List<String> out = new ArrayList<>();
+    for (String part : split) {
+      if (part != null && !part.isBlank()) {
+        out.add(part);
+      }
+    }
+    return out;
   }
 
   public record CareersDiscoveryRunFunnelCounts(

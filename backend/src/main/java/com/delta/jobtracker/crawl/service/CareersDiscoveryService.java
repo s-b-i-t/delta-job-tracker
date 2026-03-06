@@ -9,6 +9,7 @@ import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.AtsDetectionRecord;
+import com.delta.jobtracker.crawl.model.AtsDiscoveryResult;
 import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryMethodMetrics;
 import com.delta.jobtracker.crawl.model.CareersDiscoveryResult;
@@ -270,6 +271,7 @@ public class CareersDiscoveryService {
     String endpointUrl = null;
     Integer httpStatusFirstFailure = null;
     int requestCount = 0;
+    AtsDiscoveryResult atsDiscoveryResult = AtsDiscoveryResult.notFound("none", null);
 
     if (company == null) {
       DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
@@ -335,7 +337,7 @@ public class CareersDiscoveryService {
         if (metrics != null) {
           metrics.incrementHomepageScanned();
         }
-        HttpFetchResult fetch = fetchHomepage(homepageUrl);
+        HttpFetchResult fetch = fetchHomepage(homepageUrl, metrics);
         if ("body_too_large".equals(fetch.errorCode())) {
           failures.add(
               new DiscoveryFailure(
@@ -383,6 +385,9 @@ public class CareersDiscoveryService {
           careersLandingPageDiscoveryService.discover(company.domain());
       if (landing != null) {
         requestCount = landing.requestCount();
+        if (metrics != null && requestCount > 0) {
+          metrics.incrementRequestsIssued(requestCount);
+        }
         careersUrlFound = landing.careersUrlFound();
         careersUrlInitial = landing.careersUrlInitial();
         careersUrlFinal = landing.careersUrlFinal();
@@ -406,6 +411,8 @@ public class CareersDiscoveryService {
             vendorName = first.atsType().name();
             endpointExtracted = true;
             endpointUrl = first.atsUrl();
+            atsDiscoveryResult =
+                AtsDiscoveryResult.validated(first.atsType(), first.atsUrl(), "careers_landing");
             registerEndpoints(
                 company,
                 landing.careersUrlFinal(),
@@ -437,13 +444,17 @@ public class CareersDiscoveryService {
                     endpointExtracted,
                     endpointUrl,
                     httpStatusFirstFailure,
-                    requestCount));
+                    requestCount,
+                    atsDiscoveryResult));
           }
           AtsType detectedFromLanding =
               atsDetector.detect(landing.careersUrlFinal(), landing.responseBody());
           if (detectedFromLanding != AtsType.UNKNOWN) {
             vendorDetected = true;
             vendorName = detectedFromLanding.name();
+            atsDiscoveryResult =
+                AtsDiscoveryResult.unvalidated(
+                    detectedFromLanding, "careers_landing_vendor_signature", null);
             if (metrics != null) {
               metrics.incrementVendorDetected();
             }
@@ -520,6 +531,9 @@ public class CareersDiscoveryService {
         vendorName = vendorEndpoint.atsType().name();
         endpointExtracted = true;
         endpointUrl = vendorEndpoint.atsUrl();
+        atsDiscoveryResult =
+            AtsDiscoveryResult.validated(
+                vendorEndpoint.atsType(), vendorEndpoint.atsUrl(), "vendor_probe");
         updateDiscoveryStateSuccess(company);
         return new DiscoveryOutcome(
             countsByType,
@@ -538,7 +552,8 @@ public class CareersDiscoveryService {
                 endpointExtracted,
                 endpointUrl,
                 httpStatusFirstFailure,
-                requestCount));
+                requestCount,
+                atsDiscoveryResult));
       }
     }
 
@@ -575,7 +590,7 @@ public class CareersDiscoveryService {
           break;
         }
 
-        HttpFetchResult fetch = httpClient.get(candidate, HTML_ACCEPT);
+        HttpFetchResult fetch = fetchTracked(candidate, HTML_ACCEPT, metrics);
         if (!fetch.isSuccessful() || fetch.body() == null) {
           failures.add(failureFromFetch("discovery_fetch_failed", candidate, fetch));
           if (metrics != null) {
@@ -599,6 +614,9 @@ public class CareersDiscoveryService {
             vendorName = extracted.getFirst().atsType().name();
             endpointExtracted = true;
             endpointUrl = extracted.getFirst().atsUrl();
+            atsDiscoveryResult =
+                AtsDiscoveryResult.validated(
+                    extracted.getFirst().atsType(), extracted.getFirst().atsUrl(), "careers_path");
             if (metrics != null) {
               metrics.incrementVendorDetected();
             }
@@ -621,13 +639,19 @@ public class CareersDiscoveryService {
                   endpointExtracted,
                   endpointUrl,
                   httpStatusFirstFailure,
-                  requestCount));
+                  requestCount,
+                  atsDiscoveryResult));
         }
       }
     }
 
     DiscoveryFailure failure = selectFailure(failures);
     if (failure != null) {
+      atsDiscoveryResult =
+          AtsDiscoveryResult.failed(
+              careersDiscoveryMethod == null ? "discovery_failure" : careersDiscoveryMethod,
+              ReasonCodeClassifier.fromErrorKey(
+                  failure.detail() == null ? failure.reasonCode() : failure.detail()));
       repository.insertCareersDiscoveryFailure(
           company.companyId(),
           failure.reasonCode(),
@@ -653,7 +677,8 @@ public class CareersDiscoveryService {
             endpointExtracted,
             endpointUrl,
             httpStatusFirstFailure,
-            requestCount));
+            requestCount,
+            atsDiscoveryResult));
   }
 
   private List<String> discoverLinksFromHomepage(
@@ -674,7 +699,7 @@ public class CareersDiscoveryService {
         continue;
       }
 
-      HttpFetchResult fetch = httpClient.get(homepage, HTML_ACCEPT, MAX_HOMEPAGE_BYTES);
+      HttpFetchResult fetch = fetchTracked(homepage, HTML_ACCEPT, MAX_HOMEPAGE_BYTES, null);
       if ("body_too_large".equals(fetch.errorCode())) {
         recordCooldownSuccess(homepage);
         continue;
@@ -747,7 +772,7 @@ public class CareersDiscoveryService {
         recordCooldownFailure(page, ReasonCodeClassifier.ROBOTS_BLOCKED);
         continue;
       }
-      HttpFetchResult fetch = httpClient.get(page, HTML_ACCEPT);
+      HttpFetchResult fetch = fetchTracked(page, HTML_ACCEPT, null);
       if (!fetch.isSuccessful() || fetch.body() == null) {
         recordCooldownFromFetch(page, fetch);
         continue;
@@ -780,7 +805,12 @@ public class CareersDiscoveryService {
     return lower.contains("myworkdayjobs.com")
         || lower.contains("boards.greenhouse.io")
         || lower.contains("job-boards.greenhouse.io")
-        || lower.contains("jobs.lever.co");
+        || lower.contains("jobs.lever.co")
+        || lower.contains("smartrecruiters.com")
+        || lower.contains("icims.com")
+        || lower.contains("taleo.net")
+        || lower.contains("successfactors.com")
+        || lower.contains("jobs.sap.com");
   }
 
   private boolean containsHint(String value) {
@@ -1013,7 +1043,7 @@ public class CareersDiscoveryService {
     countsByType.put(endpoint.atsType(), countsByType.getOrDefault(endpoint.atsType(), 0) + 1);
   }
 
-  private HttpFetchResult fetchHomepage(String homepageUrl) {
+  private HttpFetchResult fetchHomepage(String homepageUrl, DiscoveryMetrics metrics) {
     CanaryHttpBudget budget =
         new CanaryHttpBudget(
             2,
@@ -1025,8 +1055,23 @@ public class CareersDiscoveryService {
             HOMEPAGE_TIMEOUT_SECONDS,
             Duration.ofSeconds(HOMEPAGE_TIMEOUT_SECONDS * 2L));
     try (CanaryHttpBudgetContext.Scope scope = CanaryHttpBudgetContext.activate(budget)) {
-      return httpClient.get(homepageUrl, HTML_ACCEPT, MAX_HOMEPAGE_BYTES);
+      return fetchTracked(homepageUrl, HTML_ACCEPT, MAX_HOMEPAGE_BYTES, metrics);
     }
+  }
+
+  private HttpFetchResult fetchTracked(String url, String accept, DiscoveryMetrics metrics) {
+    if (metrics != null) {
+      metrics.incrementRequestsIssued();
+    }
+    return httpClient.get(url, accept);
+  }
+
+  private HttpFetchResult fetchTracked(
+      String url, String accept, int maxBytes, DiscoveryMetrics metrics) {
+    if (metrics != null) {
+      metrics.incrementRequestsIssued();
+    }
+    return httpClient.get(url, accept, maxBytes);
   }
 
   private List<String> buildSlugCandidates(CompanyTarget company) {
@@ -1158,10 +1203,18 @@ public class CareersDiscoveryService {
       DiscoveryMetrics metrics,
       VendorProbeLimiter vendorProbeLimiter,
       List<DiscoveryFailure> failures) {
+    if (isHostCoolingDown(url) || isHostAtFailureCutoff(url)) {
+      if (failures != null) {
+        failures.add(
+            new DiscoveryFailure(
+                "discovery_host_failure_cutoff", url, ReasonCodeClassifier.HOST_COOLDOWN));
+      }
+      return null;
+    }
     if (vendorProbeLimiter != null && !vendorProbeLimiter.tryAcquire(host)) {
       return null;
     }
-    HttpFetchResult fetch = httpClient.get(url, HTML_ACCEPT);
+    HttpFetchResult fetch = fetchTracked(url, HTML_ACCEPT, metrics);
     if (!fetch.isSuccessful() || fetch.body() == null) {
       if (metrics != null) {
         metrics.incrementFetchFailed();
@@ -1364,7 +1417,7 @@ public class CareersDiscoveryService {
         recordCooldownFailure(link, ReasonCodeClassifier.ROBOTS_BLOCKED);
         continue;
       }
-      HttpFetchResult fetch = httpClient.get(link, HTML_ACCEPT);
+      HttpFetchResult fetch = fetchTracked(link, HTML_ACCEPT, null);
       if (!fetch.isSuccessful()) {
         recordCooldownFromFetch(link, fetch);
       } else {
@@ -1387,6 +1440,18 @@ public class CareersDiscoveryService {
       return false;
     }
     return hostCrawlStateService.nextAllowedAt(host) != null;
+  }
+
+  private boolean isHostAtFailureCutoff(String url) {
+    if (hostCrawlStateService == null) {
+      return false;
+    }
+    String host = hostFromUrl(url);
+    if (host == null) {
+      return false;
+    }
+    int cutoff = properties.getCareersDiscovery().getPerHostFailureCutoff();
+    return hostCrawlStateService.hasReachedFailureCutoff(host, cutoff);
   }
 
   private void recordCooldownFailure(String url, String category) {
@@ -1416,10 +1481,24 @@ public class CareersDiscoveryService {
       hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.HTTP_429_RATE_LIMIT);
       return;
     }
+    if (fetch.statusCode() == 401 || fetch.statusCode() == 403) {
+      hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.HTTP_401_403);
+      return;
+    }
+    if (fetch.statusCode() >= 500 && fetch.statusCode() < 600) {
+      hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.HTTP_5XX);
+      return;
+    }
     if (fetch.statusCode() == 408
         || (fetch.errorCode() != null
             && fetch.errorCode().toLowerCase(Locale.ROOT).contains("timeout"))) {
       hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.TIMEOUT);
+      return;
+    }
+    if (fetch.errorCode() != null
+        && fetch.errorCode().toLowerCase(Locale.ROOT).contains("io_error")) {
+      hostCrawlStateService.recordFailure(
+          host, ReasonCodeClassifier.fromErrorCode(fetch.errorCode(), fetch.errorMessage()));
     }
   }
 
@@ -1465,7 +1544,8 @@ public class CareersDiscoveryService {
       }
     }
     for (DiscoveryFailure failure : failures) {
-      if ("discovery_host_cooldown".equals(failure.reasonCode())) {
+      if ("discovery_host_cooldown".equals(failure.reasonCode())
+          || "discovery_host_failure_cutoff".equals(failure.reasonCode())) {
         return failure;
       }
     }
@@ -1525,6 +1605,7 @@ public class CareersDiscoveryService {
     private int careersUrlFoundCount;
     private int vendorDetectedCount;
     private int endpointExtractedCount;
+    private int requestsIssuedCount;
     private final Map<AtsType, Integer> endpointsFoundHomepage = new LinkedHashMap<>();
     private final Map<AtsType, Integer> endpointsFoundVendorProbe = new LinkedHashMap<>();
     private final Map<AtsType, Integer> endpointsFoundSitemap = new LinkedHashMap<>();
@@ -1599,6 +1680,14 @@ public class CareersDiscoveryService {
       careersStageFailures.put(reason, careersStageFailures.getOrDefault(reason, 0) + 1);
     }
 
+    void incrementRequestsIssued() {
+      requestsIssuedCount++;
+    }
+
+    void incrementRequestsIssued(int delta) {
+      requestsIssuedCount += Math.max(0, delta);
+    }
+
     int homepageScanned() {
       return homepageScanned;
     }
@@ -1651,6 +1740,10 @@ public class CareersDiscoveryService {
       return endpointExtractedCount;
     }
 
+    int requestsIssuedCount() {
+      return requestsIssuedCount;
+    }
+
     Map<String, Integer> careersStageFailures() {
       return careersStageFailures;
     }
@@ -1673,9 +1766,50 @@ public class CareersDiscoveryService {
       boolean endpointExtracted,
       String endpointUrl,
       Integer httpStatusFirstFailure,
-      int requestCount) {
+      int requestCount,
+      AtsDiscoveryResult atsDiscoveryResult) {
+    DiscoveryFunnel(
+        boolean careersUrlFound,
+        String careersUrlInitial,
+        String careersUrlFinal,
+        String careersDiscoveryMethod,
+        String careersDiscoveryStageFailure,
+        boolean vendorDetected,
+        String vendorName,
+        boolean endpointExtracted,
+        String endpointUrl,
+        Integer httpStatusFirstFailure,
+        int requestCount) {
+      this(
+          careersUrlFound,
+          careersUrlInitial,
+          careersUrlFinal,
+          careersDiscoveryMethod,
+          careersDiscoveryStageFailure,
+          vendorDetected,
+          vendorName,
+          endpointExtracted,
+          endpointUrl,
+          httpStatusFirstFailure,
+          requestCount,
+          AtsDiscoveryResult.fromPersistence(
+              vendorName, endpointUrl, endpointExtracted, careersDiscoveryMethod, null));
+    }
+
     static DiscoveryFunnel empty() {
-      return new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0);
+      return new DiscoveryFunnel(
+          false,
+          null,
+          null,
+          null,
+          null,
+          false,
+          null,
+          false,
+          null,
+          null,
+          0,
+          AtsDiscoveryResult.notFound("none", null));
     }
   }
 }

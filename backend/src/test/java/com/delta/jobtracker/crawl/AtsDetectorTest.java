@@ -38,6 +38,25 @@ class AtsDetectorTest {
   }
 
   @Test
+  void detectsIcims() {
+    assertEquals(AtsType.ICIMS, detector.detect("https://jobs.icims.com/jobs/search?ss=1"));
+  }
+
+  @Test
+  void detectsTaleo() {
+    assertEquals(
+        AtsType.TALEO,
+        detector.detect("https://myco.taleo.net/careersection/prof/jobsearch.ftl?lang=en"));
+  }
+
+  @Test
+  void detectsSuccessFactors() {
+    assertEquals(
+        AtsType.SUCCESSFACTORS,
+        detector.detect("https://career2.successfactors.eu/career?company=acme"));
+  }
+
+  @Test
   void unknownForRegularCompanySite() {
     assertEquals(AtsType.UNKNOWN, detector.detect("https://example.com/careers"));
   }
@@ -47,5 +66,11 @@ class AtsDetectorTest {
     String html =
         "<html><script>var x='https://api.lever.co/v0/postings/example?mode=json';</script></html>";
     assertEquals(AtsType.LEVER, detector.detect("https://example.com/careers", html));
+  }
+
+  @Test
+  void detectsSuccessFactorsFromHtmlMarkers() {
+    String html = "<a href='https://career2.successfactors.eu/career?company=acme'>Jobs</a>";
+    assertEquals(AtsType.SUCCESSFACTORS, detector.detect("https://example.com/careers", html));
   }
 }

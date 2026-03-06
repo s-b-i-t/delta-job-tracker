@@ -36,6 +36,15 @@ public class AtsDetector {
     if (host.contains("smartrecruiters.com")) {
       return AtsType.SMARTRECRUITERS;
     }
+    if (host.contains("icims.com")) {
+      return AtsType.ICIMS;
+    }
+    if (host.contains("taleo.net")) {
+      return AtsType.TALEO;
+    }
+    if (host.contains("successfactors") || host.contains("jobs.sap.com")) {
+      return AtsType.SUCCESSFACTORS;
+    }
     return AtsType.UNKNOWN;
   }
 
@@ -66,6 +75,19 @@ public class AtsDetector {
     if (lower.contains("smartrecruiters.com")
         || lower.contains("api.smartrecruiters.com/v1/companies/")) {
       return AtsType.SMARTRECRUITERS;
+    }
+    if (lower.contains("icims.com/jobs")
+        || lower.contains("careers.icims.com")
+        || lower.contains("jobs.icims.com")) {
+      return AtsType.ICIMS;
+    }
+    if (lower.contains("taleo.net/careersection/") || lower.contains("taleo.net/careersection2/")) {
+      return AtsType.TALEO;
+    }
+    if (lower.contains("successfactors")
+        || lower.contains("career2.successfactors.eu")
+        || lower.contains("jobs.sap.com")) {
+      return AtsType.SUCCESSFACTORS;
     }
     return AtsType.UNKNOWN;
   }

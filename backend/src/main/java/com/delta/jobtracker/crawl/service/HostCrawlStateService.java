@@ -43,6 +43,19 @@ public class HostCrawlStateService {
     return null;
   }
 
+  public int consecutiveFailures(String host) {
+    if (host == null || host.isBlank()) {
+      return 0;
+    }
+    HostCrawlState state = repository.findHostCrawlState(normalizeHost(host));
+    return state == null ? 0 : Math.max(0, state.consecutiveFailures());
+  }
+
+  public boolean hasReachedFailureCutoff(String host, int cutoff) {
+    int safeCutoff = Math.max(1, cutoff);
+    return consecutiveFailures(host) >= safeCutoff;
+  }
+
   public void recordFailure(String host, String errorCategory) {
     if (host == null || host.isBlank()) {
       return;

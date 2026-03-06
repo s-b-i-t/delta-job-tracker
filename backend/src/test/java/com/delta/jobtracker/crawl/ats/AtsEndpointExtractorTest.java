@@ -83,4 +83,35 @@ class AtsEndpointExtractorTest {
             new AtsDetectionRecord(
                 AtsType.SMARTRECRUITERS, "https://careers.smartrecruiters.com/AcmeCorp"));
   }
+
+  @Test
+  void extractsIcimsEndpoint() {
+    String html = "<a href=\"https://jobs.icims.com/jobs/search?ss=1\">Open roles</a>";
+    List<AtsDetectionRecord> endpoints = extractor.extract(null, html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(AtsType.ICIMS, "https://jobs.icims.com/jobs/search"));
+  }
+
+  @Test
+  void extractsTaleoEndpoint() {
+    String html =
+        "<a href=\"https://myco.taleo.net/careersection/prof/jobsearch.ftl?lang=en\">Jobs</a>";
+    List<AtsDetectionRecord> endpoints = extractor.extract(null, html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.TALEO, "https://myco.taleo.net/careersection/prof/jobsearch.ftl"));
+  }
+
+  @Test
+  void extractsSuccessFactorsEndpoint() {
+    String html =
+        "<a href=\"https://career2.successfactors.eu/career?company=acme\">Open roles</a>";
+    List<AtsDetectionRecord> endpoints = extractor.extract(null, html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.SUCCESSFACTORS, "https://career2.successfactors.eu/career"));
+  }
 }
