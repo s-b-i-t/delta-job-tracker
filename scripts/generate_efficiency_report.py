@@ -19,6 +19,7 @@ import db_snapshot as dbsnap
 
 
 REPORT_SCHEMA_VERSION = "efficiency-report-v1"
+SUMMARY_SCHEMA_VERSION = "efficiency-report-summary-v1"
 CSV_HEADERS = [
     "sample_index",
     "timestamp_utc",
@@ -813,6 +814,56 @@ def build_report_payload(
     }
 
 
+def build_stable_summary(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    throughput = metrics.get("throughput") if isinstance(metrics.get("throughput"), dict) else {}
+    sampling = metrics.get("sampling") if isinstance(metrics.get("sampling"), dict) else {}
+    wrapped = metrics.get("wrapped_command") if isinstance(metrics.get("wrapped_command"), dict) else {}
+    delta = metrics.get("delta") if isinstance(metrics.get("delta"), dict) else {}
+
+    def throughput_block(key: str) -> Dict[str, Any]:
+        block = throughput.get(key) if isinstance(throughput.get(key), dict) else {}
+        return {
+            "start": block.get("start"),
+            "end": block.get("end"),
+            "delta": block.get("delta"),
+            "avg_rate_per_min": block.get("avg_rate_per_min"),
+            "peak_rate_per_min": block.get("peak_rate_per_min"),
+            "latest_rate_per_min": block.get("latest_rate_per_min"),
+        }
+
+    report_dir = Path(str(metrics.get("report_dir") or ""))
+    source_metrics_path = str(report_dir / "metrics.json") if str(metrics.get("report_dir") or "") else None
+
+    return {
+        "schema_version": SUMMARY_SCHEMA_VERSION,
+        "generated_at": utc_iso(),
+        "report_dir": str(metrics.get("report_dir") or ""),
+        "source_metrics_path": source_metrics_path,
+        "sampling": {
+            "interval_seconds": sampling.get("interval_seconds"),
+            "db_snapshot_mode": sampling.get("db_snapshot_mode"),
+            "sample_count": sampling.get("sample_count"),
+            "sample_ok_count": sampling.get("sample_ok_count"),
+            "sample_failure_count": sampling.get("sample_failure_count"),
+        },
+        "throughput": {
+            "ats_endpoints_count": throughput_block("ats_endpoints_count"),
+            "companies_with_domain_count": throughput_block("companies_with_domain_count"),
+            "companies_with_ats_endpoint_count": throughput_block("companies_with_ats_endpoint_count"),
+        },
+        "delta": {
+            "endpoints_by_type": delta.get("endpoints_by_type") if isinstance(delta.get("endpoints_by_type"), dict) else {},
+        },
+        "wrapped_command": {
+            "argv": wrapped.get("argv"),
+            "exit_code": wrapped.get("exit_code"),
+            "timed_out": wrapped.get("timed_out"),
+            "duration_seconds_cap": wrapped.get("duration_seconds_cap"),
+            "log_path": wrapped.get("log_path"),
+        },
+    }
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     repo_root = Path(__file__).resolve().parents[1]
@@ -890,6 +941,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             },
         }
         write_json(report_dir / "metrics.json", stub)
+        write_json(report_dir.parent / "efficiency_report.json", build_stable_summary(stub))
 
         with (report_dir / "metrics.csv").open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=CSV_HEADERS)
@@ -912,6 +964,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 2
 
     write_json(report_dir / "metrics.json", metrics)
+    write_json(report_dir.parent / "efficiency_report.json", build_stable_summary(metrics))
     write_metrics_csv(report_dir / "metrics.csv", metrics.get("time_series") or [])
     (report_dir / "README.md").write_text(build_readme(report_dir, metrics), encoding="utf-8")
 

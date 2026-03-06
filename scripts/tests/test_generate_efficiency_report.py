@@ -140,14 +140,17 @@ class GenerateEfficiencyReportTest(unittest.TestCase):
             report_dirs = list(out_base.glob("*/efficiency_report"))
             self.assertEqual(len(report_dirs), 1)
             report_dir = report_dirs[0]
+            stamp_dir = report_dir.parent
 
             metrics_path = report_dir / "metrics.json"
             csv_path = report_dir / "metrics.csv"
             readme_path = report_dir / "README.md"
+            summary_path = stamp_dir / "efficiency_report.json"
 
             self.assertTrue(metrics_path.exists())
             self.assertTrue(csv_path.exists())
             self.assertTrue(readme_path.exists())
+            self.assertTrue(summary_path.exists())
 
             metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
             self.assertEqual(metrics.get("schema_version"), "efficiency-report-v1")
@@ -166,6 +169,14 @@ class GenerateEfficiencyReportTest(unittest.TestCase):
             readme = readme_path.read_text(encoding="utf-8")
             self.assertIn("What this run proves", readme)
             self.assertIn("Plots were skipped", readme)
+
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("schema_version"), "efficiency-report-summary-v1")
+            self.assertEqual(summary.get("throughput", {}).get("ats_endpoints_count", {}).get("delta"), 10)
+            self.assertEqual(
+                summary.get("throughput", {}).get("companies_with_domain_count", {}).get("delta"), 5
+            )
+            self.assertIn("companies_with_ats_endpoint_count", summary.get("throughput", {}))
 
     def test_snapshot_capture_failures_still_produce_report_files(self) -> None:
         clock = FakeClock()
@@ -205,10 +216,12 @@ class GenerateEfficiencyReportTest(unittest.TestCase):
             report_dirs = list(out_base.glob("*/efficiency_report"))
             self.assertEqual(len(report_dirs), 1)
             report_dir = report_dirs[0]
+            stamp_dir = report_dir.parent
 
             metrics = json.loads((report_dir / "metrics.json").read_text(encoding="utf-8"))
             sampling = metrics.get("sampling") or {}
             errors = metrics.get("error_breakdown") or {}
+            summary = json.loads((stamp_dir / "efficiency_report.json").read_text(encoding="utf-8"))
 
             self.assertGreaterEqual(sampling.get("sample_count", 0), 2)
             self.assertEqual(sampling.get("sample_ok_count"), 0)
@@ -216,6 +229,8 @@ class GenerateEfficiencyReportTest(unittest.TestCase):
             self.assertGreaterEqual(errors.get("snapshot_failure_count", 0), 2)
             self.assertTrue((report_dir / "metrics.csv").exists())
             self.assertTrue((report_dir / "README.md").exists())
+            self.assertEqual(summary.get("schema_version"), "efficiency-report-summary-v1")
+            self.assertIn("throughput", summary)
 
 
 if __name__ == "__main__":
