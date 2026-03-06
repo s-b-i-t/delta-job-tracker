@@ -188,16 +188,86 @@ def query_sql_snapshots(db: canary.DbClient, run_id: int) -> Dict[str, Any]:
     }
 
 
+def build_runtime_context(args: argparse.Namespace, out_dir: Path) -> Dict[str, Any]:
+    return {
+        "base_url": args.base_url,
+        "out_dir": str(out_dir),
+        "limits": {
+            "domain_limit": max(1, args.domain_limit),
+            "max_sitemap_fetches": max(1, args.max_sitemap_fetches),
+            "discover_limit": max(1, args.discover_limit),
+            "discover_batch_size": max(1, args.discover_batch_size),
+            "max_wait_seconds": max(1, args.max_wait_seconds),
+            "poll_interval_seconds": max(1, args.poll_interval_seconds),
+            "http_timeout_seconds": max(1, args.http_timeout_seconds),
+        },
+        "postgres": {
+            "container": args.postgres_container,
+            "user": args.postgres_user,
+            "db": args.postgres_db,
+        },
+    }
+
+
+def write_stage_failure_artifacts(
+    *,
+    out_dir: Path,
+    runtime_context: Dict[str, Any],
+    stage_timings_ms: Dict[str, int],
+    error_code: str,
+    stage_name: str,
+    stage_payload: Dict[str, Any],
+    request_context: Dict[str, Any],
+) -> None:
+    stage_failure_summary = {
+        "error_code": error_code,
+        "stage": stage_name,
+        "elapsed_ms": stage_timings_ms.get(stage_name),
+        "error_message": stage_payload.get("_error") if isinstance(stage_payload, dict) else None,
+        "request_context": request_context,
+    }
+    stage_diag = {
+        "schema_version": "ats-scale-stage-diagnostics-v1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "runtime_context": runtime_context,
+        "stage_timings_ms": stage_timings_ms,
+        "stage_failure_summary": stage_failure_summary,
+    }
+    metrics_payload = {
+        "error": error_code,
+        "details": stage_payload,
+        "runtime_context": runtime_context,
+        "stage_timings_ms": stage_timings_ms,
+        "stage_failure_summary": stage_failure_summary,
+        "artifacts": {
+            "stage_diagnostics": "stage_diagnostics.json",
+        },
+    }
+    canary.write_json(out_dir / "stage_diagnostics.json", stage_diag)
+    canary.write_json(out_dir / "ats_scale_metrics.json", metrics_payload)
+
+
 def main() -> int:
     args = parse_args()
     out_dir = canary.ensure_out_dir(Path(args.out_dir))
     api = canary.ApiClient(args.base_url, args.http_timeout_seconds)
     db = canary.DbClient(args.postgres_container, args.postgres_user, args.postgres_db)
+    runtime_context = build_runtime_context(args, out_dir)
+    stage_timings_ms: Dict[str, int] = {}
 
     preflight = canary.timed_step_safe("preflight_api_status", lambda: api.get_json("/api/status"))
+    stage_timings_ms[preflight.name] = preflight.duration_ms
     canary.write_json(out_dir / "preflight_api_status.json", preflight.payload)
     if isinstance(preflight.payload, dict) and preflight.payload.get("_error"):
-        canary.write_json(out_dir / "ats_scale_metrics.json", {"error": "preflight_failed", "details": preflight.payload})
+        write_stage_failure_artifacts(
+            out_dir=out_dir,
+            runtime_context=runtime_context,
+            stage_timings_ms=stage_timings_ms,
+            error_code="preflight_failed",
+            stage_name=preflight.name,
+            stage_payload=preflight.payload,
+            request_context={"method": "GET", "path": "/api/status"},
+        )
         print(f"ats_scale status=FAILED error=preflight_api_status out_dir={out_dir}", file=sys.stderr)
         return 2
 
@@ -208,11 +278,24 @@ def main() -> int:
             {"domainLimit": max(1, args.domain_limit), "maxSitemapFetches": max(1, args.max_sitemap_fetches)},
         ),
     )
+    stage_timings_ms[frontier_seed.name] = frontier_seed.duration_ms
     canary.write_json(out_dir / "frontier_seed_response.json", frontier_seed.payload)
     if isinstance(frontier_seed.payload, dict) and frontier_seed.payload.get("_error"):
-        canary.write_json(
-            out_dir / "ats_scale_metrics.json",
-            {"error": "frontier_seed_failed", "details": frontier_seed.payload},
+        write_stage_failure_artifacts(
+            out_dir=out_dir,
+            runtime_context=runtime_context,
+            stage_timings_ms=stage_timings_ms,
+            error_code="frontier_seed_failed",
+            stage_name=frontier_seed.name,
+            stage_payload=frontier_seed.payload,
+            request_context={
+                "method": "POST",
+                "path": "/api/frontier/seed",
+                "query": {
+                    "domainLimit": max(1, args.domain_limit),
+                    "maxSitemapFetches": max(1, args.max_sitemap_fetches),
+                },
+            },
         )
         print(f"ats_scale status=FAILED error=frontier_seed out_dir={out_dir}", file=sys.stderr)
         return 2
@@ -228,10 +311,27 @@ def main() -> int:
             },
         ),
     )
+    stage_timings_ms[discover_start.name] = discover_start.duration_ms
     canary.write_json(out_dir / "ats_discovery_start.json", discover_start.payload)
     run_id = canary.parse_int((discover_start.payload or {}).get("discoveryRunId"))
     if run_id <= 0:
-        canary.write_json(out_dir / "ats_scale_metrics.json", {"error": "missing_discovery_run_id", "start_payload": discover_start.payload})
+        write_stage_failure_artifacts(
+            out_dir=out_dir,
+            runtime_context=runtime_context,
+            stage_timings_ms=stage_timings_ms,
+            error_code="missing_discovery_run_id",
+            stage_name=discover_start.name,
+            stage_payload=discover_start.payload if isinstance(discover_start.payload, dict) else {},
+            request_context={
+                "method": "POST",
+                "path": "/api/careers/discover",
+                "query": {
+                    "limit": max(1, args.discover_limit),
+                    "batchSize": max(1, args.discover_batch_size),
+                    "vendorProbeOnly": "true" if args.vendor_probe_only else "false",
+                },
+            },
+        )
         print(f"ats_scale status=FAILED error=missing_discovery_run_id out_dir={out_dir}", file=sys.stderr)
         return 2
 
@@ -325,7 +425,10 @@ def main() -> int:
             "frontier_seed_response": "frontier_seed_response.json",
             "ats_discovery_final_status": "ats_discovery_final_status.json",
             "ats_scale_sql_snapshots": "ats_scale_sql_snapshots.json",
+            "stage_diagnostics": "stage_diagnostics.json",
         },
+        "runtime_context": runtime_context,
+        "stage_timings_ms": stage_timings_ms,
     }
     canonical_efficiency_report = build_canonical_efficiency_report(
         args=args,
@@ -341,6 +444,16 @@ def main() -> int:
     )
     metrics["canonical_efficiency_report"] = canonical_efficiency_report
 
+    canary.write_json(
+        out_dir / "stage_diagnostics.json",
+        {
+            "schema_version": "ats-scale-stage-diagnostics-v1",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "runtime_context": runtime_context,
+            "stage_timings_ms": stage_timings_ms,
+            "stage_failure_summary": None,
+        },
+    )
     canary.write_json(out_dir / "ats_scale_metrics.json", metrics)
     canary.write_json(out_dir / "canonical_efficiency_report.json", canonical_efficiency_report)
     print(

@@ -62,10 +62,21 @@ class AtsScaleCanaryFailureHandlingTests(unittest.TestCase):
 
             self.assertEqual(rc, 2)
             metrics_path = out_dir / "ats_scale_metrics.json"
+            stage_diag_path = out_dir / "stage_diagnostics.json"
             self.assertTrue(metrics_path.exists())
+            self.assertTrue(stage_diag_path.exists())
             payload = json.loads(metrics_path.read_text(encoding="utf-8"))
+            stage_diag = json.loads(stage_diag_path.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("error"), "frontier_seed_failed")
             self.assertIn("Request timed out", payload.get("details", {}).get("_error", ""))
+            self.assertEqual(payload.get("stage_failure_summary", {}).get("stage"), "frontier_seed")
+            self.assertEqual(
+                payload.get("stage_failure_summary", {}).get("request_context", {}).get("path"),
+                "/api/frontier/seed",
+            )
+            self.assertEqual(payload.get("runtime_context", {}).get("limits", {}).get("domain_limit"), 500)
+            self.assertEqual(payload.get("stage_timings_ms", {}).get("frontier_seed"), 300000)
+            self.assertEqual(stage_diag.get("stage_failure_summary", {}).get("error_code"), "frontier_seed_failed")
 
 
 if __name__ == "__main__":
