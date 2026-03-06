@@ -32,6 +32,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+import efficiency_reporting_contract as erc
+
 DEFAULT_VENDOR_PROBE_SUCCESS_THRESHOLD = 0.45
 TERMINAL_STATUSES = {"SUCCEEDED", "FAILED", "COMPLETED", "CANCELLED", "ABORTED"}
 VENDOR_HOST_HINTS = (
@@ -220,6 +222,136 @@ def safe_rate(num: int, den: int) -> Optional[float]:
     return round(num / den, 4) if den else None
 
 
+def rate_per_min(count: int, duration_seconds: float) -> Optional[float]:
+    return erc.rate_per_min(count, duration_seconds)
+
+
+def normalize_stop_reason(stop_reason: Any) -> str:
+    return erc.normalize_stop_reason(stop_reason)
+
+
+def build_canonical_efficiency_report(
+    *,
+    args: argparse.Namespace,
+    out_dir: Path,
+    domain_attempted: int,
+    domain_resolved: int,
+    domain_before: int,
+    domain_after: int,
+    domain_resolve_duration_ms: int,
+    queue_fetch_counts_before: Dict[str, Any],
+    queue_fetch_counts_after: Dict[str, Any],
+    queue_fetch_window_duration_ms: int,
+    probe_final_status: Dict[str, Any],
+    probe_duration_ms: int,
+    stage_failure_buckets: Dict[str, Any],
+) -> Dict[str, Any]:
+    domain_discovered_net_new = max(0, domain_after - domain_before)
+    domain_duration_seconds = max(0.0, domain_resolve_duration_ms / 1000.0)
+    queue_fetch_duration_seconds = max(0.0, queue_fetch_window_duration_ms / 1000.0)
+    probe_duration_seconds = max(0.0, probe_duration_ms / 1000.0)
+
+    probe_attempted = parse_int(probe_final_status.get("companiesAttemptedCount"))
+    probe_failed = parse_int(probe_final_status.get("failedCount"))
+    probe_succeeded = parse_int(probe_final_status.get("succeededCount"))
+    endpoints_extracted = parse_int(probe_final_status.get("endpointExtractedCount"))
+    stop_reason_raw = probe_final_status.get("stopReason") or probe_final_status.get("lastError")
+
+    queue_fetch_attempts_before = parse_int(queue_fetch_counts_before.get("crawl_url_attempts_count"))
+    queue_fetch_attempts_after = parse_int(queue_fetch_counts_after.get("crawl_url_attempts_count"))
+    queue_fetch_enqueued_before = parse_int(queue_fetch_counts_before.get("crawl_urls_queued_count"))
+    queue_fetch_enqueued_after = parse_int(queue_fetch_counts_after.get("crawl_urls_queued_count"))
+    queue_fetch_fetching_before = parse_int(queue_fetch_counts_before.get("crawl_urls_fetching_count"))
+    queue_fetch_fetching_after = parse_int(queue_fetch_counts_after.get("crawl_urls_fetching_count"))
+
+    queue_fetch_attempts_delta = max(0, queue_fetch_attempts_after - queue_fetch_attempts_before)
+    queue_fetch_enqueued_delta = queue_fetch_enqueued_after - queue_fetch_enqueued_before
+    queue_fetch_fetching_delta = queue_fetch_fetching_after - queue_fetch_fetching_before
+
+    return erc.build_payload(
+        source="run_ats_validation_canary.py",
+        context={
+            "base_url": args.base_url,
+            "discover_limit": args.discover_limit,
+            "out_dir": str(out_dir),
+            "scope_tags": ["run_scope", "global_snapshot"],
+        },
+        phases={
+            "domain_resolution": {
+                "scope_tag": "run_scope",
+                "duration_seconds": round(domain_duration_seconds, 3),
+                "rate_denominator_seconds": round(domain_duration_seconds, 3),
+                "counters": {
+                    "companies_attempted": domain_attempted,
+                    "domains_resolved": domain_resolved,
+                    "domains_discovered_net_new_global": domain_discovered_net_new,
+                },
+                "rates_per_min": {
+                    "domains_resolved_per_min": rate_per_min(domain_resolved, domain_duration_seconds),
+                    "domains_discovered_per_min": rate_per_min(domain_discovered_net_new, domain_duration_seconds),
+                },
+                "error_rates": {
+                    "unresolved_per_attempt": erc.ratio(max(0, domain_attempted - domain_resolved), domain_attempted),
+                },
+            },
+            "queue_fetch": {
+                "scope_tag": "global_snapshot",
+                "duration_seconds": round(queue_fetch_duration_seconds, 3),
+                "rate_denominator_seconds": round(queue_fetch_duration_seconds, 3),
+                "counters": {
+                    "crawl_url_attempts_before": queue_fetch_attempts_before,
+                    "crawl_url_attempts_after": queue_fetch_attempts_after,
+                    "crawl_url_attempts_delta": queue_fetch_attempts_delta,
+                    "crawl_urls_queued_before": queue_fetch_enqueued_before,
+                    "crawl_urls_queued_after": queue_fetch_enqueued_after,
+                    "crawl_urls_queued_delta": queue_fetch_enqueued_delta,
+                    "crawl_urls_fetching_before": queue_fetch_fetching_before,
+                    "crawl_urls_fetching_after": queue_fetch_fetching_after,
+                    "crawl_urls_fetching_delta": queue_fetch_fetching_delta,
+                },
+                "rates_per_min": {
+                    "crawl_url_attempts_delta_per_min": rate_per_min(queue_fetch_attempts_delta, queue_fetch_duration_seconds),
+                    "crawl_urls_queued_delta_per_min": rate_per_min(queue_fetch_enqueued_delta, queue_fetch_duration_seconds),
+                },
+                "measurement_notes": "Queue/fetch counters are global snapshot deltas over the canary window, not run-scoped rows.",
+            },
+            "ats_discovery": {
+                "scope_tag": "run_scope",
+                "duration_seconds": round(probe_duration_seconds, 3),
+                "rate_denominator_seconds": round(probe_duration_seconds, 3),
+                "counters": {
+                    "companies_attempted": probe_attempted,
+                    "companies_succeeded": probe_succeeded,
+                    "companies_failed": probe_failed,
+                    "endpoints_extracted": endpoints_extracted,
+                },
+                "rates_per_min": {
+                    "endpoints_extracted_per_min": rate_per_min(endpoints_extracted, probe_duration_seconds),
+                    "companies_attempted_per_min": rate_per_min(probe_attempted, probe_duration_seconds),
+                },
+                "error_rates": {
+                    "failed_per_attempted": erc.ratio(probe_failed, probe_attempted),
+                },
+                "stop_reason": {
+                    "raw": str(stop_reason_raw) if stop_reason_raw is not None else None,
+                    "normalized": normalize_stop_reason(stop_reason_raw),
+                },
+                "error_breakdown": {
+                    "stage_failure_buckets": {
+                        str(k): parse_int(v) for k, v in (stage_failure_buckets or {}).items()
+                    }
+                },
+            },
+        },
+        global_snapshots={
+            "scope_tag": "global_snapshot",
+            "companies_with_domain_count_before": domain_before,
+            "companies_with_domain_count_after": domain_after,
+            "companies_with_domain_count_delta": domain_after - domain_before,
+        },
+    )
+
+
 def top_n_map(m: Any, n: int = 3) -> List[Dict[str, Any]]:
     if not isinstance(m, dict):
         return []
@@ -242,6 +374,23 @@ def query_domain_counts(db: DbClient) -> Dict[str, Any]:
         """
     )
     return {"companies_with_domain_count": total, "by_source": [{"source": r["source"], "count": parse_int(r["count"])} for r in rows]}
+
+
+def query_queue_fetch_counts(db: DbClient) -> Dict[str, Any]:
+    rows = db.query_csv(
+        """
+        SELECT
+          (SELECT COUNT(*) FROM crawl_url_attempts) AS crawl_url_attempts_count,
+          (SELECT COUNT(*) FROM crawl_urls WHERE status = 'QUEUED') AS crawl_urls_queued_count,
+          (SELECT COUNT(*) FROM crawl_urls WHERE status = 'FETCHING') AS crawl_urls_fetching_count
+        """
+    )
+    row = rows[0] if rows else {}
+    return {
+        "crawl_url_attempts_count": parse_int(row.get("crawl_url_attempts_count")),
+        "crawl_urls_queued_count": parse_int(row.get("crawl_urls_queued_count")),
+        "crawl_urls_fetching_count": parse_int(row.get("crawl_urls_fetching_count")),
+    }
 
 
 def query_missing_domain_cohort(db: DbClient, limit: int) -> List[Dict[str, Any]]:
@@ -690,6 +839,9 @@ def run(args: argparse.Namespace) -> int:
     domain_counts_after = timed_step("domain_counts_after", lambda: query_domain_counts(db))
     write_json(out_dir / "domain_counts_after.json", domain_counts_after.payload)
 
+    queue_fetch_counts_before = timed_step("queue_fetch_counts_before", lambda: query_queue_fetch_counts(db))
+    write_json(out_dir / "queue_fetch_counts_before.json", queue_fetch_counts_before.payload)
+
     fresh_domain_after_step = None
     fresh_domain_report = None
     if args.domain_fresh_cohort and fresh_domain_before_step is not None:
@@ -717,6 +869,9 @@ def run(args: argparse.Namespace) -> int:
     probe_final_status = poll_discovery_run(api, probe_run_id, args.max_wait_seconds, args.poll_interval_seconds, out_dir, "ats_discovery_vendor_probe")
     probe_status_step = StepResult("ats_discovery_vendor_probe_wait", probe_wait_start, time.monotonic(), probe_final_status)
     write_json(out_dir / "ats_discovery_vendor_probe_final_status.json", probe_final_status)
+
+    queue_fetch_counts_after = timed_step("queue_fetch_counts_after", lambda: query_queue_fetch_counts(db))
+    write_json(out_dir / "queue_fetch_counts_after.json", queue_fetch_counts_after.payload)
 
     probe_companies = timed_step_safe(
         "ats_discovery_vendor_probe_companies",
@@ -855,8 +1010,10 @@ def run(args: argparse.Namespace) -> int:
         ingest_step.name: ingest_step.duration_ms,
         domain_resolve_step.name: domain_resolve_step.duration_ms,
         domain_counts_after.name: domain_counts_after.duration_ms,
+        queue_fetch_counts_before.name: queue_fetch_counts_before.duration_ms,
         discover_probe_start.name: discover_probe_start.duration_ms,
         probe_status_step.name: probe_status_step.duration_ms,
+        queue_fetch_counts_after.name: queue_fetch_counts_after.duration_ms,
         probe_companies.name: probe_companies.duration_ms,
         probe_failures.name: probe_failures.duration_ms,
         coverage_step.name: coverage_step.duration_ms,
@@ -966,7 +1123,31 @@ def run(args: argparse.Namespace) -> int:
         },
         "raw_files": sorted(p.name for p in out_dir.iterdir() if p.is_file()),
     }
+
+    canary_window_duration_ms = (
+        domain_resolve_step.duration_ms
+        + discover_probe_start.duration_ms
+        + probe_status_step.duration_ms
+    )
+    canonical_efficiency_report = build_canonical_efficiency_report(
+        args=args,
+        out_dir=out_dir,
+        domain_attempted=domain_attempted,
+        domain_resolved=domain_resolved,
+        domain_before=companies_with_domain_before,
+        domain_after=companies_with_domain_after,
+        domain_resolve_duration_ms=domain_resolve_step.duration_ms,
+        queue_fetch_counts_before=queue_fetch_counts_before.payload if isinstance(queue_fetch_counts_before.payload, dict) else {},
+        queue_fetch_counts_after=queue_fetch_counts_after.payload if isinstance(queue_fetch_counts_after.payload, dict) else {},
+        queue_fetch_window_duration_ms=canary_window_duration_ms,
+        probe_final_status=probe_final_status,
+        probe_duration_ms=probe_status_step.duration_ms,
+        stage_failure_buckets=stage_failure_buckets,
+    )
+    summary["canonical_efficiency_report"] = canonical_efficiency_report
+
     write_json(out_dir / "canary_summary.json", summary)
+    write_json(out_dir / "canonical_efficiency_report.json", canonical_efficiency_report)
 
     schema = {
         "schema_version": "ats-canary-summary-schema-v2",
@@ -985,6 +1166,7 @@ def run(args: argparse.Namespace) -> int:
             "optional_full_discovery",
             "durations_ms",
             "optional_errors",
+            "canonical_efficiency_report",
             "raw_files",
         ],
         "key_metrics": [
@@ -997,6 +1179,9 @@ def run(args: argparse.Namespace) -> int:
             "ats_vendor_probe.funnel.vendor_detected_rate_among_found",
             "ats_vendor_probe.funnel.endpoint_extracted_rate_among_vendor_detected",
             "ats_vendor_probe.stage_failure_buckets",
+            "canonical_efficiency_report.phases.domain_resolution.rates_per_min.domains_discovered_per_min",
+            "canonical_efficiency_report.phases.queue_fetch.counters.crawl_url_attempts_delta",
+            "canonical_efficiency_report.phases.queue_fetch.rates_per_min.crawl_url_attempts_delta_per_min",
             "actionable_failure_evidence.top_failing_url_patterns",
             "domain_backlog_watch.probe_domain_source_funnel_summary",
         ],
