@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.delta.jobtracker.config.CrawlerProperties;
+import com.delta.jobtracker.crawl.http.CanaryAbortException;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
 import com.delta.jobtracker.crawl.model.HostCrawlState;
@@ -521,6 +522,122 @@ class CareersDiscoveryRunServiceTest {
             requestCountCaptor.capture(),
             anyInt());
     assertThat(requestCountCaptor.getValue()).isEqualTo(1);
+  }
+
+  @Test
+  void discoveryRunClassifiesCanaryTimeBudgetAbortDeterministically() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(100);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(107L);
+    when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean(), anyInt()))
+        .thenThrow(new CanaryAbortException("canary_time_budget_exceeded"));
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    verify(repository)
+        .upsertCareersDiscoveryCompanyResult(
+            eq(107L),
+            eq(1L),
+            eq("FAILED"),
+            eq("TIMEOUT"),
+            eq("BUDGET"),
+            anyInt(),
+            any(),
+            any(),
+            eq("time_budget_exceeded"),
+            anyBoolean(),
+            any(),
+            any(),
+            any(),
+            any(),
+            anyBoolean(),
+            any(),
+            anyBoolean(),
+            any(),
+            any(),
+            any());
+    verify(repository)
+        .completeCareersDiscoveryRun(
+            eq(107L),
+            any(Instant.class),
+            eq("ABORTED"),
+            eq("time_budget_exceeded"),
+            eq("time_budget_exceeded"));
+  }
+
+  @Test
+  void discoveryRunCountsHostCutoffSkipsAcrossAllHostCutoffPaths() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(100);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    properties.getCareersDiscovery().setPerHostFailureCutoff(6);
+    CompanyTarget c1 = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+    CompanyTarget c2 = new CompanyTarget(2L, "BBB", "Beta", null, "beta.com", null);
+    CompanyTarget c3 = new CompanyTarget(3L, "CCC", "Gamma", null, "gamma.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(3);
+    when(repository.findCompaniesWithDomainWithoutAts(3)).thenReturn(List.of(c1, c2, c3));
+    when(repository.insertCareersDiscoveryRun(
+            eq(3), eq(3), eq(3), eq(3), anyInt(), anyInt(), anyInt()))
+        .thenReturn(108L);
+    when(repository.findHostCrawlState("alpha.com"))
+        .thenReturn(new HostCrawlState("alpha.com", 6, "timeout", Instant.now(), Instant.now()));
+    when(repository.findHostCrawlState("beta.com")).thenReturn(null);
+    when(repository.findHostCrawlState("gamma.com")).thenReturn(null);
+    when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
+    CareersDiscoveryService.DiscoveryFailure hostCutoffFailure =
+        new CareersDiscoveryService.DiscoveryFailure(
+            "discovery_host_failure_cutoff", "https://boards.greenhouse.io/company", "HOST_COOLDOWN");
+    CareersDiscoveryService.DiscoveryOutcome skippedOutcome =
+        new CareersDiscoveryService.DiscoveryOutcome(Map.of(), hostCutoffFailure, 0, true, false);
+    CareersDiscoveryService.DiscoveryOutcome failedOutcome =
+        new CareersDiscoveryService.DiscoveryOutcome(Map.of(), hostCutoffFailure, 0, false, false);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean(), anyInt()))
+        .thenReturn(skippedOutcome, failedOutcome);
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(3, 3, false);
+
+    ArgumentCaptor<Integer> hostSkipCaptor = ArgumentCaptor.forClass(Integer.class);
+    verify(repository, atLeastOnce())
+        .updateCareersDiscoveryRunProgress(
+            eq(108L),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            any(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            hostSkipCaptor.capture());
+    assertThat(hostSkipCaptor.getValue()).isEqualTo(3);
   }
 
   private static final class DirectExecutorService extends AbstractExecutorService {
