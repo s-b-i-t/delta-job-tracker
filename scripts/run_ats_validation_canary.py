@@ -86,6 +86,10 @@ class ApiClient:
         try:
             with urlopen(req, timeout=self.timeout_seconds) as resp:
                 raw = resp.read().decode("utf-8")
+        except TimeoutError as e:
+            raise RuntimeError(
+                f"Request timed out for {method} {url} after {self.timeout_seconds}s"
+            ) from e
         except HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"HTTP {e.code} for {method} {url}: {body}") from e
