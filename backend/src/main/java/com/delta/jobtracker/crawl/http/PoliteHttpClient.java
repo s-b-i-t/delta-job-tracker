@@ -181,7 +181,7 @@ public class PoliteHttpClient {
       String safeAccept = (acceptHeader == null || acceptHeader.isBlank()) ? "*/*" : acceptHeader;
       int timeoutSeconds = properties.getRequestTimeoutSeconds();
       if (budget != null) {
-        timeoutSeconds = budget.requestTimeoutSeconds();
+        timeoutSeconds = budget.effectiveRequestTimeoutSeconds();
       }
       HttpRequest.Builder builder =
           HttpRequest.newBuilder(uri)

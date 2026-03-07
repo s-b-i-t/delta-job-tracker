@@ -70,8 +70,28 @@ public class CanaryHttpBudget {
     return requestTimeoutSeconds;
   }
 
+  public synchronized int effectiveRequestTimeoutSeconds() {
+    return effectiveRequestTimeoutSeconds(Instant.now());
+  }
+
+  synchronized int effectiveRequestTimeoutSeconds(Instant now) {
+    if (aborted) {
+      throw new CanaryAbortException(abortReason == null ? "canary_aborted" : abortReason);
+    }
+    if (deadline == null) {
+      return requestTimeoutSeconds;
+    }
+    Instant effectiveNow = now == null ? Instant.now() : now;
+    if (!effectiveNow.isBefore(deadline)) {
+      abort("canary_time_budget_exceeded");
+    }
+    long remainingMillis = Duration.between(effectiveNow, deadline).toMillis();
+    long remainingSeconds = Math.max(1L, (remainingMillis + 999L) / 1000L);
+    return (int) Math.min((long) requestTimeoutSeconds, remainingSeconds);
+  }
+
   public boolean isExpired() {
-    return deadline != null && Instant.now().isAfter(deadline);
+    return deadline != null && !Instant.now().isBefore(deadline);
   }
 
   public synchronized void checkDeadline() {
