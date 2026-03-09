@@ -56,7 +56,7 @@ class FrontierSeedServiceTest {
                     invocation.getArgument(0, String.class),
                     invocation.getArgument(0, String.class)));
     when(frontierRepository.countQueueStatuses()).thenReturn(Map.of("QUEUED", 2));
-    when(frontierSchedulerService.fetchDueSitemaps(1))
+    when(frontierSchedulerService.fetchDueSitemaps(eq(1), anyString()))
         .thenReturn(new FrontierSchedulerResult(0, 0, 0, 0, 0, 0, 0, Map.of(), null));
 
     FrontierSeedResponse response = service.seedFromCompanyDomains(2, 1);
@@ -69,7 +69,7 @@ class FrontierSeedServiceTest {
     verify(frontierRepository)
         .enqueueUrl(
             eq("https://beta.test/sitemap.xml"), eq(FrontierUrlKind.SITEMAP), eq(100), any());
-    verify(frontierSchedulerService).fetchDueSitemaps(1);
+    verify(frontierSchedulerService).fetchDueSitemaps(eq(1), anyString());
     assertThat(response.seedDomainsUsed()).isEqualTo(2);
     assertThat(response.sitemapUrlsEnqueued()).isEqualTo(2);
     assertThat(response.urlsFetched()).isEqualTo(0);
