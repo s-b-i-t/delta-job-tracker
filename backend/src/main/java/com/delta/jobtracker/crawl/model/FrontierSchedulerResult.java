@@ -10,4 +10,5 @@ public record FrontierSchedulerResult(
     int candidateUrlsEnqueued,
     int httpRequestCount,
     int http429Count,
-    Map<String, Integer> statusBucketCounts) {}
+    Map<String, Integer> statusBucketCounts,
+    FrontierSchedulerDiagnostics diagnostics) {}

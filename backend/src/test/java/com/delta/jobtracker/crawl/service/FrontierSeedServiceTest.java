@@ -57,7 +57,7 @@ class FrontierSeedServiceTest {
                     invocation.getArgument(0, String.class)));
     when(frontierRepository.countQueueStatuses()).thenReturn(Map.of("QUEUED", 2));
     when(frontierSchedulerService.fetchDueSitemaps(1))
-        .thenReturn(new FrontierSchedulerResult(0, 0, 0, 0, 0, 0, 0, Map.of()));
+        .thenReturn(new FrontierSchedulerResult(0, 0, 0, 0, 0, 0, 0, Map.of(), null));
 
     FrontierSeedResponse response = service.seedFromCompanyDomains(2, 1);
 
