@@ -6,8 +6,6 @@ import com.delta.jobtracker.crawl.model.FrontierSchedulerResult;
 import com.delta.jobtracker.crawl.model.FrontierSeedResponse;
 import com.delta.jobtracker.crawl.model.FrontierUrlKind;
 import com.delta.jobtracker.crawl.persistence.FrontierRepository;
-import com.delta.jobtracker.crawl.robots.RobotsRules;
-import com.delta.jobtracker.crawl.robots.RobotsTxtService;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -21,17 +19,14 @@ import org.springframework.stereotype.Service;
 public class FrontierSeedService {
   private final FrontierRepository frontierRepository;
   private final FrontierSchedulerService frontierSchedulerService;
-  private final RobotsTxtService robotsTxtService;
   private final CrawlerProperties properties;
 
   public FrontierSeedService(
       FrontierRepository frontierRepository,
       FrontierSchedulerService frontierSchedulerService,
-      RobotsTxtService robotsTxtService,
       CrawlerProperties properties) {
     this.frontierRepository = frontierRepository;
     this.frontierSchedulerService = frontierSchedulerService;
-    this.robotsTxtService = robotsTxtService;
     this.properties = properties;
   }
 
@@ -61,22 +56,12 @@ public class FrontierSeedService {
       hostsSeen.add(host);
       frontierRepository.ensureHost(host);
 
-      RobotsRules rules = robotsTxtService.getRulesForHost(host);
-      Set<String> sitemapSeeds = new LinkedHashSet<>();
-      if (rules != null && rules.getSitemapUrls() != null) {
-        sitemapSeeds.addAll(rules.getSitemapUrls());
-      }
-      if (sitemapSeeds.isEmpty()) {
-        sitemapSeeds.add("https://" + host + "/sitemap.xml");
-      }
-
-      for (String sitemapUrl : sitemapSeeds) {
-        FrontierEnqueueResult enqueueResult =
-            frontierRepository.enqueueUrl(sitemapUrl, FrontierUrlKind.SITEMAP, 100, Instant.now());
-        if (enqueueResult.inserted()) {
-          seededUrlsEnqueued++;
-          seededSitemapUrlsEnqueued++;
-        }
+      FrontierEnqueueResult enqueueResult =
+          frontierRepository.enqueueUrl(
+              "https://" + host + "/sitemap.xml", FrontierUrlKind.SITEMAP, 100, Instant.now());
+      if (enqueueResult.inserted()) {
+        seededUrlsEnqueued++;
+        seededSitemapUrlsEnqueued++;
       }
     }
 
