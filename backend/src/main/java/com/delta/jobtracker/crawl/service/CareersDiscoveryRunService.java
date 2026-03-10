@@ -237,6 +237,7 @@ public class CareersDiscoveryRunService {
               }
 
               if (budgetAbort) {
+                persistBudgetAbortState(company);
                 // Keep the explicit budget-abort classification from the catch block.
               } else if (outcome != null && outcome.hasEndpoints()) {
                 status = "SUCCEEDED";
@@ -578,6 +579,17 @@ public class CareersDiscoveryRunService {
       return "time_budget_exceeded";
     }
     return null;
+  }
+
+  private void persistBudgetAbortState(CompanyTarget company) {
+    if (company == null) {
+      return;
+    }
+    com.delta.jobtracker.crawl.model.CareersDiscoveryState existing =
+        repository.findCareersDiscoveryState(company.companyId());
+    int nextFailures = (existing == null ? 0 : existing.consecutiveFailures()) + 1;
+    repository.upsertCareersDiscoveryState(
+        company.companyId(), Instant.now(), "discovery_time_budget_exceeded", null, nextFailures, null);
   }
 
   private boolean isHostFailureCutoffReached(CompanyTarget company, int cutoff) {
