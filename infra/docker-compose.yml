@@ -1,15 +1,16 @@
 services:
   postgres:
     image: postgres:16
-    container_name: delta-job-tracker-postgres
+    container_name: ${DELTA_POSTGRES_CONTAINER_NAME:-delta-job-tracker-postgres}
     environment:
       POSTGRES_DB: delta_job_tracker
       POSTGRES_USER: delta
       POSTGRES_PASSWORD: delta
     ports:
-      - "5432:5432"
+      - "${DELTA_POSTGRES_PORT:-5432}:5432"
     volumes:
       - delta_job_tracker_pg:/var/lib/postgresql/data
 
 volumes:
   delta_job_tracker_pg:
+    name: ${DELTA_POSTGRES_VOLUME_NAME:-delta_job_tracker_pg}
