@@ -187,6 +187,7 @@ if [[ -n "$POSTGRES_VOLUME_NAME_VALUE" ]]; then
   export DELTA_POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME_NAME_VALUE"
 fi
 export DB_URL="jdbc:postgresql://localhost:${DB_HOST_PORT}/delta_job_tracker"
+RUNNER_POSTGRES_CONTAINER="${POSTGRES_CONTAINER_NAME_VALUE:-delta-job-tracker-postgres}"
 
 ARTIFACT_DIR="$OUT_BASE/$TS"
 mkdir -p "$ARTIFACT_DIR"
@@ -298,9 +299,9 @@ if [[ "$READY" -ne 1 ]]; then
 fi
 
 log "Backend is ready. Running overnight crawler..."
-log "Command: python3 scripts/run_overnight_crawler.py --base-url $API_BASE_URL --out-dir $ARTIFACT_DIR ${RUNNER_ARGS[*]:-}"
+log "Command: python3 scripts/run_overnight_crawler.py --base-url $API_BASE_URL --out-dir $ARTIFACT_DIR --postgres-container $RUNNER_POSTGRES_CONTAINER ${RUNNER_ARGS[*]:-}"
 set +e
-python3 "$ROOT_DIR/scripts/run_overnight_crawler.py" --base-url "$API_BASE_URL" --out-dir "$ARTIFACT_DIR" "${RUNNER_ARGS[@]}" 2>&1 | tee "$RUNNER_LOG"
+python3 "$ROOT_DIR/scripts/run_overnight_crawler.py" --base-url "$API_BASE_URL" --out-dir "$ARTIFACT_DIR" --postgres-container "$RUNNER_POSTGRES_CONTAINER" "${RUNNER_ARGS[@]}" 2>&1 | tee "$RUNNER_LOG"
 RUNNER_RC=${PIPESTATUS[0]}
 set -e
 
