@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
@@ -147,6 +148,46 @@ class CareersDiscoveryRunServiceTest {
             eq("ABORTED"),
             eq("request_budget_exceeded"),
             eq("request_budget_exceeded"));
+  }
+
+  @Test
+  void discoveryRunPersistsSelectionStateWhenRunBudgetAbortIsRaised() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getCareersDiscovery().setGlobalRequestBudgetPerRun(100);
+    properties.getCareersDiscovery().setHardTimeoutSeconds(120);
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(104L);
+    when(repository.countAtsEndpointsForCompany(1L)).thenReturn(0);
+    when(repository.findCareersDiscoveryState(1L)).thenReturn(null);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean(), anyInt()))
+        .thenThrow(new com.delta.jobtracker.crawl.http.CanaryAbortException("canary_time_budget_exceeded"));
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    verify(repository)
+        .upsertCareersDiscoveryState(
+            eq(1L),
+            any(Instant.class),
+            eq("discovery_time_budget_exceeded"),
+            isNull(),
+            eq(1),
+            isNull());
+    verify(repository)
+        .completeCareersDiscoveryRun(
+            eq(104L),
+            any(Instant.class),
+            eq("ABORTED"),
+            eq("time_budget_exceeded"),
+            eq("time_budget_exceeded"));
   }
 
   @Test
