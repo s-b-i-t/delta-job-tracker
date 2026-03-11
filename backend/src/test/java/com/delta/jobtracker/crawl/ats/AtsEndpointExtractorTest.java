@@ -114,4 +114,16 @@ class AtsEndpointExtractorTest {
             new AtsDetectionRecord(
                 AtsType.SUCCESSFACTORS, "https://career2.successfactors.eu/career"));
   }
+
+  @Test
+  void extractsPaylocityEndpoint() {
+    String html =
+        "<a href=\"https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc\">Open roles</a>";
+    List<AtsDetectionRecord> endpoints = extractor.extract(null, html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.PAYLOCITY,
+                "https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc"));
+  }
 }

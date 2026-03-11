@@ -55,6 +55,9 @@ public class AtsEndpointExtractor {
   private static final Pattern SUCCESSFACTORS_CAREER =
       Pattern.compile(
           "(?i)(?:https?:)?//([A-Za-z0-9.-]*(?:successfactors\\.[A-Za-z.]+|jobs\\.sap\\.com))/career[^\"'\\s<>]*");
+  private static final Pattern PAYLOCITY_JOBS =
+      Pattern.compile(
+          "(?i)(?:https?:)?//recruiting\\.paylocity\\.com/recruiting/jobs/All/([A-Fa-f0-9-]+/[A-Za-z0-9._-]+)");
 
   public List<AtsDetectionRecord> extract(String url, String html) {
     Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
@@ -155,6 +158,7 @@ public class AtsEndpointExtractor {
     addIcimsEndpoints(text, unique);
     addTaleoEndpoints(text, unique);
     addSuccessFactorsEndpoints(text, unique);
+    addPaylocityEndpoints(text, unique);
   }
 
   private void addSmartRecruitersEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
@@ -203,6 +207,19 @@ public class AtsEndpointExtractor {
     }
     String key = type.name() + "|" + normalized.toLowerCase(Locale.ROOT);
     unique.putIfAbsent(key, new AtsDetectionRecord(type, normalized));
+  }
+
+  private void addPaylocityEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher matcher = PAYLOCITY_JOBS.matcher(text);
+    while (matcher.find()) {
+      String path = cleanToken(matcher.group(1));
+      if (path != null) {
+        addEndpoint(
+            unique,
+            AtsType.PAYLOCITY,
+            "https://recruiting.paylocity.com/recruiting/jobs/All/" + path);
+      }
+    }
   }
 
   private String normalizeEndpointUrl(AtsType type, String raw) {

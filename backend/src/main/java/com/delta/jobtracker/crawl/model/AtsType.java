@@ -8,5 +8,6 @@ public enum AtsType {
   ICIMS,
   TALEO,
   SUCCESSFACTORS,
+  PAYLOCITY,
   UNKNOWN
 }
