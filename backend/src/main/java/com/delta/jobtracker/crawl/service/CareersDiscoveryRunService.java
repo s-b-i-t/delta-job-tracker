@@ -54,8 +54,10 @@ public class CareersDiscoveryRunService {
     int safeBatchSize = batchSize == null ? DEFAULT_BATCH_SIZE : Math.max(1, batchSize);
     boolean vendorProbeOnlyMode = vendorProbeOnly != null && vendorProbeOnly;
 
-    int selectionEligibleCount = repository.countCompaniesWithDomainWithoutAtsEligible();
-    List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(companyLimit);
+    int selectionEligibleCount =
+        repository.countCompaniesWithDomainWithoutAtsEligible(vendorProbeOnlyMode);
+    List<CompanyTarget> companies =
+        repository.findCompaniesWithDomainWithoutAts(companyLimit, vendorProbeOnlyMode);
     int selectionReturnedCount = companies == null ? 0 : companies.size();
     int companiesInputCount = selectionReturnedCount;
     int requestBudget = properties.getCareersDiscovery().getGlobalRequestBudgetPerRun();

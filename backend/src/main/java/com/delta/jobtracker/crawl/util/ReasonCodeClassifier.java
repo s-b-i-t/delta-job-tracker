@@ -3,6 +3,7 @@ package com.delta.jobtracker.crawl.util;
 import java.util.Locale;
 
 public final class ReasonCodeClassifier {
+  public static final String VENDOR_PROBE_PREFIX = "VENDOR_PROBE:";
   public static final String NO_DOMAIN = "NO_DOMAIN";
   public static final String ROBOTS_BLOCKED = "ROBOTS_BLOCKED";
   public static final String SITEMAP_NOT_FOUND = "SITEMAP_NOT_FOUND";
@@ -19,6 +20,25 @@ public final class ReasonCodeClassifier {
   public static final String UNKNOWN = "UNKNOWN";
 
   private ReasonCodeClassifier() {}
+
+  public static String vendorProbeReason(String reasonCode) {
+    if (reasonCode == null || reasonCode.isBlank() || isVendorProbeReason(reasonCode)) {
+      return reasonCode;
+    }
+    return VENDOR_PROBE_PREFIX + reasonCode;
+  }
+
+  public static boolean isVendorProbeReason(String reasonCode) {
+    return reasonCode != null
+        && reasonCode.regionMatches(true, 0, VENDOR_PROBE_PREFIX, 0, VENDOR_PROBE_PREFIX.length());
+  }
+
+  public static String stripVendorProbePrefix(String reasonCode) {
+    if (!isVendorProbeReason(reasonCode)) {
+      return reasonCode;
+    }
+    return reasonCode.substring(VENDOR_PROBE_PREFIX.length());
+  }
 
   public static String fromHttpStatus(Integer status) {
     if (status == null || status <= 0) {

@@ -123,7 +123,8 @@ public class CareersDiscoveryService {
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
 
-    List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(limit);
+    List<CompanyTarget> companies =
+        repository.findCompaniesWithDomainWithoutAts(limit, vendorProbeOnly);
     return discoverForCompanies(companies, deadline, vendorProbeOnly);
   }
 
@@ -143,7 +144,7 @@ public class CareersDiscoveryService {
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
     List<CompanyTarget> companies =
-        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
+        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit, vendorProbeOnly);
     return discoverForCompanies(companies, deadline, vendorProbeOnly);
   }
 
@@ -154,7 +155,7 @@ public class CareersDiscoveryService {
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
     List<CompanyTarget> companies =
-        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
+        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit, vendorProbeOnly);
     DiscoveryMetrics metrics = new DiscoveryMetrics();
     CareersDiscoveryResult result =
         discoverForCompanies(companies, deadline, vendorProbeOnly, metrics);
@@ -335,7 +336,7 @@ public class CareersDiscoveryService {
       if (metrics != null) {
         metrics.incrementTimeBudgetExceeded();
       }
-      updateDiscoveryState(company, failure);
+      updateDiscoveryState(company, failure, vendorProbeOnly);
       return new DiscoveryOutcome(
           countsByType,
           failure,
@@ -500,7 +501,7 @@ public class CareersDiscoveryService {
         if (metrics != null) {
           metrics.incrementTimeBudgetExceeded();
         }
-        updateDiscoveryState(company, failure);
+        updateDiscoveryState(company, failure, vendorProbeOnly);
         return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
       }
       SitemapDetectionOutcome sitemapResult = discoverAtsFromSitemaps(company, metrics, failures);
@@ -529,7 +530,7 @@ public class CareersDiscoveryService {
         if (metrics != null) {
           metrics.incrementTimeBudgetExceeded();
         }
-        updateDiscoveryState(company, failure);
+        updateDiscoveryState(company, failure, vendorProbeOnly);
         return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
       }
       AtsDetectionRecord vendorEndpoint =
@@ -592,7 +593,7 @@ public class CareersDiscoveryService {
           if (metrics != null) {
             metrics.incrementTimeBudgetExceeded();
           }
-          updateDiscoveryState(company, failure);
+          updateDiscoveryState(company, failure, vendorProbeOnly);
           return new DiscoveryOutcome(countsByType, failure, cooldownSkips.get(), false, true);
         }
 
@@ -680,7 +681,7 @@ public class CareersDiscoveryService {
           failure.candidateUrl(),
           failure.detail(),
           Instant.now());
-      updateDiscoveryState(company, failure);
+      updateDiscoveryState(company, failure, vendorProbeOnly);
     }
     return new DiscoveryOutcome(
         countsByType,
@@ -1366,7 +1367,8 @@ public class CareersDiscoveryService {
     repository.upsertCareersDiscoveryState(company.companyId(), Instant.now(), null, null, 0, null);
   }
 
-  private void updateDiscoveryState(CompanyTarget company, DiscoveryFailure failure) {
+  private void updateDiscoveryState(
+      CompanyTarget company, DiscoveryFailure failure, boolean vendorProbeOnly) {
     if (company == null || failure == null) {
       return;
     }
@@ -1389,8 +1391,15 @@ public class CareersDiscoveryService {
       }
     }
 
+    String storedReason =
+        vendorProbeOnly ? ReasonCodeClassifier.vendorProbeReason(reason) : reason;
     repository.upsertCareersDiscoveryState(
-        company.companyId(), now, reason, failure.candidateUrl(), nextFailures, nextAttemptAt);
+        company.companyId(),
+        now,
+        storedReason,
+        failure.candidateUrl(),
+        nextFailures,
+        nextAttemptAt);
   }
 
   private boolean isRobotsBlockedReason(String reason) {
