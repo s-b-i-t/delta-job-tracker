@@ -27,6 +27,7 @@ import com.delta.jobtracker.crawl.model.JobPostingUrlRef;
 import com.delta.jobtracker.crawl.model.JobPostingView;
 import com.delta.jobtracker.crawl.model.NormalizedJobPosting;
 import com.delta.jobtracker.crawl.util.JobUrlUtils;
+import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -1874,6 +1875,10 @@ public class CrawlJdbcRepository {
   }
 
   public int countCompaniesWithDomainWithoutAtsEligible() {
+    return countCompaniesWithDomainWithoutAtsEligible(true);
+  }
+
+  public int countCompaniesWithDomainWithoutAtsEligible(boolean vendorProbeOnly) {
     MapSqlParameterSource params = atsDiscoverySelectionParams(null);
     String sql =
         """
@@ -1892,12 +1897,16 @@ public class CrawlJdbcRepository {
                 LEFT JOIN careers_discovery_state s ON s.company_id = c.id
                 WHERE %s
                 """
-            .formatted(atsDiscoverySelectionEligibilityClause("c", "s"));
+            .formatted(atsDiscoverySelectionEligibilityClause("c", "s", vendorProbeOnly));
     Integer value = jdbc.queryForObject(sql, params, Integer.class);
     return value == null ? 0 : value;
   }
 
   public List<CompanyTarget> findCompaniesWithDomainWithoutAts(int limit) {
+    return findCompaniesWithDomainWithoutAts(limit, true);
+  }
+
+  public List<CompanyTarget> findCompaniesWithDomainWithoutAts(int limit, boolean vendorProbeOnly) {
     MapSqlParameterSource params = atsDiscoverySelectionParams(limit);
 
     return jdbc.query(
@@ -1924,13 +1933,18 @@ public class CrawlJdbcRepository {
                 ORDER BY COALESCE(s.last_attempt_at, TIMESTAMP '1970-01-01 00:00:00') ASC, c.ticker
                 LIMIT :limit
                 """
-            .formatted(atsDiscoverySelectionEligibilityClause("c", "s")),
+            .formatted(atsDiscoverySelectionEligibilityClause("c", "s", vendorProbeOnly)),
         params,
         companyTargetRowMapper());
   }
 
   public List<CompanyTarget> findCompaniesWithDomainWithoutAtsByTickers(
       List<String> tickers, int limit) {
+    return findCompaniesWithDomainWithoutAtsByTickers(tickers, limit, true);
+  }
+
+  public List<CompanyTarget> findCompaniesWithDomainWithoutAtsByTickers(
+      List<String> tickers, int limit, boolean vendorProbeOnly) {
     if (tickers == null || tickers.isEmpty()) {
       return List.of();
     }
@@ -1960,7 +1974,7 @@ public class CrawlJdbcRepository {
                 ORDER BY COALESCE(s.last_attempt_at, TIMESTAMP '1970-01-01 00:00:00') ASC, c.ticker
                 LIMIT :limit
                 """
-            .formatted(atsDiscoverySelectionEligibilityClause("c", "s")),
+            .formatted(atsDiscoverySelectionEligibilityClause("c", "s", vendorProbeOnly)),
         params,
         companyTargetRowMapper());
   }
@@ -1979,6 +1993,9 @@ public class CrawlJdbcRepository {
             .addValue("atsSelectionNow", toTimestamp(now))
             .addValue("atsCacheRetryCutoff", toTimestamp(cacheRetryCutoff))
             .addValue("atsSemiPermanentRetryCutoff", toTimestamp(semiPermanentRetryCutoff))
+            .addValue(
+                "atsVendorProbeReasonPrefix",
+                ReasonCodeClassifier.VENDOR_PROBE_PREFIX.toUpperCase(Locale.ROOT) + "%")
             .addValue("atsSemiPermanentReasonCodes", ATS_DISCOVERY_SEMI_PERMANENT_REASON_CODES);
     if (limit != null) {
       params.addValue("limit", Math.max(1, limit));
@@ -1986,7 +2003,39 @@ public class CrawlJdbcRepository {
     return params;
   }
 
-  private String atsDiscoverySelectionEligibilityClause(String companyAlias, String stateAlias) {
+  private String atsDiscoverySelectionEligibilityClause(
+      String companyAlias, String stateAlias, boolean vendorProbeOnly) {
+    String normalizedReasonExpression = atsDiscoveryNormalizedReasonCodeExpression(stateAlias);
+    String recentAttemptClause =
+        vendorProbeOnly
+            ? """
+                    %1$s.last_attempt_at IS NULL
+                    OR %1$s.last_attempt_at <= :atsCacheRetryCutoff
+                """
+                .formatted(stateAlias)
+            : """
+                    %1$s.last_attempt_at IS NULL
+                    OR %1$s.last_attempt_at <= :atsCacheRetryCutoff
+                    OR UPPER(COALESCE(%1$s.last_reason_code, '')) LIKE :atsVendorProbeReasonPrefix
+                """
+                .formatted(stateAlias);
+    String semiPermanentClause =
+        vendorProbeOnly
+            ? """
+                    %1$s.last_reason_code IS NULL
+                    OR %2$s NOT IN (:atsSemiPermanentReasonCodes)
+                    OR %1$s.last_attempt_at IS NULL
+                    OR %1$s.last_attempt_at <= :atsSemiPermanentRetryCutoff
+                """
+                .formatted(stateAlias, normalizedReasonExpression)
+            : """
+                    %1$s.last_reason_code IS NULL
+                    OR UPPER(COALESCE(%1$s.last_reason_code, '')) LIKE :atsVendorProbeReasonPrefix
+                    OR %2$s NOT IN (:atsSemiPermanentReasonCodes)
+                    OR %1$s.last_attempt_at IS NULL
+                    OR %1$s.last_attempt_at <= :atsSemiPermanentRetryCutoff
+                """
+                .formatted(stateAlias, normalizedReasonExpression);
     return """
                 NOT EXISTS (
                     SELECT 1
@@ -1998,17 +2047,25 @@ public class CrawlJdbcRepository {
                     OR %2$s.next_attempt_at <= :atsSelectionNow
                   )
                   AND (
-                    %2$s.last_attempt_at IS NULL
-                    OR %2$s.last_attempt_at <= :atsCacheRetryCutoff
+                    %3$s
                   )
                   AND (
-                    %2$s.last_reason_code IS NULL
-                    OR UPPER(%2$s.last_reason_code) NOT IN (:atsSemiPermanentReasonCodes)
-                    OR %2$s.last_attempt_at IS NULL
-                    OR %2$s.last_attempt_at <= :atsSemiPermanentRetryCutoff
+                    %4$s
                   )
                 """
-        .formatted(companyAlias, stateAlias);
+        .formatted(companyAlias, stateAlias, recentAttemptClause, semiPermanentClause);
+  }
+
+  private String atsDiscoveryNormalizedReasonCodeExpression(String stateAlias) {
+    return """
+                CASE
+                    WHEN UPPER(COALESCE(%1$s.last_reason_code, '')) LIKE :atsVendorProbeReasonPrefix
+                        THEN SUBSTRING(UPPER(%1$s.last_reason_code), %2$d)
+                    ELSE UPPER(%1$s.last_reason_code)
+                END
+                """
+        .formatted(stateAlias, ReasonCodeClassifier.VENDOR_PROBE_PREFIX.length() + 1)
+        .trim();
   }
 
   public List<CompanyTarget> findCompanyTargets(List<String> tickers, int limit) {

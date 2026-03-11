@@ -150,6 +150,31 @@ class CareersDiscoveryServiceTest {
   }
 
   @Test
+  void vendorProbeFailurePersistsPrefixedReasonCode() {
+    CompanyTarget company = new CompanyTarget(8L, "MISS", "Missing ATS", null, "missing.com", null);
+    String homepage = "https://missing.com/";
+    when(repository.findCareersDiscoveryState(8L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<html>No careers link</html>"));
+    lenient()
+        .when(httpClient.get(anyString(), anyString()))
+        .thenReturn(failureFetch("https://boards.greenhouse.io/missing"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, true);
+
+    assertThat(outcome.hasEndpoints()).isFalse();
+    verify(repository)
+        .upsertCareersDiscoveryState(
+            eq(8L),
+            any(Instant.class),
+            eq(ReasonCodeClassifier.vendorProbeReason("discovery_fetch_failed")),
+            anyString(),
+            eq(1),
+            any());
+  }
+
+  @Test
   void sitemapDetectionFindsAtsEndpoint() {
     CompanyTarget company = new CompanyTarget(4L, "SITE", "Site Corp", null, "sitemapco.com", null);
     String homepage = "https://sitemapco.com/";

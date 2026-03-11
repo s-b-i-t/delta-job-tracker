@@ -3,6 +3,8 @@ package com.delta.jobtracker.crawl.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.delta.jobtracker.crawl.model.CompanyTarget;
+import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -76,5 +78,67 @@ class CareersDiscoverySelectionEligibilityTest {
 
     assertThat(secondIds).doesNotContainAnyElementsOf(firstIds);
     assertThat(second).extracting(CompanyTarget::ticker).contains(tickerC);
+  }
+
+  @Test
+  void organicFullModeCanReuseRecentVendorProbeFailuresWithoutReusingDeferredFailures() {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    String retryTicker = "RA" + suffix;
+    String deferredTicker = "RB" + suffix;
+
+    long retryCompany = repository.upsertCompany(retryTicker, "Retry ATS " + suffix, "Tech");
+    long deferredCompany =
+        repository.upsertCompany(deferredTicker, "Deferred ATS " + suffix, "Tech");
+
+    repository.upsertCompanyDomain(
+        retryCompany, "retry-" + suffix.toLowerCase() + ".example.com", null);
+    repository.upsertCompanyDomain(
+        deferredCompany, "deferred-" + suffix.toLowerCase() + ".example.com", null);
+
+    Instant now = Instant.now();
+    jdbcTemplate.update(
+        """
+        MERGE INTO careers_discovery_state (
+          company_id,
+          last_attempt_at,
+          last_reason_code,
+          last_candidate_url,
+          consecutive_failures,
+          next_attempt_at
+        ) KEY(company_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        retryCompany,
+        java.sql.Timestamp.from(now),
+        ReasonCodeClassifier.vendorProbeReason("discovery_no_match"),
+        "https://boards.greenhouse.io/retry-" + suffix.toLowerCase(),
+        1,
+        null);
+    jdbcTemplate.update(
+        """
+        MERGE INTO careers_discovery_state (
+          company_id,
+          last_attempt_at,
+          last_reason_code,
+          last_candidate_url,
+          consecutive_failures,
+          next_attempt_at
+        ) KEY(company_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        deferredCompany,
+        java.sql.Timestamp.from(now),
+        ReasonCodeClassifier.vendorProbeReason("discovery_fetch_failed"),
+        "https://boards.greenhouse.io/deferred-" + suffix.toLowerCase(),
+        1,
+        java.sql.Timestamp.from(now.plus(Duration.ofMinutes(30))));
+
+    List<String> tickers = List.of(retryTicker, deferredTicker);
+
+    assertThat(repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 10, true)).isEmpty();
+
+    List<CompanyTarget> organic =
+        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 10, false);
+    assertThat(organic).extracting(CompanyTarget::ticker).containsExactly(retryTicker);
   }
 }
