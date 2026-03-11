@@ -28,6 +28,7 @@ import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.delta.jobtracker.crawl.robots.RobotsRules;
 import com.delta.jobtracker.crawl.robots.RobotsTxtService;
 import com.delta.jobtracker.crawl.sitemap.SitemapService;
+import com.delta.jobtracker.crawl.util.ReasonCodeClassifier;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -75,6 +76,7 @@ class CareersDiscoveryServiceTest {
         .when(sitemapService.discover(any(), anyInt(), anyInt(), anyInt()))
         .thenReturn(new SitemapDiscoveryResult(List.of(), List.of(), Map.of()));
     lenient().when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
+    lenient().when(atsDetector.detect(anyString(), anyString())).thenReturn(AtsType.UNKNOWN);
     service =
         new CareersDiscoveryService(
             properties,
@@ -229,6 +231,53 @@ class CareersDiscoveryServiceTest {
     assertThat(outcome.primaryFailure()).isNotNull();
     assertThat(outcome.primaryFailure().reasonCode()).isEqualTo("discovery_host_failure_cutoff");
     verify(httpClient, never()).get(anyString(), anyString());
+  }
+
+  @Test
+  void vendorProbeFailureCutoffIsScopedPerGreenhouseTenant() {
+    CompanyTarget company = new CompanyTarget(7L, "BETA", "Beta Corp", null, "beta.com", null);
+    String homepage = "https://beta.com/";
+    String greenhouseUrl = "https://boards.greenhouse.io/beta";
+
+    when(repository.findCareersDiscoveryState(7L)).thenReturn(null);
+    when(hostCrawlStateService.hasReachedFailureCutoff("boards.greenhouse.io/beta", 6))
+        .thenReturn(false);
+    lenient()
+        .when(httpClient.get(anyString(), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<html>No careers link</html>"));
+    when(httpClient.get(eq(greenhouseUrl), anyString()))
+        .thenReturn(successHtml(greenhouseUrl, "<html>Greenhouse jobs</html>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, true, 6);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    verify(hostCrawlStateService).hasReachedFailureCutoff("boards.greenhouse.io/beta", 6);
+    verify(hostCrawlStateService, never()).hasReachedFailureCutoff("boards.greenhouse.io", 6);
+  }
+
+  @Test
+  void vendorProbeFailureRecordsScopedGreenhouseTenantKey() {
+    CompanyTarget company = new CompanyTarget(8L, "BETA", "Beta Corp", null, "beta.com", null);
+    String homepage = "https://beta.com/";
+    String greenhouseUrl = "https://boards.greenhouse.io/beta";
+
+    when(repository.findCareersDiscoveryState(8L)).thenReturn(null);
+    lenient()
+        .when(httpClient.get(anyString(), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<html>No careers link</html>"));
+    lenient()
+        .when(httpClient.get(anyString(), anyString()))
+        .thenReturn(failureFetch("https://example.com"));
+    when(httpClient.get(eq(greenhouseUrl), anyString())).thenReturn(failureFetch(greenhouseUrl));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, true);
+
+    assertThat(outcome.primaryFailure()).isNotNull();
+    assertThat(outcome.primaryFailure().reasonCode()).isEqualTo("discovery_fetch_failed");
+    verify(hostCrawlStateService)
+        .recordFailure("boards.greenhouse.io/beta", ReasonCodeClassifier.HTTP_5XX);
   }
 
   @Test

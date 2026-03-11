@@ -1466,70 +1466,70 @@ public class CareersDiscoveryService {
     if (hostCrawlStateService == null) {
       return false;
     }
-    String host = hostFromUrl(url);
-    if (host == null) {
+    String hostKey = hostCooldownKeyFromUrl(url);
+    if (hostKey == null) {
       return false;
     }
-    return hostCrawlStateService.nextAllowedAt(host) != null;
+    return hostCrawlStateService.nextAllowedAt(hostKey) != null;
   }
 
   private boolean isHostAtFailureCutoff(String url, int hostFailureCutoff) {
     if (hostCrawlStateService == null) {
       return false;
     }
-    String host = hostFromUrl(url);
-    if (host == null) {
+    String hostKey = hostCooldownKeyFromUrl(url);
+    if (hostKey == null) {
       return false;
     }
     int cutoff = Math.max(1, hostFailureCutoff);
-    return hostCrawlStateService.hasReachedFailureCutoff(host, cutoff);
+    return hostCrawlStateService.hasReachedFailureCutoff(hostKey, cutoff);
   }
 
   private void recordCooldownFailure(String url, String category) {
     if (hostCrawlStateService == null) {
       return;
     }
-    String host = hostFromUrl(url);
-    if (host == null) {
+    String hostKey = hostCooldownKeyFromUrl(url);
+    if (hostKey == null) {
       return;
     }
-    hostCrawlStateService.recordFailure(host, category);
+    hostCrawlStateService.recordFailure(hostKey, category);
   }
 
   private void recordCooldownFromFetch(String url, HttpFetchResult fetch) {
     if (hostCrawlStateService == null) {
       return;
     }
-    String host = hostFromUrl(url);
-    if (host == null || fetch == null) {
+    String hostKey = hostCooldownKeyFromUrl(url);
+    if (hostKey == null || fetch == null) {
       return;
     }
     if (fetch.isSuccessful()) {
-      hostCrawlStateService.recordSuccess(host);
+      hostCrawlStateService.recordSuccess(hostKey);
       return;
     }
     if (fetch.statusCode() == 429) {
-      hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.HTTP_429_RATE_LIMIT);
+      hostCrawlStateService.recordFailure(hostKey, ReasonCodeClassifier.HTTP_429_RATE_LIMIT);
       return;
     }
     if (fetch.statusCode() == 401 || fetch.statusCode() == 403) {
-      hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.HTTP_401_403);
+      hostCrawlStateService.recordFailure(hostKey, ReasonCodeClassifier.HTTP_401_403);
       return;
     }
     if (fetch.statusCode() >= 500 && fetch.statusCode() < 600) {
-      hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.HTTP_5XX);
+      hostCrawlStateService.recordFailure(hostKey, ReasonCodeClassifier.HTTP_5XX);
       return;
     }
     if (fetch.statusCode() == 408
         || (fetch.errorCode() != null
             && fetch.errorCode().toLowerCase(Locale.ROOT).contains("timeout"))) {
-      hostCrawlStateService.recordFailure(host, ReasonCodeClassifier.TIMEOUT);
+      hostCrawlStateService.recordFailure(hostKey, ReasonCodeClassifier.TIMEOUT);
       return;
     }
     if (fetch.errorCode() != null
         && fetch.errorCode().toLowerCase(Locale.ROOT).contains("io_error")) {
       hostCrawlStateService.recordFailure(
-          host, ReasonCodeClassifier.fromErrorCode(fetch.errorCode(), fetch.errorMessage()));
+          hostKey, ReasonCodeClassifier.fromErrorCode(fetch.errorCode(), fetch.errorMessage()));
     }
   }
 
@@ -1537,11 +1537,52 @@ public class CareersDiscoveryService {
     if (hostCrawlStateService == null) {
       return;
     }
-    String host = hostFromUrl(url);
-    if (host == null) {
+    String hostKey = hostCooldownKeyFromUrl(url);
+    if (hostKey == null) {
       return;
     }
-    hostCrawlStateService.recordSuccess(host);
+    hostCrawlStateService.recordSuccess(hostKey);
+  }
+
+  private String hostCooldownKeyFromUrl(String url) {
+    if (url == null || url.isBlank()) {
+      return null;
+    }
+    try {
+      java.net.URI uri = new java.net.URI(url);
+      String host = uri.getHost();
+      if (host == null || host.isBlank()) {
+        return null;
+      }
+      String normalizedHost = host.toLowerCase(Locale.ROOT);
+      String tenant = multiTenantVendorTenant(uri, normalizedHost);
+      return tenant == null ? normalizedHost : normalizedHost + "/" + tenant;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  private String multiTenantVendorTenant(java.net.URI uri, String host) {
+    if (uri == null || host == null) {
+      return null;
+    }
+    if (!"boards.greenhouse.io".equals(host)
+        && !"jobs.lever.co".equals(host)
+        && !"jobs.smartrecruiters.com".equals(host)) {
+      return null;
+    }
+    String path = uri.getPath();
+    if (path == null || path.isBlank() || "/".equals(path)) {
+      return null;
+    }
+    String[] segments = path.split("/");
+    for (String segment : segments) {
+      String normalized = normalizeSlugToken(segment);
+      if (normalized != null) {
+        return normalized;
+      }
+    }
+    return null;
   }
 
   private String hostFromUrl(String url) {
