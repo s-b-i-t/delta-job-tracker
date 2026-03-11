@@ -57,6 +57,14 @@ class AtsDetectorTest {
   }
 
   @Test
+  void detectsPaylocity() {
+    assertEquals(
+        AtsType.PAYLOCITY,
+        detector.detect(
+            "https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc"));
+  }
+
+  @Test
   void unknownForRegularCompanySite() {
     assertEquals(AtsType.UNKNOWN, detector.detect("https://example.com/careers"));
   }
@@ -72,5 +80,12 @@ class AtsDetectorTest {
   void detectsSuccessFactorsFromHtmlMarkers() {
     String html = "<a href='https://career2.successfactors.eu/career?company=acme'>Jobs</a>";
     assertEquals(AtsType.SUCCESSFACTORS, detector.detect("https://example.com/careers", html));
+  }
+
+  @Test
+  void detectsPaylocityFromHtmlMarkers() {
+    String html =
+        "<a href='https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc'>Jobs</a>";
+    assertEquals(AtsType.PAYLOCITY, detector.detect("https://example.com/careers", html));
   }
 }

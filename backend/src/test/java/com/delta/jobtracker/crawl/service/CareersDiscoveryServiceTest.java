@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -205,6 +206,35 @@ class CareersDiscoveryServiceTest {
             eq(0.92),
             any(Instant.class),
             eq("sitemap"),
+            eq(true));
+  }
+
+  @Test
+  void careersLandingPaylocityLinkIsPersistedAsEndpoint() {
+    CompanyTarget company = new CompanyTarget(9L, "ABUS", "Arbutus Biopharma Corp", null, "arbutusbio.com", null);
+    String homepage = "https://arbutusbio.com/";
+    String careersUrl = "https://www.arbutusbio.com/culture-careers/";
+    String paylocityUrl =
+        "https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc";
+    when(repository.findCareersDiscoveryState(9L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/culture-careers/\">Careers</a>"));
+    when(httpClient.get(contains("culture-careers"), anyString(), anyInt()))
+        .thenReturn(successHtml(careersUrl, "<a href=\"" + paylocityUrl + "\">Open roles</a>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(9L),
+            eq(AtsType.PAYLOCITY),
+            eq(paylocityUrl),
+            eq(careersUrl),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing"),
             eq(true));
   }
 

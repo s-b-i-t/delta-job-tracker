@@ -45,6 +45,9 @@ public class AtsDetector {
     if (host.contains("successfactors") || host.contains("jobs.sap.com")) {
       return AtsType.SUCCESSFACTORS;
     }
+    if (host.contains("recruiting.paylocity.com")) {
+      return AtsType.PAYLOCITY;
+    }
     return AtsType.UNKNOWN;
   }
 
@@ -88,6 +91,9 @@ public class AtsDetector {
         || lower.contains("career2.successfactors.eu")
         || lower.contains("jobs.sap.com")) {
       return AtsType.SUCCESSFACTORS;
+    }
+    if (lower.contains("recruiting.paylocity.com/recruiting/jobs/")) {
+      return AtsType.PAYLOCITY;
     }
     return AtsType.UNKNOWN;
   }
