@@ -21,7 +21,9 @@ import com.delta.jobtracker.crawl.model.DomainResolutionResult;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URLDecoder;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -249,6 +251,326 @@ class DomainResolutionServiceTest {
   }
 
   @Test
+  void strongIdentifierNoItemWithoutEquivalentSiblingEvidenceRemainsUnresolved() {
+    CompanyIdentity common =
+        new CompanyIdentity(
+            70L, "ACR", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    CompanyIdentity preferred =
+        new CompanyIdentity(
+            71L, "ACR-PC", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    when(repository.findCompaniesMissingDomain(2)).thenReturn(List.of(common, preferred));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenReturn(failedHtml("https://acrescommercialrealty.com/", 404, "http_404"));
+
+    DomainResolutionResult result = service.resolveMissingDomains(2);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(2);
+    assertThat(result.resolvedCount()).isZero();
+    assertThat(result.noItemCount()).isEqualTo(2);
+    assertThat(result.metrics().resolvedByMethod()).doesNotContainKey("EQUIVALENT_CIK");
+  }
+
+  @Test
+  void strongIdentifierNoItemReusesExistingEquivalentCikDomain() {
+    CompanyIdentity common =
+        new CompanyIdentity(
+            70L, "ACR", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    CompanyIdentity preferred =
+        new CompanyIdentity(
+            71L, "ACR-PC", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    when(repository.findCompaniesMissingDomain(2)).thenReturn(List.of(common, preferred));
+    when(repository.findEquivalentResolvedDomainsByCompanyIds(anyList()))
+        .thenReturn(
+            java.util.Map.of(
+                70L,
+                new CrawlJdbcRepository.EquivalentResolvedDomainEvidence(
+                    70L,
+                    "acrescommercialrealty.com",
+                    null,
+                    "WIKIDATA",
+                    0.95,
+                    Instant.parse("2026-03-12T12:00:00Z"),
+                    "cik",
+                    "Q999"),
+                71L,
+                new CrawlJdbcRepository.EquivalentResolvedDomainEvidence(
+                    71L,
+                    "acrescommercialrealty.com",
+                    null,
+                    "WIKIDATA",
+                    0.95,
+                    Instant.parse("2026-03-12T12:00:00Z"),
+                    "cik",
+                    "Q999")));
+
+    DomainResolutionResult result = service.resolveMissingDomains(2);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(2);
+    assertThat(result.resolvedCount()).isEqualTo(2);
+    assertThat(result.noItemCount()).isZero();
+    assertThat(result.metrics().resolvedByMethod()).containsEntry("EQUIVALENT_CIK", 2);
+    verify(wdqsHttpClient, never()).postForm(anyString(), anyString(), anyString());
+    verify(repository, times(2))
+        .upsertCompanyDomain(
+            anyLong(),
+            eq("acrescommercialrealty.com"),
+            isNull(),
+            eq("CIK_EQUIVALENT"),
+            eq(0.95),
+            any(Instant.class),
+            eq("cik"),
+            eq("Q999"));
+  }
+
+  @Test
+  void legalSuffixNormalizationRepresentativeLaneWithoutTitleRecoveryStaysNoItem() {
+    List<CompanyIdentity> companies =
+        List.of(
+            new CompanyIdentity(
+                80L, "AAMI", "Acadian Asset Management Inc.", null, null, "0001748824", null, null, null, null),
+            new CompanyIdentity(
+                81L, "AAVXF", "Abivax S.A.", null, null, "0001956827", null, null, null, null),
+            new CompanyIdentity(
+                82L, "ADC", "AGREE REALTY CORP", null, null, "0000917251", null, null, null, null),
+            new CompanyIdentity(
+                83L, "ACRE", "Ares Commercial Real Estate Corp", null, null, "0001529377", null, null, null, null),
+            new CompanyIdentity(
+                84L, "AD", "ARRAY DIGITAL INFRASTRUCTURE, INC.", null, null, "0000821130", null, null, null, null),
+            new CompanyIdentity(
+                85L, "AAUC", "Allied Gold Corp", null, null, "0001993344", null, null, null, null));
+    when(repository.findCompaniesMissingDomain(6)).thenReturn(companies);
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()))
+        .thenReturn(successFetch(wdqsEmptyResponse()))
+        .thenReturn(successFetch(wdqsEmptyResponse()))
+        .thenReturn(successFetch(wdqsEmptyResponse()))
+        .thenReturn(successFetch(wdqsEmptyResponse()))
+        .thenReturn(successFetch(wdqsEmptyResponse()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenReturn(failedHtml("https://example.com/", 404, "http_404"));
+
+    DomainResolutionResult result = service.resolveMissingDomains(6);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(6);
+    assertThat(result.resolvedCount()).isZero();
+    assertThat(result.noItemCount()).isEqualTo(6);
+    assertThat(result.metrics().resolvedByMethod()).doesNotContainKey("WIKIDATA");
+  }
+
+  @Test
+  void legalSuffixNormalizationRepresentativeLaneRecoversStrongIdentifierNoItemRows() {
+    List<CompanyIdentity> companies =
+        List.of(
+            new CompanyIdentity(
+                80L, "AAMI", "Acadian Asset Management Inc.", null, null, "0001748824", null, null, null, null),
+            new CompanyIdentity(
+                81L, "AAVXF", "Abivax S.A.", null, null, "0001956827", null, null, null, null),
+            new CompanyIdentity(
+                82L, "ADC", "AGREE REALTY CORP", null, null, "0000917251", null, null, null, null),
+            new CompanyIdentity(
+                83L, "ACRE", "Ares Commercial Real Estate Corp", null, null, "0001529377", null, null, null, null),
+            new CompanyIdentity(
+                84L, "AD", "ARRAY DIGITAL INFRASTRUCTURE, INC.", null, null, "0000821130", null, null, null, null),
+            new CompanyIdentity(
+                85L, "AAUC", "Allied Gold Corp", null, null, "0001993344", null, null, null, null));
+    when(repository.findCompaniesMissingDomain(6)).thenReturn(companies);
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenAnswer(
+            invocation ->
+                normalizedTitleAwareWdqsResponse(invocation.getArgument(1, String.class)));
+
+    DomainResolutionResult result = service.resolveMissingDomains(6);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(6);
+    assertThat(result.resolvedCount()).isEqualTo(6);
+    assertThat(result.noItemCount()).isZero();
+    assertThat(result.metrics().resolvedByMethod()).containsEntry("WIKIDATA", 6);
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(80L),
+            eq("acadian-asset.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("normalized_company_name"),
+            eq("Q800"));
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(81L),
+            eq("abivax.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("normalized_company_name"),
+            eq("Q801"));
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(82L),
+            eq("agree.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("normalized_company_name"),
+            eq("Q802"));
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(83L),
+            eq("arescre.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("normalized_company_name"),
+            eq("Q803"));
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(84L),
+            eq("arrayinfra.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("normalized_company_name"),
+            eq("Q804"));
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(85L),
+            eq("alliedgold.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("normalized_company_name"),
+            eq("Q805"));
+  }
+
+  @Test
+  void officialSiteIrFallbackRepresentativeLaneRecoversTargetRows() {
+    service = createServiceWithComOnlyHeuristicTlds();
+    List<CompanyIdentity> companies =
+        List.of(
+            new CompanyIdentity(
+                90L, "AAMI", "Acadian Asset Management Inc.", null, null, "0001748824", null, null, null, null),
+            new CompanyIdentity(
+                91L, "ACRE", "Ares Commercial Real Estate Corp", null, null, "0001529377", null, null, null, null),
+            new CompanyIdentity(
+                92L, "AD", "ARRAY DIGITAL INFRASTRUCTURE, INC.", null, null, "0000821130", null, null, null, null));
+    when(repository.findCompaniesMissingDomain(3)).thenReturn(companies);
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              String url = invocation.getArgument(0, String.class);
+              if ("https://aami.com/".equals(url)) {
+                return successHtml(
+                    url,
+                    """
+                    <html><head><title>Acadian Asset Management (NYSE: AAMI) | Investor Relations</title></head>
+                    <body>Shareholders and investors</body></html>
+                    """);
+              }
+              if ("https://acre.com/".equals(url)) {
+                return successHtmlRedirect(
+                    url,
+                    "https://investors.arescre.com/",
+                    """
+                    <html><head>
+                      <title>Investor Relations</title>
+                      <meta property="og:site_name" content="Ares CRE" />
+                    </head>
+                    <body>Ares Commercial Real Estate shareholders NYSE: ACRE</body></html>
+                    """);
+              }
+              if ("https://ad.com/".equals(url)) {
+                return successHtmlRedirect(
+                    url,
+                    "https://investors.arrayinc.com/",
+                    """
+                    <html><head>
+                      <title>Array | NYSE: AD | Investor Relations</title>
+                      <meta property="og:site_name" content="Array" />
+                    </head>
+                    <body>Investors</body></html>
+                    """);
+              }
+              return failedHtml(url, 404, "http_404");
+            });
+
+    DomainResolutionResult result = service.resolveMissingDomains(3);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(3);
+    assertThat(result.resolvedCount()).isEqualTo(3);
+    assertThat(result.noItemCount()).isZero();
+    assertThat(result.metrics().resolvedByMethod()).containsEntry("HEURISTIC", 3);
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(90L),
+            eq("aami.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(91L),
+            eq("investors.arescre.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(92L),
+            eq("investors.arrayinc.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+  }
+
+  @Test
+  void officialSiteIrFallbackRejectsTickerOnlyFalsePositive() {
+    service = createServiceWithComOnlyHeuristicTlds();
+    CompanyIdentity company =
+        new CompanyIdentity(
+            93L, "ADC", "AGREE REALTY CORP", null, null, "0000917251", null, null, null, null);
+    when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              String url = invocation.getArgument(0, String.class);
+              if ("https://adc.com/".equals(url)) {
+                return successHtml(
+                    url,
+                    """
+                    <html><head><title>Generic Holdings (NYSE: ADC) | Investor Relations</title></head>
+                    <body>Investors and shareholders</body></html>
+                    """);
+              }
+              return failedHtml(url, 404, "http_404");
+            });
+
+    DomainResolutionResult result = service.resolveMissingDomains(1);
+
+    assertThat(result.resolvedCount()).isZero();
+    assertThat(result.noItemCount()).isEqualTo(1);
+  }
+
   void reportsWdqsTimeoutWhenQueryTimesOut() {
     CompanyIdentity company =
         new CompanyIdentity(
@@ -766,6 +1088,21 @@ class DomainResolutionServiceTest {
         null);
   }
 
+  private HttpFetchResult successHtmlRedirect(String requestedUrl, String finalUrl, String body) {
+    return new HttpFetchResult(
+        requestedUrl,
+        URI.create(finalUrl),
+        200,
+        body,
+        body == null ? null : body.getBytes(),
+        "text/html",
+        null,
+        Instant.now(),
+        Duration.ofMillis(5),
+        null,
+        null);
+  }
+
   private HttpFetchResult failedHtml(String url, int status, String errorCode) {
     return new HttpFetchResult(
         url,
@@ -811,6 +1148,55 @@ class DomainResolutionServiceTest {
             """;
   }
 
+  private DomainResolutionService createServiceWithComOnlyHeuristicTlds() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getData().setDomainsCsv("");
+    properties.getDomainResolution().setWdqsMinDelayMs(0);
+    properties.getDomainResolution().setBatchSize(10);
+    properties.getDomainResolution().setHeuristicTlds(List.of("com"));
+    DomainResolutionService customizedService =
+        new DomainResolutionService(
+            properties, repository, wdqsHttpClient, politeHttpClient, new ObjectMapper());
+    when(repository.findEquivalentResolvedDomainsByCompanyIds(anyList())).thenReturn(java.util.Map.of());
+    return customizedService;
+  }
+
+  private HttpFetchResult normalizedTitleAwareWdqsResponse(String formBody) {
+    String decoded = URLDecoder.decode(formBody, StandardCharsets.UTF_8);
+    if (decoded.contains("wdt:P5531")) {
+      return successFetch(wdqsEmptyResponse());
+    }
+    if (decoded.contains("\"Acadian Asset Management\"@en")) {
+      return successFetch(wdqsTitleResponse("Acadian Asset Management", "Q800", "https://acadian-asset.com"));
+    }
+    if (decoded.contains("\"Abivax\"@en")) {
+      return successFetch(wdqsTitleResponse("Abivax", "Q801", "https://abivax.com"));
+    }
+    if (decoded.contains("\"AGREE REALTY\"@en")) {
+      return successFetch(wdqsTitleResponse("AGREE REALTY", "Q802", "https://agree.com"));
+    }
+    if (decoded.contains("\"Ares Commercial Real Estate\"@en")) {
+      return successFetch(
+          wdqsTitleResponse("Ares Commercial Real Estate", "Q803", "https://arescre.com"));
+    }
+    if (decoded.contains("\"ARRAY DIGITAL INFRASTRUCTURE\"@en")) {
+      return successFetch(
+          wdqsTitleResponse("ARRAY DIGITAL INFRASTRUCTURE", "Q804", "https://arrayinfra.com"));
+    }
+    if (decoded.contains("\"Allied Gold\"@en")) {
+      return successFetch(wdqsTitleResponse("Allied Gold", "Q805", "https://alliedgold.com"));
+    }
+    return successFetch(wdqsEmptyResponse());
+  }
+
+  private String wdqsTitleResponse(String candidateTitle, String qid, String website) {
+    return """
+            {"results":{"bindings":[
+              {"candidateTitle":{"value":"%s"},"articleTitle":{"value":"%s"},"item":{"value":"http://www.wikidata.org/entity/%s"},"officialWebsite":{"value":"%s"}}
+            ]}}
+            """
+        .formatted(candidateTitle, candidateTitle, qid, website);
+  }
   private String infoboxHtmlWithWebsite(String url) {
     return """
         <html><body>
