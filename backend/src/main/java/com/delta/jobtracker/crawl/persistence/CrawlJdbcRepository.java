@@ -1810,6 +1810,62 @@ public class CrawlJdbcRepository {
         companyIdentityRowMapper());
   }
 
+  public Map<Long, EquivalentResolvedDomainEvidence> findEquivalentResolvedDomainsByCompanyIds(
+      List<Long> companyIds) {
+    if (companyIds == null || companyIds.isEmpty()) {
+      return Map.of();
+    }
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("companyIds", companyIds);
+    List<EquivalentResolvedDomainEvidence> rows =
+        jdbc.query(
+            """
+                SELECT target.id AS target_company_id,
+                       cd.domain,
+                       cd.careers_hint_url,
+                       cd.source,
+                       cd.confidence,
+                       cd.resolved_at,
+                       cd.resolution_method,
+                       cd.wikidata_qid
+                FROM companies target
+                JOIN companies source ON source.cik = target.cik
+                JOIN company_domains cd ON cd.company_id = source.id
+                WHERE target.id IN (:companyIds)
+                  AND target.cik IS NOT NULL
+                  AND target.cik <> ''
+                  AND source.id <> target.id
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains conflicting
+                    WHERE conflicting.company_id = target.id
+                      AND conflicting.domain <> cd.domain
+                  )
+                  AND (
+                    SELECT COUNT(DISTINCT cd2.domain)
+                    FROM company_domains cd2
+                    JOIN companies c2 ON c2.id = cd2.company_id
+                    WHERE c2.cik = target.cik
+                  ) = 1
+                ORDER BY target.id, cd.resolved_at DESC, cd.confidence DESC
+                """,
+            params,
+            (rs, rowNum) ->
+                new EquivalentResolvedDomainEvidence(
+                    rs.getLong("target_company_id"),
+                    rs.getString("domain"),
+                    rs.getString("careers_hint_url"),
+                    rs.getString("source"),
+                    rs.getDouble("confidence"),
+                    toInstant(rs.getTimestamp("resolved_at")),
+                    rs.getString("resolution_method"),
+                    rs.getString("wikidata_qid")));
+    Map<Long, EquivalentResolvedDomainEvidence> byCompanyId = new LinkedHashMap<>();
+    for (EquivalentResolvedDomainEvidence row : rows) {
+      byCompanyId.putIfAbsent(row.targetCompanyId(), row);
+    }
+    return Map.copyOf(byCompanyId);
+  }
+
   private MapSqlParameterSource domainResolutionSelectionParams(Integer limit) {
     Instant now = Instant.now();
     int cacheTtlMinutes = properties.getDomainResolution().getCacheTtlMinutes();
@@ -2776,6 +2832,16 @@ public class CrawlJdbcRepository {
   }
 
   private record EquivalentDomainFanoutCandidate(
+      long targetCompanyId,
+      String domain,
+      String careersHintUrl,
+      String source,
+      double confidence,
+      Instant resolvedAt,
+      String resolutionMethod,
+      String wikidataQid) {}
+
+  public record EquivalentResolvedDomainEvidence(
       long targetCompanyId,
       String domain,
       String careersHintUrl,

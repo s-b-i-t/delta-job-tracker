@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -45,6 +46,7 @@ public class DomainResolutionService {
   private static final String CIK_PROPERTY = "P5531";
   private static final String METHOD_WIKIPEDIA = "WIKIPEDIA_TITLE";
   private static final String METHOD_CIK = "CIK";
+  private static final String METHOD_EQUIVALENT_CIK = "EQUIVALENT_CIK";
   private static final String METHOD_HEURISTIC = "HEURISTIC_NAME";
   private static final String METHOD_WIKIPEDIA_INFOBOX = "WIKIPEDIA_INFOBOX";
   private static final String METHOD_NONE = "NONE";
@@ -215,6 +217,9 @@ public class DomainResolutionService {
     Counts counts = new Counts();
     ErrorCollector errors = new ErrorCollector();
     Map<String, HttpFetchResult> heuristicFetchCache = new HashMap<>();
+    Map<Long, CrawlJdbcRepository.EquivalentResolvedDomainEvidence> equivalentDomainsByCompanyId =
+        repository.findEquivalentResolvedDomainsByCompanyIds(
+            companies.stream().map(CompanyIdentity::companyId).collect(Collectors.toList()));
     HeuristicBudget heuristicBudget = new HeuristicBudget(HEURISTIC_MAX_TOTAL_DURATION_MS);
     int totalWithTitle = 0;
     int totalWithCik = 0;
@@ -259,6 +264,10 @@ public class DomainResolutionService {
           break;
         }
         Instant now = Instant.now();
+        if (tryEquivalentCikDomainFallback(
+            company, equivalentDomainsByCompanyId.get(company.companyId()), counts, metrics, now)) {
+          continue;
+        }
         if (hasWikipediaTitle(company)) {
           if (shouldSkipCached(company, METHOD_WIKIPEDIA, now)) {
             if (hasCik(company) && !shouldSkipCached(company, METHOD_CIK, now)) {
@@ -530,6 +539,35 @@ public class DomainResolutionService {
       }
     }
     return null;
+  }
+
+  private boolean tryEquivalentCikDomainFallback(
+      CompanyIdentity company,
+      CrawlJdbcRepository.EquivalentResolvedDomainEvidence evidence,
+      Counts counts,
+      ResolutionMetricsCollector metrics,
+      Instant now) {
+    if (company == null || evidence == null) {
+      return false;
+    }
+    String domain = evidence.domain();
+    if (domain == null || domain.isBlank()) {
+      return false;
+    }
+    repository.upsertCompanyDomain(
+        company.companyId(),
+        domain,
+        evidence.careersHintUrl(),
+        "CIK_EQUIVALENT",
+        evidence.confidence(),
+        evidence.resolvedAt() == null ? now : evidence.resolvedAt(),
+        evidence.resolutionMethod() == null ? METHOD_EQUIVALENT_CIK : evidence.resolutionMethod(),
+        evidence.wikidataQid());
+    repository.updateCompanyDomainResolutionCache(
+        company.companyId(), METHOD_EQUIVALENT_CIK, STATUS_RESOLVED, null, now);
+    counts.resolved++;
+    metrics.recordResolved("EQUIVALENT_CIK");
+    return true;
   }
 
   private void applyMatch(

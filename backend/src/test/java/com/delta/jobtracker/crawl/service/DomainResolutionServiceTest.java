@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -49,6 +50,7 @@ class DomainResolutionServiceTest {
     service =
         new DomainResolutionService(
             properties, repository, wdqsHttpClient, politeHttpClient, new ObjectMapper());
+    when(repository.findEquivalentResolvedDomainsByCompanyIds(anyList())).thenReturn(java.util.Map.of());
   }
 
   @Test
@@ -246,6 +248,80 @@ class DomainResolutionServiceTest {
             any(Instant.class),
             eq("WIKIPEDIA_INFOBOX"),
             isNull());
+  }
+
+  @Test
+  void strongIdentifierNoItemWithoutEquivalentSiblingEvidenceRemainsUnresolved() {
+    CompanyIdentity common =
+        new CompanyIdentity(
+            70L, "ACR", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    CompanyIdentity preferred =
+        new CompanyIdentity(
+            71L, "ACR-PC", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    when(repository.findCompaniesMissingDomain(2)).thenReturn(List.of(common, preferred));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenReturn(failedHtml("https://acrescommercialrealty.com/", 404, "http_404"));
+
+    DomainResolutionResult result = service.resolveMissingDomains(2);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(2);
+    assertThat(result.resolvedCount()).isZero();
+    assertThat(result.noItemCount()).isEqualTo(2);
+    assertThat(result.metrics().resolvedByMethod()).doesNotContainKey("EQUIVALENT_CIK");
+  }
+
+  @Test
+  void strongIdentifierNoItemReusesExistingEquivalentCikDomain() {
+    CompanyIdentity common =
+        new CompanyIdentity(
+            70L, "ACR", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    CompanyIdentity preferred =
+        new CompanyIdentity(
+            71L, "ACR-PC", "ACRES Commercial Realty Corp.", null, null, "0001332551", null, null, null, null);
+    when(repository.findCompaniesMissingDomain(2)).thenReturn(List.of(common, preferred));
+    when(repository.findEquivalentResolvedDomainsByCompanyIds(anyList()))
+        .thenReturn(
+            java.util.Map.of(
+                70L,
+                new CrawlJdbcRepository.EquivalentResolvedDomainEvidence(
+                    70L,
+                    "acrescommercialrealty.com",
+                    null,
+                    "WIKIDATA",
+                    0.95,
+                    Instant.parse("2026-03-12T12:00:00Z"),
+                    "cik",
+                    "Q999"),
+                71L,
+                new CrawlJdbcRepository.EquivalentResolvedDomainEvidence(
+                    71L,
+                    "acrescommercialrealty.com",
+                    null,
+                    "WIKIDATA",
+                    0.95,
+                    Instant.parse("2026-03-12T12:00:00Z"),
+                    "cik",
+                    "Q999")));
+
+    DomainResolutionResult result = service.resolveMissingDomains(2);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(2);
+    assertThat(result.resolvedCount()).isEqualTo(2);
+    assertThat(result.noItemCount()).isZero();
+    assertThat(result.metrics().resolvedByMethod()).containsEntry("EQUIVALENT_CIK", 2);
+    verify(wdqsHttpClient, never()).postForm(anyString(), anyString(), anyString());
+    verify(repository, times(2))
+        .upsertCompanyDomain(
+            anyLong(),
+            eq("acrescommercialrealty.com"),
+            isNull(),
+            eq("CIK_EQUIVALENT"),
+            eq(0.95),
+            any(Instant.class),
+            eq("cik"),
+            eq("Q999"));
   }
 
   @Test
