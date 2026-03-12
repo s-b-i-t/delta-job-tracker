@@ -54,6 +54,9 @@ public class AtsDetector {
     if (host.contains("dayforcehcm.com")) {
       return AtsType.DAYFORCE;
     }
+    if (host.contains("isolvedhire.com")) {
+      return AtsType.ISOLVEDHIRE;
+    }
     return AtsType.UNKNOWN;
   }
 
@@ -108,6 +111,9 @@ public class AtsDetector {
         || lower.contains("careers.dayforcehcm.com/")
         || lower.contains("dayforcehcm.com/careers/")) {
       return AtsType.DAYFORCE;
+    }
+    if (lower.contains("isolvedhire.com/pages/careeropportunities")) {
+      return AtsType.ISOLVEDHIRE;
     }
     return AtsType.UNKNOWN;
   }

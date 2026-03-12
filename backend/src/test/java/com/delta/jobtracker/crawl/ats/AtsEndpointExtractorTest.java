@@ -160,4 +160,16 @@ class AtsEndpointExtractorTest {
             new AtsDetectionRecord(
                 AtsType.DAYFORCE, "https://careers.dayforcehcm.com/en-US/acmejobs"));
   }
+
+  @Test
+  void extractsISolvedHireEndpointFromLandingLink() {
+    String html =
+        "<a href=\"https://awholdings.isolvedhire.com/pages/careeropportunities/\">Jobs</a>";
+    List<AtsDetectionRecord> endpoints = extractor.extract("https://example.com/careers", html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.ISOLVEDHIRE,
+                "https://awholdings.isolvedhire.com/pages/careeropportunities"));
+  }
 }

@@ -219,6 +219,41 @@ class CareersDiscoveryServiceTest {
   }
 
   @Test
+  void landingPageExtractsDirectISolvedHireEndpoint() {
+    CompanyTarget company =
+        new CompanyTarget(
+            13L, "AAWH", "Ascend Wellness Holdings, Inc.", null, "awholdings.com", null);
+    String homepage = "https://awholdings.com/";
+    String careers = "https://awholdings.com/careers";
+    String endpoint = "https://awholdings.isolvedhire.com/pages/careeropportunities";
+
+    when(repository.findCareersDiscoveryState(13L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careers), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(
+                careers,
+                "<a href=\"https://awholdings.isolvedhire.com/pages/careeropportunities/\">Search jobs</a>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.funnel().endpointUrl()).isEqualTo(endpoint);
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(13L),
+            eq(AtsType.ISOLVEDHIRE),
+            eq(endpoint),
+            eq(careers),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing"),
+            eq(true));
+  }
+
+  @Test
   void fullModeFollowupExtractsSuccessFactorsEndpointFromAssets() {
     CompanyTarget company = new CompanyTarget(12L, "ADMA", "ADMA BIOLOGICS, INC.", null, "admabiologics.com", null);
     String homepage = "https://admabiologics.com/";

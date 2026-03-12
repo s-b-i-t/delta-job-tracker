@@ -80,6 +80,13 @@ class AtsDetectorTest {
   }
 
   @Test
+  void detectsISolvedHire() {
+    assertEquals(
+        AtsType.ISOLVEDHIRE,
+        detector.detect("https://awholdings.isolvedhire.com/pages/careeropportunities/"));
+  }
+
+  @Test
   void unknownForRegularCompanySite() {
     assertEquals(AtsType.UNKNOWN, detector.detect("https://example.com/careers"));
   }
@@ -109,5 +116,12 @@ class AtsDetectorTest {
     String html =
         "<iframe src='https://careers.dayforcehcm.com/en-US/acmejobs'></iframe>";
     assertEquals(AtsType.DAYFORCE, detector.detect("https://example.com/careers", html));
+  }
+
+  @Test
+  void detectsISolvedHireFromHtmlMarkers() {
+    String html =
+        "<a href='https://awholdings.isolvedhire.com/pages/careeropportunities/'>Jobs</a>";
+    assertEquals(AtsType.ISOLVEDHIRE, detector.detect("https://example.com/careers", html));
   }
 }

@@ -11,5 +11,6 @@ public enum AtsType {
   PAYLOCITY,
   BRASSRING,
   DAYFORCE,
+  ISOLVEDHIRE,
   UNKNOWN
 }

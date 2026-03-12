@@ -67,6 +67,9 @@ public class AtsEndpointExtractor {
   private static final Pattern DAYFORCE_CAREERS =
       Pattern.compile(
           "(?i)(?:https?:)?//([A-Za-z0-9.-]*dayforcehcm\\.com)/(?:CandidatePortal/[^\"'\\s<>]+|Careers/[^\"'\\s<>]+|[A-Za-z]{2}-[A-Za-z]{2}/[^\"'\\s<>]+)");
+  private static final Pattern ISOLVEDHIRE_CAREERS =
+      Pattern.compile(
+          "(?i)(?:https?:)?//([A-Za-z0-9.-]*isolvedhire\\.com)/(pages/careeropportunities(?:/[^\"'\\s<>]*)?)");
 
   public List<AtsDetectionRecord> extract(String url, String html) {
     Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
@@ -171,6 +174,7 @@ public class AtsEndpointExtractor {
     addPaylocityEndpoints(text, unique);
     addBrassRingEndpoints(text, unique);
     addDayforceEndpoints(text, unique);
+    addISolvedHireEndpoints(text, unique);
   }
 
   private void extractFromStructuredHtml(
@@ -246,6 +250,17 @@ public class AtsEndpointExtractor {
     }
     String key = type.name() + "|" + normalized.toLowerCase(Locale.ROOT);
     unique.putIfAbsent(key, new AtsDetectionRecord(type, normalized));
+  }
+
+  private void addISolvedHireEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher isolvedMatcher = ISOLVEDHIRE_CAREERS.matcher(text);
+    while (isolvedMatcher.find()) {
+      String host = cleanToken(isolvedMatcher.group(1));
+      String path = stripTrailingPunctuation(isolvedMatcher.group(2));
+      if (host != null && path != null) {
+        addEndpoint(unique, AtsType.ISOLVEDHIRE, "https://" + host + "/" + path);
+      }
+    }
   }
 
   private String normalizeEndpointUrl(AtsType type, String raw) {
