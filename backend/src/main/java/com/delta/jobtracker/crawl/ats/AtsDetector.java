@@ -57,6 +57,10 @@ public class AtsDetector {
     if (host.contains("isolvedhire.com")) {
       return AtsType.ISOLVEDHIRE;
     }
+    if (host.contains("careers-api.clearcompany.com")
+        || host.contains("careers-content.clearcompany.com")) {
+      return AtsType.CLEARCOMPANY;
+    }
     return AtsType.UNKNOWN;
   }
 
@@ -114,6 +118,10 @@ public class AtsDetector {
     }
     if (lower.contains("isolvedhire.com/pages/careeropportunities")) {
       return AtsType.ISOLVEDHIRE;
+    }
+    if (lower.contains("careers-content.clearcompany.com/js/v1/career-site")
+        || lower.contains("careers-api.clearcompany.com/v1/")) {
+      return AtsType.CLEARCOMPANY;
     }
     return AtsType.UNKNOWN;
   }

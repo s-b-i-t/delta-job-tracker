@@ -70,6 +70,9 @@ public class AtsEndpointExtractor {
   private static final Pattern ISOLVEDHIRE_CAREERS =
       Pattern.compile(
           "(?i)(?:https?:)?//([A-Za-z0-9.-]*isolvedhire\\.com)/(pages/careeropportunities(?:/[^\"'\\s<>]*)?)");
+  private static final Pattern CLEARCOMPANY_SCRIPT =
+      Pattern.compile(
+          "(?i)(?:https?:)?//careers-content\\.clearcompany\\.com/js/v1/career-site(?:-no-polyfill)?\\.js\\?[^\"'\\s<>]*siteId=([A-Fa-f0-9-]+)");
 
   public List<AtsDetectionRecord> extract(String url, String html) {
     Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
@@ -175,6 +178,7 @@ public class AtsEndpointExtractor {
     addBrassRingEndpoints(text, unique);
     addDayforceEndpoints(text, unique);
     addISolvedHireEndpoints(text, unique);
+    addClearCompanyEndpoints(text, unique);
   }
 
   private void extractFromStructuredHtml(
@@ -259,6 +263,16 @@ public class AtsEndpointExtractor {
       String path = stripTrailingPunctuation(isolvedMatcher.group(2));
       if (host != null && path != null) {
         addEndpoint(unique, AtsType.ISOLVEDHIRE, "https://" + host + "/" + path);
+      }
+    }
+  }
+
+  private void addClearCompanyEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher clearCompanyMatcher = CLEARCOMPANY_SCRIPT.matcher(text);
+    while (clearCompanyMatcher.find()) {
+      String siteId = cleanToken(clearCompanyMatcher.group(1));
+      if (siteId != null) {
+        addEndpoint(unique, AtsType.CLEARCOMPANY, "https://careers-api.clearcompany.com/v1/" + siteId);
       }
     }
   }

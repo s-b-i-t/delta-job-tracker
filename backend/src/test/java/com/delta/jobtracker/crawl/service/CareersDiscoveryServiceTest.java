@@ -334,6 +334,45 @@ class CareersDiscoveryServiceTest {
   }
 
   @Test
+  void fullModeFollowupExtractsClearCompanyEndpointFromApplyPage() {
+    CompanyTarget company =
+        new CompanyTarget(15L, "AAOI", "APPLIED OPTOELECTRONICS, INC.", null, "ao-inc.com", null);
+    String homepage = "https://ao-inc.com/";
+    String careers = "https://ao-inc.com/about-us/careers/";
+    String apply = "https://ao-inc.com/about-us/careers/apply/";
+    String endpoint = "https://careers-api.clearcompany.com/v1/e90c53be-46ba-573b-fb32-9ee0938c90fe";
+
+    when(repository.findCareersDiscoveryState(15L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/about-us/careers/\">Careers</a>"));
+    when(httpClient.get(eq(careers), anyString(), anyInt()))
+        .thenReturn(successHtml(careers, "<a href=\"/about-us/careers/apply/\">Apply</a>"));
+    when(httpClient.get(eq(apply), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(
+                apply,
+                "<script src=\"https://careers-content.clearcompany.com/js/v1/career-site.js?siteId=e90c53be-46ba-573b-fb32-9ee0938c90fe\"></script>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.funnel().endpointUrl()).isEqualTo(endpoint);
+    assertThat(outcome.funnel().atsDiscoveryResult().evidence())
+        .isEqualTo("careers_landing_followup");
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(15L),
+            eq(AtsType.CLEARCOMPANY),
+            eq(endpoint),
+            eq(apply),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing_followup"),
+            eq(true));
+  }
+
+  @Test
   void vendorProbeDoesNotFollowCareersLandingLinks() {
     CompanyTarget company = new CompanyTarget(10L, "ACME", "Acme Corp", null, "acme.com", null);
     String homepage = "https://acme.com/";

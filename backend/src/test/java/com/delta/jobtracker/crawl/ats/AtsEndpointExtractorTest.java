@@ -172,4 +172,16 @@ class AtsEndpointExtractorTest {
                 AtsType.ISOLVEDHIRE,
                 "https://awholdings.isolvedhire.com/pages/careeropportunities"));
   }
+
+  @Test
+  void extractsClearCompanyEndpointFromCareerSiteScript() {
+    String html =
+        "<script src=\"https://careers-content.clearcompany.com/js/v1/career-site.js?siteId=e90c53be-46ba-573b-fb32-9ee0938c90fe\"></script>";
+    List<AtsDetectionRecord> endpoints = extractor.extract("https://example.com/careers", html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.CLEARCOMPANY,
+                "https://careers-api.clearcompany.com/v1/e90c53be-46ba-573b-fb32-9ee0938c90fe"));
+  }
 }

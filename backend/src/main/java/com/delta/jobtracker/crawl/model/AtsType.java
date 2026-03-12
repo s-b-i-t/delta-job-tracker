@@ -12,5 +12,6 @@ public enum AtsType {
   BRASSRING,
   DAYFORCE,
   ISOLVEDHIRE,
+  CLEARCOMPANY,
   UNKNOWN
 }

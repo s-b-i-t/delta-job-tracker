@@ -124,4 +124,11 @@ class AtsDetectorTest {
         "<a href='https://awholdings.isolvedhire.com/pages/careeropportunities/'>Jobs</a>";
     assertEquals(AtsType.ISOLVEDHIRE, detector.detect("https://example.com/careers", html));
   }
+
+  @Test
+  void detectsClearCompanyFromHtmlMarkers() {
+    String html =
+        "<script src='https://careers-content.clearcompany.com/js/v1/career-site.js?siteId=e90c53be-46ba-573b-fb32-9ee0938c90fe'></script>";
+    assertEquals(AtsType.CLEARCOMPANY, detector.detect("https://example.com/careers", html));
+  }
 }
