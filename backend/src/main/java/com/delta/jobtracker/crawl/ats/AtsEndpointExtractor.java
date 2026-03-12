@@ -11,6 +11,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -55,11 +58,21 @@ public class AtsEndpointExtractor {
   private static final Pattern SUCCESSFACTORS_CAREER =
       Pattern.compile(
           "(?i)(?:https?:)?//([A-Za-z0-9.-]*(?:successfactors\\.[A-Za-z.]+|jobs\\.sap\\.com))/career[^\"'\\s<>]*");
+  private static final Pattern PAYLOCITY_JOBS =
+      Pattern.compile(
+          "(?i)(?:https?:)?//recruiting\\.paylocity\\.com/recruiting/jobs/All/[^\"'\\s<>]+");
+  private static final Pattern BRASSRING_SEARCH =
+      Pattern.compile(
+          "(?i)(?:https?:)?//([A-Za-z0-9.-]*brassring\\.com)/TGnewUI/Search/Home/HomeWithPreLoad[^\"'\\s<>]*");
+  private static final Pattern DAYFORCE_CAREERS =
+      Pattern.compile(
+          "(?i)(?:https?:)?//([A-Za-z0-9.-]*dayforcehcm\\.com)/(?:CandidatePortal/[^\"'\\s<>]+|Careers/[^\"'\\s<>]+|[A-Za-z]{2}-[A-Za-z]{2}/[^\"'\\s<>]+)");
 
   public List<AtsDetectionRecord> extract(String url, String html) {
     Map<String, AtsDetectionRecord> unique = new LinkedHashMap<>();
     extractFromText(url, unique);
     extractFromText(html, unique);
+    extractFromStructuredHtml(url, html, unique);
     return new ArrayList<>(unique.values());
   }
 
@@ -155,6 +168,36 @@ public class AtsEndpointExtractor {
     addIcimsEndpoints(text, unique);
     addTaleoEndpoints(text, unique);
     addSuccessFactorsEndpoints(text, unique);
+    addPaylocityEndpoints(text, unique);
+    addBrassRingEndpoints(text, unique);
+    addDayforceEndpoints(text, unique);
+  }
+
+  private void extractFromStructuredHtml(
+      String baseUrl, String html, Map<String, AtsDetectionRecord> unique) {
+    if (html == null || html.isBlank()) {
+      return;
+    }
+    Document doc = Jsoup.parse(html, baseUrl == null ? "" : baseUrl);
+    extractFromElements(doc, "a[href]", "href", unique);
+    extractFromElements(doc, "form[action]", "action", unique);
+    extractFromElements(doc, "iframe[src]", "src", unique);
+    extractFromElements(doc, "script[src]", "src", unique);
+    extractFromElements(doc, "link[href]", "href", unique);
+  }
+
+  private void extractFromElements(
+      Document doc, String selector, String attribute, Map<String, AtsDetectionRecord> unique) {
+    for (Element element : doc.select(selector)) {
+      String url = element.absUrl(attribute);
+      if (url == null || url.isBlank()) {
+        url = element.attr(attribute);
+      }
+      if (url == null || url.isBlank()) {
+        continue;
+      }
+      extractFromText(url, unique);
+    }
   }
 
   private void addSmartRecruitersEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
@@ -237,10 +280,22 @@ public class AtsEndpointExtractor {
       }
     } else if (type == AtsType.SUCCESSFACTORS) {
       path = "/career";
+    } else if (type == AtsType.PAYLOCITY) {
+      path = stripTrailingPunctuation(path);
+    } else if (type == AtsType.BRASSRING) {
+      path = "/TGnewUI/Search/Home/HomeWithPreLoad";
+    } else if (type == AtsType.DAYFORCE) {
+      path = normalizeDayforcePath(path);
     }
     String normalized = "https://" + host + path;
     if (normalized.endsWith("/") && normalized.length() > "https://x/".length()) {
       normalized = normalized.substring(0, normalized.length() - 1);
+    }
+    if (type == AtsType.BRASSRING) {
+      String query = normalizeBrassRingQuery(uri);
+      if (query != null && !query.isBlank()) {
+        normalized = normalized + "?" + query;
+      }
     }
     return normalized;
   }
@@ -324,6 +379,86 @@ public class AtsEndpointExtractor {
       }
       addEndpoint(unique, AtsType.SUCCESSFACTORS, "https://" + host + "/career");
     }
+  }
+
+  private void addPaylocityEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher matcher = PAYLOCITY_JOBS.matcher(text);
+    while (matcher.find()) {
+      addEndpoint(unique, AtsType.PAYLOCITY, matcher.group());
+    }
+  }
+
+  private void addBrassRingEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher matcher = BRASSRING_SEARCH.matcher(text);
+    while (matcher.find()) {
+      addEndpoint(unique, AtsType.BRASSRING, matcher.group());
+    }
+  }
+
+  private void addDayforceEndpoints(String text, Map<String, AtsDetectionRecord> unique) {
+    Matcher matcher = DAYFORCE_CAREERS.matcher(text);
+    while (matcher.find()) {
+      String host = cleanToken(matcher.group(1));
+      String matched = matcher.group();
+      if (host == null || matched == null) {
+        continue;
+      }
+      addEndpoint(unique, AtsType.DAYFORCE, matched);
+    }
+  }
+
+  private String normalizeBrassRingQuery(URI uri) {
+    if (uri == null || uri.getRawQuery() == null || uri.getRawQuery().isBlank()) {
+      return null;
+    }
+    String partnerId = null;
+    String siteId = null;
+    for (String part : uri.getRawQuery().split("&")) {
+      if (part == null || part.isBlank()) {
+        continue;
+      }
+      int idx = part.indexOf('=');
+      String key = idx >= 0 ? part.substring(0, idx) : part;
+      String value = idx >= 0 ? part.substring(idx + 1) : "";
+      if ("partnerid".equalsIgnoreCase(key)) {
+        partnerId = value;
+      } else if ("siteid".equalsIgnoreCase(key)) {
+        siteId = value;
+      }
+    }
+    if ((partnerId == null || partnerId.isBlank()) && (siteId == null || siteId.isBlank())) {
+      return null;
+    }
+    List<String> parts = new ArrayList<>();
+    if (partnerId != null && !partnerId.isBlank()) {
+      parts.add("partnerid=" + partnerId);
+    }
+    if (siteId != null && !siteId.isBlank()) {
+      parts.add("siteid=" + siteId);
+    }
+    return String.join("&", parts);
+  }
+
+  private String normalizeDayforcePath(String rawPath) {
+    List<String> segments = pathSegments(stripQueryAndFragment(rawPath));
+    if (segments.isEmpty()) {
+      return "";
+    }
+    if ("candidateportal".equalsIgnoreCase(segments.get(0))) {
+      if (segments.size() >= 3) {
+        return "/" + segments.get(0) + "/" + segments.get(1) + "/" + segments.get(2);
+      }
+      return "/" + String.join("/", segments);
+    }
+    if ("careers".equalsIgnoreCase(segments.get(0))) {
+      return segments.size() >= 2
+          ? "/" + segments.get(0) + "/" + segments.get(1)
+          : "/" + segments.get(0);
+    }
+    if (segments.size() >= 2 && isLocaleSegment(segments.get(0))) {
+      return "/" + segments.get(0) + "/" + segments.get(1);
+    }
+    return "/" + segments.get(0);
   }
 
   private boolean isLocaleSegment(String segment) {

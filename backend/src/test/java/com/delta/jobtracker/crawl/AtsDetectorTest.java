@@ -57,6 +57,29 @@ class AtsDetectorTest {
   }
 
   @Test
+  void detectsPaylocity() {
+    assertEquals(
+        AtsType.PAYLOCITY,
+        detector.detect(
+            "https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc"));
+  }
+
+  @Test
+  void detectsBrassRing() {
+    assertEquals(
+        AtsType.BRASSRING,
+        detector.detect(
+            "https://sjobs.brassring.com/TGnewUI/Search/Home/HomeWithPreLoad?partnerid=25008&siteid=5246"));
+  }
+
+  @Test
+  void detectsDayforce() {
+    assertEquals(
+        AtsType.DAYFORCE,
+        detector.detect("https://careers.dayforcehcm.com/en-US/acmejobs"));
+  }
+
+  @Test
   void unknownForRegularCompanySite() {
     assertEquals(AtsType.UNKNOWN, detector.detect("https://example.com/careers"));
   }
@@ -72,5 +95,19 @@ class AtsDetectorTest {
   void detectsSuccessFactorsFromHtmlMarkers() {
     String html = "<a href='https://career2.successfactors.eu/career?company=acme'>Jobs</a>";
     assertEquals(AtsType.SUCCESSFACTORS, detector.detect("https://example.com/careers", html));
+  }
+
+  @Test
+  void detectsBrassRingFromHtmlMarkers() {
+    String html =
+        "<form action='https://sjobs.brassring.com/TGnewUI/Search/Home/HomeWithPreLoad?partnerid=25008&siteid=5246'></form>";
+    assertEquals(AtsType.BRASSRING, detector.detect("https://example.com/careers", html));
+  }
+
+  @Test
+  void detectsDayforceFromHtmlMarkers() {
+    String html =
+        "<iframe src='https://careers.dayforcehcm.com/en-US/acmejobs'></iframe>";
+    assertEquals(AtsType.DAYFORCE, detector.detect("https://example.com/careers", html));
   }
 }

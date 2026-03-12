@@ -4284,10 +4284,21 @@ public class CrawlJdbcRepository {
       }
     } else if (atsType == AtsType.SUCCESSFACTORS) {
       path = "/career";
+    } else if (atsType == AtsType.BRASSRING) {
+      path = "/TGnewUI/Search/Home/HomeWithPreLoad";
+    } else if (atsType == AtsType.DAYFORCE) {
+      path = normalizeDayforcePath(path);
+    } else if (atsType == AtsType.PAYLOCITY) {
+      path = stripTrailingPunctuation(path);
     }
     String normalized = "https://" + host + path;
     if (greenhouseApi) {
       String query = uri.getRawQuery();
+      if (query != null && !query.isBlank()) {
+        normalized = normalized + "?" + query;
+      }
+    } else if (atsType == AtsType.BRASSRING) {
+      String query = normalizeBrassRingQuery(uri);
       if (query != null && !query.isBlank()) {
         normalized = normalized + "?" + query;
       }
@@ -4296,6 +4307,61 @@ public class CrawlJdbcRepository {
       normalized = normalized.substring(0, normalized.length() - 1);
     }
     return normalized;
+  }
+
+  private String normalizeBrassRingQuery(URI uri) {
+    if (uri == null || uri.getRawQuery() == null || uri.getRawQuery().isBlank()) {
+      return null;
+    }
+    String partnerId = null;
+    String siteId = null;
+    for (String part : uri.getRawQuery().split("&")) {
+      if (part == null || part.isBlank()) {
+        continue;
+      }
+      int idx = part.indexOf('=');
+      String key = idx >= 0 ? part.substring(0, idx) : part;
+      String value = idx >= 0 ? part.substring(idx + 1) : "";
+      if ("partnerid".equalsIgnoreCase(key)) {
+        partnerId = value;
+      } else if ("siteid".equalsIgnoreCase(key)) {
+        siteId = value;
+      }
+    }
+    List<String> params = new ArrayList<>();
+    if (partnerId != null && !partnerId.isBlank()) {
+      params.add("partnerid=" + partnerId);
+    }
+    if (siteId != null && !siteId.isBlank()) {
+      params.add("siteid=" + siteId);
+    }
+    return params.isEmpty() ? null : String.join("&", params);
+  }
+
+  private String normalizeDayforcePath(String rawPath) {
+    List<String> segments = pathSegments(rawPath);
+    if (segments.isEmpty()) {
+      return "";
+    }
+    if ("candidateportal".equalsIgnoreCase(segments.get(0))) {
+      if (segments.size() >= 3) {
+        return "/" + segments.get(0) + "/" + segments.get(1) + "/" + segments.get(2);
+      }
+      return "/" + String.join("/", segments);
+    }
+    if ("careers".equalsIgnoreCase(segments.get(0))) {
+      return segments.size() >= 2
+          ? "/" + segments.get(0) + "/" + segments.get(1)
+          : "/" + segments.get(0);
+    }
+    if (segments.size() >= 2 && isLocaleSegment(segments.get(0))) {
+      return "/" + segments.get(0) + "/" + segments.get(1);
+    }
+    return "/" + segments.get(0);
+  }
+
+  private boolean isLocaleSegment(String segment) {
+    return segment != null && segment.matches("^[a-z]{2}-[A-Z]{2}$");
   }
 
   private Map<String, Integer> readJsonMap(String json) {

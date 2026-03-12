@@ -29,6 +29,25 @@ class CareersLandingLinkExtractorTest {
   }
 
   @Test
+  void followsOnlySameSiteObviousTargets() {
+    String html =
+        """
+        <html><body>
+          <a href=\"/current-openings\">Current Openings</a>
+          <a href=\"https://external.example.net/jobs\">External Jobs</a>
+          <a href=\"/search-jobs\">Search Jobs</a>
+        </body></html>
+        """;
+
+    List<String> ranked = extractor.extractRanked(html, "https://careers.example.com/", 5);
+
+    assertThat(ranked)
+        .containsExactlyInAnyOrder(
+            "https://careers.example.com/current-openings",
+            "https://careers.example.com/search-jobs");
+  }
+
+  @Test
   void defaultFallbackCandidatesAreBoundedAndOrdered() {
     List<String> candidates = extractor.defaultFallbackCandidates("example.com").stream().toList();
 

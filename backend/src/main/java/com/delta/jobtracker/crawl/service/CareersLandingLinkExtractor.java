@@ -21,6 +21,10 @@ class CareersLandingLinkExtractor {
           "career",
           "jobs",
           "job",
+          "openings",
+          "opening",
+          "search",
+          "current-openings",
           "join",
           "talent",
           "opportunit",
@@ -36,6 +40,7 @@ class CareersLandingLinkExtractor {
       return List.of();
     }
     Document doc = Jsoup.parse(html, baseUrl);
+    String baseHost = normalizedHost(baseUrl);
     Map<String, CandidateScore> bestByUrl = new LinkedHashMap<>();
     for (Element anchor : doc.select("a[href]")) {
       String href = anchor.attr("abs:href");
@@ -44,6 +49,9 @@ class CareersLandingLinkExtractor {
       }
       String normalized = normalizeHttpUrl(href);
       if (normalized == null) {
+        continue;
+      }
+      if (!isSameSiteHost(baseHost, normalizedHost(normalized))) {
         continue;
       }
       String text = anchor.text() == null ? "" : anchor.text();
@@ -81,6 +89,11 @@ class CareersLandingLinkExtractor {
     if (urlLower.contains("/careers") || urlLower.contains("/jobs")) {
       score += 4;
     }
+    if (urlLower.contains("/openings")
+        || urlLower.contains("/search")
+        || urlLower.contains("current-openings")) {
+      score += 4;
+    }
     if (urlLower.contains("jobs.") || urlLower.contains("careers.")) {
       score += 3;
     }
@@ -109,6 +122,27 @@ class CareersLandingLinkExtractor {
     } catch (Exception ignored) {
       return null;
     }
+  }
+
+  private String normalizedHost(String rawUrl) {
+    if (rawUrl == null || rawUrl.isBlank()) {
+      return null;
+    }
+    try {
+      URI uri = URI.create(rawUrl.trim());
+      return uri.getHost() == null ? null : uri.getHost().toLowerCase(Locale.ROOT);
+    } catch (Exception ignored) {
+      return null;
+    }
+  }
+
+  private boolean isSameSiteHost(String baseHost, String candidateHost) {
+    if (baseHost == null || candidateHost == null) {
+      return false;
+    }
+    return candidateHost.equals(baseHost)
+        || candidateHost.endsWith("." + baseHost)
+        || baseHost.endsWith("." + candidateHost);
   }
 
   Set<String> defaultFallbackCandidates(String domain) {

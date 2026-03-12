@@ -188,6 +188,74 @@ class CareersDiscoveryServiceTest {
   }
 
   @Test
+  void landingPageExtractsDirectBrassRingEndpoint() {
+    CompanyTarget company = new CompanyTarget(11L, "ADM", "Archer-Daniels-Midland Co", null, "adm.com", null);
+    String homepage = "https://adm.com/";
+    String careers = "https://adm.com/careers";
+    String brassring =
+        "https://sjobs.brassring.com/TGnewUI/Search/Home/HomeWithPreLoad?partnerid=25008&siteid=5246";
+
+    when(repository.findCareersDiscoveryState(11L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careers), anyString(), anyInt()))
+        .thenReturn(successHtml(careers, "<a href=\"" + brassring + "\">Search jobs</a>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.funnel().endpointUrl()).isEqualTo(brassring);
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(11L),
+            eq(AtsType.BRASSRING),
+            eq(brassring),
+            eq(careers),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing"),
+            eq(true));
+  }
+
+  @Test
+  void fullModeFollowupExtractsSuccessFactorsEndpointFromAssets() {
+    CompanyTarget company = new CompanyTarget(12L, "ADMA", "ADMA BIOLOGICS, INC.", null, "admabiologics.com", null);
+    String homepage = "https://admabiologics.com/";
+    String careers = "https://admabiologics.com/careers";
+    String openings = "https://admabiologics.com/current-openings";
+    String endpoint = "https://career4.successfactors.com/career";
+
+    when(repository.findCareersDiscoveryState(12L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careers), anyString(), anyInt()))
+        .thenReturn(successHtml(careers, "<a href=\"/current-openings\">Current Openings</a>"));
+    when(httpClient.get(eq(openings), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(
+                openings,
+                "<script src=\"https://career4.successfactors.com/career?company=acme\"></script>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.funnel().endpointUrl()).isEqualTo(endpoint);
+    assertThat(outcome.funnel().atsDiscoveryResult().evidence()).isEqualTo("careers_landing_followup");
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(12L),
+            eq(AtsType.SUCCESSFACTORS),
+            eq(endpoint),
+            eq(openings),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing_followup"),
+            eq(true));
+  }
+
+  @Test
   void vendorProbeDoesNotFollowCareersLandingLinks() {
     CompanyTarget company = new CompanyTarget(10L, "ACME", "Acme Corp", null, "acme.com", null);
     String homepage = "https://acme.com/";

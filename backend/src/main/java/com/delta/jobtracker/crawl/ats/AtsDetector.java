@@ -45,6 +45,15 @@ public class AtsDetector {
     if (host.contains("successfactors") || host.contains("jobs.sap.com")) {
       return AtsType.SUCCESSFACTORS;
     }
+    if (host.contains("recruiting.paylocity.com")) {
+      return AtsType.PAYLOCITY;
+    }
+    if (host.contains("brassring.com")) {
+      return AtsType.BRASSRING;
+    }
+    if (host.contains("dayforcehcm.com")) {
+      return AtsType.DAYFORCE;
+    }
     return AtsType.UNKNOWN;
   }
 
@@ -88,6 +97,17 @@ public class AtsDetector {
         || lower.contains("career2.successfactors.eu")
         || lower.contains("jobs.sap.com")) {
       return AtsType.SUCCESSFACTORS;
+    }
+    if (lower.contains("recruiting.paylocity.com/recruiting/jobs/all")) {
+      return AtsType.PAYLOCITY;
+    }
+    if (lower.contains("brassring.com/tgnewui/search/home/homewithpreload")) {
+      return AtsType.BRASSRING;
+    }
+    if (lower.contains("dayforcehcm.com/candidateportal/")
+        || lower.contains("careers.dayforcehcm.com/")
+        || lower.contains("dayforcehcm.com/careers/")) {
+      return AtsType.DAYFORCE;
     }
     return AtsType.UNKNOWN;
   }

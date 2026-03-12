@@ -978,7 +978,10 @@ public class CareersDiscoveryService {
         || lower.contains("icims.com")
         || lower.contains("taleo.net")
         || lower.contains("successfactors.com")
-        || lower.contains("jobs.sap.com");
+        || lower.contains("jobs.sap.com")
+        || lower.contains("recruiting.paylocity.com")
+        || lower.contains("brassring.com")
+        || lower.contains("dayforcehcm.com");
   }
 
   private boolean containsHint(String value) {

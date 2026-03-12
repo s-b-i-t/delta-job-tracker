@@ -114,4 +114,50 @@ class AtsEndpointExtractorTest {
             new AtsDetectionRecord(
                 AtsType.SUCCESSFACTORS, "https://career2.successfactors.eu/career"));
   }
+
+  @Test
+  void extractsPaylocityEndpointFromLandingLink() {
+    String html =
+        "<a href=\"https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc\">Jobs</a>";
+    List<AtsDetectionRecord> endpoints = extractor.extract("https://example.com/careers", html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.PAYLOCITY,
+                "https://recruiting.paylocity.com/recruiting/jobs/All/f2fda2c7-bfc6-4840-90d0-83d242cada87/Arbutus-Biopharma-Inc"));
+  }
+
+  @Test
+  void extractsBrassRingEndpointFromFormAction() {
+    String html =
+        "<form action=\"https://sjobs.brassring.com/TGnewUI/Search/Home/HomeWithPreLoad?partnerid=25008&siteid=5246\"></form>";
+    List<AtsDetectionRecord> endpoints = extractor.extract("https://example.com/careers", html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.BRASSRING,
+                "https://sjobs.brassring.com/TGnewUI/Search/Home/HomeWithPreLoad?partnerid=25008&siteid=5246"));
+  }
+
+  @Test
+  void extractsSuccessFactorsEndpointFromAssetHost() {
+    String html =
+        "<script src=\"https://career4.successfactors.com/career?company=acme\"></script>";
+    List<AtsDetectionRecord> endpoints = extractor.extract("https://example.com/careers", html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.SUCCESSFACTORS, "https://career4.successfactors.com/career"));
+  }
+
+  @Test
+  void extractsDayforceEndpoint() {
+    String html =
+        "<a href=\"https://careers.dayforcehcm.com/en-US/acmejobs\"></a>";
+    List<AtsDetectionRecord> endpoints = extractor.extract("https://example.com/careers", html);
+    assertThat(endpoints)
+        .containsExactly(
+            new AtsDetectionRecord(
+                AtsType.DAYFORCE, "https://careers.dayforcehcm.com/en-US/acmejobs"));
+  }
 }

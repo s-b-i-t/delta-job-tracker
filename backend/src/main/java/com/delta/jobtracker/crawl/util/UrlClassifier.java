@@ -47,7 +47,10 @@ public final class UrlClassifier {
         || h.contains("icims.com")
         || h.contains("taleo.net")
         || h.contains("successfactors.com")
-        || h.contains("jobs.sap.com");
+        || h.contains("jobs.sap.com")
+        || h.contains("recruiting.paylocity.com")
+        || h.contains("brassring.com")
+        || h.contains("dayforcehcm.com");
   }
 
   public static URI safeUri(String url) {
