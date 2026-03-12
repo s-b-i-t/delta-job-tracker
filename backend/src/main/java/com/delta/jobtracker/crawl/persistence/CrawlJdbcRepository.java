@@ -1486,6 +1486,37 @@ public class CrawlJdbcRepository {
       Instant resolvedAt,
       String resolutionMethod,
       String wikidataQid) {
+    upsertCompanyDomainSingle(
+        companyId,
+        domain,
+        careersHintUrl,
+        source,
+        confidence,
+        resolvedAt,
+        resolutionMethod,
+        wikidataQid);
+    for (Long siblingCompanyId : findEquivalentCompanyIdsForDomainFanout(companyId, domain)) {
+      upsertCompanyDomainSingle(
+          siblingCompanyId,
+          domain,
+          careersHintUrl,
+          source,
+          confidence,
+          resolvedAt,
+          resolutionMethod,
+          wikidataQid);
+    }
+  }
+
+  private void upsertCompanyDomainSingle(
+      long companyId,
+      String domain,
+      String careersHintUrl,
+      String source,
+      double confidence,
+      Instant resolvedAt,
+      String resolutionMethod,
+      String wikidataQid) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("companyId", companyId)
@@ -2249,6 +2280,19 @@ public class CrawlJdbcRepository {
                 rs.getTimestamp("detected_at").toInstant()));
   }
 
+  public List<String> findCompanyDomains(long companyId) {
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("companyId", companyId);
+    return jdbc.query(
+        """
+                SELECT domain
+                FROM company_domains
+                WHERE company_id = :companyId
+                ORDER BY domain
+                """,
+        params,
+        (rs, rowNum) -> rs.getString("domain"));
+  }
+
   public void insertDiscoveredSitemap(
       long crawlRunId, long companyId, String sitemapUrl, Instant fetchedAt, int urlCount) {
     MapSqlParameterSource params =
@@ -2431,6 +2475,38 @@ public class CrawlJdbcRepository {
     if (normalizedUrl == null) {
       return;
     }
+    upsertAtsEndpointSingle(
+        companyId,
+        atsType,
+        normalizedUrl,
+        discoveredFromUrl,
+        confidence,
+        detectedAt,
+        detectionMethod,
+        verified);
+    for (Long siblingCompanyId :
+        findEquivalentCompanyIdsForAtsFanout(companyId, atsType, normalizedUrl)) {
+      upsertAtsEndpointSingle(
+          siblingCompanyId,
+          atsType,
+          normalizedUrl,
+          discoveredFromUrl,
+          confidence,
+          detectedAt,
+          detectionMethod,
+          verified);
+    }
+  }
+
+  private void upsertAtsEndpointSingle(
+      long companyId,
+      AtsType atsType,
+      String normalizedUrl,
+      String discoveredFromUrl,
+      double confidence,
+      Instant detectedAt,
+      String detectionMethod,
+      boolean verified) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("companyId", companyId)
@@ -2485,6 +2561,64 @@ public class CrawlJdbcRepository {
             params);
       }
     }
+  }
+
+  private List<Long> findEquivalentCompanyIdsForDomainFanout(long companyId, String domain) {
+    if (domain == null || domain.isBlank()) {
+      return List.of();
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("companyId", companyId).addValue("domain", domain);
+    return jdbc.query(
+        """
+                SELECT sibling.id
+                FROM companies source
+                JOIN companies sibling ON sibling.cik = source.cik
+                WHERE source.id = :companyId
+                  AND source.cik IS NOT NULL
+                  AND source.cik <> ''
+                  AND sibling.id <> :companyId
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains cd
+                    WHERE cd.company_id = sibling.id
+                      AND cd.domain <> :domain
+                  )
+                ORDER BY sibling.ticker
+                """,
+        params,
+        (rs, rowNum) -> rs.getLong("id"));
+  }
+
+  private List<Long> findEquivalentCompanyIdsForAtsFanout(
+      long companyId, AtsType atsType, String normalizedUrl) {
+    if (atsType == null || normalizedUrl == null || normalizedUrl.isBlank()) {
+      return List.of();
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("atsType", atsType.name())
+            .addValue("atsUrl", normalizedUrl);
+    return jdbc.query(
+        """
+                SELECT sibling.id
+                FROM companies source
+                JOIN companies sibling ON sibling.cik = source.cik
+                WHERE source.id = :companyId
+                  AND source.cik IS NOT NULL
+                  AND source.cik <> ''
+                  AND sibling.id <> :companyId
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM ats_endpoints ae
+                    WHERE ae.company_id = sibling.id
+                      AND (ae.ats_type <> :atsType OR ae.ats_url <> :atsUrl)
+                  )
+                ORDER BY sibling.ticker
+                """,
+        params,
+        (rs, rowNum) -> rs.getLong("id"));
   }
 
   public void upsertJobPosting(
