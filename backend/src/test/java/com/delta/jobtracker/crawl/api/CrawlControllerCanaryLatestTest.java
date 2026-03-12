@@ -11,6 +11,7 @@ import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
+import com.delta.jobtracker.crawl.service.EquivalentCompanyEvidenceBackfillService;
 import com.delta.jobtracker.crawl.service.HostCrawlStateService;
 import com.delta.jobtracker.crawl.service.SecCanaryService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
@@ -32,6 +33,7 @@ class CrawlControllerCanaryLatestTest {
   @Mock private CareersDiscoveryRunService careersDiscoveryRunService;
   @Mock private CrawlStatusService crawlStatusService;
   @Mock private WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
+  @Mock private EquivalentCompanyEvidenceBackfillService equivalentCompanyEvidenceBackfillService;
   @Mock private SecCanaryService secCanaryService;
   @Mock private HostCrawlStateService hostCrawlStateService;
 
@@ -59,6 +61,7 @@ class CrawlControllerCanaryLatestTest {
             careersDiscoveryRunService,
             crawlStatusService,
             workdayInvalidUrlCleanupService,
+            equivalentCompanyEvidenceBackfillService,
             properties,
             secCanaryService,
             hostCrawlStateService);

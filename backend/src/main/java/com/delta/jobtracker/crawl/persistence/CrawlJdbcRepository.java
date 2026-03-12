@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2293,6 +2294,28 @@ public class CrawlJdbcRepository {
         (rs, rowNum) -> rs.getString("domain"));
   }
 
+  public int backfillEquivalentCompanyDomains() {
+    int inserted = 0;
+    Set<String> seenTargets = new HashSet<>();
+    for (EquivalentDomainFanoutCandidate candidate : findEquivalentDomainBackfillCandidates()) {
+      String key = candidate.targetCompanyId() + "|" + candidate.domain();
+      if (!seenTargets.add(key)) {
+        continue;
+      }
+      upsertCompanyDomainSingle(
+          candidate.targetCompanyId(),
+          candidate.domain(),
+          candidate.careersHintUrl(),
+          candidate.source(),
+          candidate.confidence(),
+          candidate.resolvedAt(),
+          candidate.resolutionMethod(),
+          candidate.wikidataQid());
+      inserted++;
+    }
+    return inserted;
+  }
+
   public void insertDiscoveredSitemap(
       long crawlRunId, long companyId, String sitemapUrl, Instant fetchedAt, int urlCount) {
     MapSqlParameterSource params =
@@ -2462,6 +2485,33 @@ public class CrawlJdbcRepository {
         companyId, atsType, atsUrl, discoveredFromUrl, confidence, detectedAt, "legacy", true);
   }
 
+  public int backfillEquivalentAtsEndpoints() {
+    int inserted = 0;
+    Set<String> seenTargets = new HashSet<>();
+    for (EquivalentAtsFanoutCandidate candidate : findEquivalentAtsBackfillCandidates()) {
+      String key =
+          candidate.targetCompanyId()
+              + "|"
+              + candidate.atsType().name()
+              + "|"
+              + candidate.endpointUrl();
+      if (!seenTargets.add(key)) {
+        continue;
+      }
+      upsertAtsEndpointSingle(
+          candidate.targetCompanyId(),
+          candidate.atsType(),
+          candidate.endpointUrl(),
+          candidate.discoveredFromUrl(),
+          candidate.confidence(),
+          candidate.detectedAt(),
+          candidate.detectionMethod(),
+          candidate.verified());
+      inserted++;
+    }
+    return inserted;
+  }
+
   public void upsertAtsEndpoint(
       long companyId,
       AtsType atsType,
@@ -2590,6 +2640,56 @@ public class CrawlJdbcRepository {
         (rs, rowNum) -> rs.getLong("id"));
   }
 
+  private List<EquivalentDomainFanoutCandidate> findEquivalentDomainBackfillCandidates() {
+    return jdbc.query(
+        """
+                SELECT sibling.id AS target_company_id,
+                       cd.domain,
+                       cd.careers_hint_url,
+                       cd.source,
+                       cd.confidence,
+                       cd.resolved_at,
+                       cd.resolution_method,
+                       cd.wikidata_qid
+                FROM company_domains cd
+                JOIN companies source ON source.id = cd.company_id
+                JOIN companies sibling ON sibling.cik = source.cik
+                WHERE source.cik IS NOT NULL
+                  AND source.cik <> ''
+                  AND sibling.id <> source.id
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains exact_match
+                    WHERE exact_match.company_id = sibling.id
+                      AND exact_match.domain = cd.domain
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM company_domains conflicting
+                    WHERE conflicting.company_id = sibling.id
+                      AND conflicting.domain <> cd.domain
+                  )
+                  AND (
+                    SELECT COUNT(DISTINCT cd2.domain)
+                    FROM company_domains cd2
+                    JOIN companies c2 ON c2.id = cd2.company_id
+                    WHERE c2.cik = source.cik
+                  ) = 1
+                ORDER BY sibling.id, cd.resolved_at DESC, cd.confidence DESC
+                """,
+        new MapSqlParameterSource(),
+        (rs, rowNum) ->
+            new EquivalentDomainFanoutCandidate(
+                rs.getLong("target_company_id"),
+                rs.getString("domain"),
+                rs.getString("careers_hint_url"),
+                rs.getString("source"),
+                rs.getDouble("confidence"),
+                toInstant(rs.getTimestamp("resolved_at")),
+                rs.getString("resolution_method"),
+                rs.getString("wikidata_qid")));
+  }
+
   private List<Long> findEquivalentCompanyIdsForAtsFanout(
       long companyId, AtsType atsType, String normalizedUrl) {
     if (atsType == null || normalizedUrl == null || normalizedUrl.isBlank()) {
@@ -2620,6 +2720,80 @@ public class CrawlJdbcRepository {
         params,
         (rs, rowNum) -> rs.getLong("id"));
   }
+
+  private List<EquivalentAtsFanoutCandidate> findEquivalentAtsBackfillCandidates() {
+    return jdbc.query(
+        """
+                SELECT sibling.id AS target_company_id,
+                       ae.ats_type,
+                       ae.ats_url,
+                       ae.discovered_from_url,
+                       ae.confidence,
+                       ae.detected_at,
+                       ae.detection_method,
+                       ae.verified
+                FROM ats_endpoints ae
+                JOIN companies source ON source.id = ae.company_id
+                JOIN companies sibling ON sibling.cik = source.cik
+                WHERE source.cik IS NOT NULL
+                  AND source.cik <> ''
+                  AND sibling.id <> source.id
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM ats_endpoints exact_match
+                    WHERE exact_match.company_id = sibling.id
+                      AND exact_match.ats_type = ae.ats_type
+                      AND exact_match.ats_url = ae.ats_url
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM ats_endpoints conflicting
+                    WHERE conflicting.company_id = sibling.id
+                      AND (
+                        conflicting.ats_type <> ae.ats_type
+                        OR conflicting.ats_url <> ae.ats_url
+                      )
+                  )
+                  AND (
+                    SELECT COUNT(DISTINCT ae2.ats_type || '|' || ae2.ats_url)
+                    FROM ats_endpoints ae2
+                    JOIN companies c2 ON c2.id = ae2.company_id
+                    WHERE c2.cik = source.cik
+                  ) = 1
+                ORDER BY sibling.id, ae.detected_at DESC, ae.confidence DESC
+                """,
+        new MapSqlParameterSource(),
+        (rs, rowNum) ->
+            new EquivalentAtsFanoutCandidate(
+                rs.getLong("target_company_id"),
+                AtsType.valueOf(rs.getString("ats_type")),
+                rs.getString("ats_url"),
+                rs.getString("discovered_from_url"),
+                rs.getDouble("confidence"),
+                toInstant(rs.getTimestamp("detected_at")),
+                rs.getString("detection_method"),
+                rs.getBoolean("verified")));
+  }
+
+  private record EquivalentDomainFanoutCandidate(
+      long targetCompanyId,
+      String domain,
+      String careersHintUrl,
+      String source,
+      double confidence,
+      Instant resolvedAt,
+      String resolutionMethod,
+      String wikidataQid) {}
+
+  private record EquivalentAtsFanoutCandidate(
+      long targetCompanyId,
+      AtsType atsType,
+      String endpointUrl,
+      String discoveredFromUrl,
+      double confidence,
+      Instant detectedAt,
+      String detectionMethod,
+      boolean verified) {}
 
   public void upsertJobPosting(
       long companyId, Long crawlRunId, NormalizedJobPosting posting, Instant fetchedAt) {

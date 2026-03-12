@@ -1,15 +1,11 @@
-package com.delta.jobtracker.crawl;
+package com.delta.jobtracker.crawl.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.delta.jobtracker.config.CrawlerProperties;
-import com.delta.jobtracker.crawl.api.CrawlApiRunRequest;
-import com.delta.jobtracker.crawl.api.CrawlController;
-import com.delta.jobtracker.crawl.model.CrawlRunRequest;
-import com.delta.jobtracker.crawl.model.CrawlRunSummary;
+import com.delta.jobtracker.crawl.model.EquivalentCompanyEvidenceBackfillResponse;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryRunService;
 import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
@@ -20,16 +16,13 @@ import com.delta.jobtracker.crawl.service.HostCrawlStateService;
 import com.delta.jobtracker.crawl.service.SecCanaryService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
 import com.delta.jobtracker.crawl.service.WorkdayInvalidUrlCleanupService;
-import java.time.Instant;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class CrawlControllerRunRequestDefaultsTest {
+class CrawlControllerEquivalentCompanyBackfillTest {
 
   @Mock private UniverseIngestionService ingestionService;
   @Mock private CrawlOrchestratorService crawlOrchestratorService;
@@ -43,11 +36,11 @@ class CrawlControllerRunRequestDefaultsTest {
   @Mock private HostCrawlStateService hostCrawlStateService;
 
   @Test
-  void appliesApiDefaultCompanyLimitWhenMissingFromRequest() {
+  void backfillEquivalentCompanyEvidenceDelegatesToService() {
     CrawlerProperties properties = new CrawlerProperties();
-    properties.getApi().setDefaultCompanyLimit(42);
-    when(crawlOrchestratorService.run(any()))
-        .thenReturn(new CrawlRunSummary(1L, Instant.now(), Instant.now(), "COMPLETED", List.of()));
+    EquivalentCompanyEvidenceBackfillResponse response =
+        new EquivalentCompanyEvidenceBackfillResponse(2, 1, 3);
+    when(equivalentCompanyEvidenceBackfillService.backfill()).thenReturn(response);
 
     CrawlController controller =
         new CrawlController(
@@ -62,15 +55,9 @@ class CrawlControllerRunRequestDefaultsTest {
             properties,
             secCanaryService,
             hostCrawlStateService);
-    controller.runCrawl(
-        new CrawlApiRunRequest(
-            List.of("AAPL"), null, 200, 150, null, null, null, false, true, true, null));
 
-    ArgumentCaptor<CrawlRunRequest> captor = ArgumentCaptor.forClass(CrawlRunRequest.class);
-    verify(crawlOrchestratorService).run(captor.capture());
-    CrawlRunRequest forwarded = captor.getValue();
-    assertEquals(42, forwarded.companyLimit());
-    assertEquals(200, forwarded.resolveLimit());
-    assertEquals(150, forwarded.discoverLimit());
+    EquivalentCompanyEvidenceBackfillResponse result = controller.backfillEquivalentCompanyEvidence();
+    assertEquals(3, result.totalRowsInserted());
+    verify(equivalentCompanyEvidenceBackfillService).backfill();
   }
 }

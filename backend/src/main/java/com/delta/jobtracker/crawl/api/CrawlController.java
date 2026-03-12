@@ -26,6 +26,7 @@ import com.delta.jobtracker.crawl.model.CrawlRunSummary;
 import com.delta.jobtracker.crawl.model.CrawlTargetsDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DiscoveryFailuresDiagnosticsResponse;
 import com.delta.jobtracker.crawl.model.DomainResolutionResult;
+import com.delta.jobtracker.crawl.model.EquivalentCompanyEvidenceBackfillResponse;
 import com.delta.jobtracker.crawl.model.FullCycleSummary;
 import com.delta.jobtracker.crawl.model.HostCrawlState;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
@@ -41,6 +42,7 @@ import com.delta.jobtracker.crawl.service.CareersDiscoveryService;
 import com.delta.jobtracker.crawl.service.CrawlOrchestratorService;
 import com.delta.jobtracker.crawl.service.CrawlStatusService;
 import com.delta.jobtracker.crawl.service.DomainResolutionService;
+import com.delta.jobtracker.crawl.service.EquivalentCompanyEvidenceBackfillService;
 import com.delta.jobtracker.crawl.service.HostCrawlStateService;
 import com.delta.jobtracker.crawl.service.SecCanaryService;
 import com.delta.jobtracker.crawl.service.UniverseIngestionService;
@@ -67,6 +69,7 @@ public class CrawlController {
   private final CareersDiscoveryRunService careersDiscoveryRunService;
   private final CrawlStatusService crawlStatusService;
   private final WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService;
+  private final EquivalentCompanyEvidenceBackfillService equivalentCompanyEvidenceBackfillService;
   private final CrawlerProperties crawlerProperties;
   private final SecCanaryService secCanaryService;
   private final HostCrawlStateService hostCrawlStateService;
@@ -79,6 +82,7 @@ public class CrawlController {
       CareersDiscoveryRunService careersDiscoveryRunService,
       CrawlStatusService crawlStatusService,
       WorkdayInvalidUrlCleanupService workdayInvalidUrlCleanupService,
+      EquivalentCompanyEvidenceBackfillService equivalentCompanyEvidenceBackfillService,
       CrawlerProperties crawlerProperties,
       SecCanaryService secCanaryService,
       HostCrawlStateService hostCrawlStateService) {
@@ -89,6 +93,7 @@ public class CrawlController {
     this.careersDiscoveryRunService = careersDiscoveryRunService;
     this.crawlStatusService = crawlStatusService;
     this.workdayInvalidUrlCleanupService = workdayInvalidUrlCleanupService;
+    this.equivalentCompanyEvidenceBackfillService = equivalentCompanyEvidenceBackfillService;
     this.crawlerProperties = crawlerProperties;
     this.secCanaryService = secCanaryService;
     this.hostCrawlStateService = hostCrawlStateService;
@@ -396,6 +401,11 @@ public class CrawlController {
       @RequestParam(name = "batchSize", required = false) Integer batchSize,
       @RequestParam(name = "dryRun", required = false, defaultValue = "false") boolean dryRun) {
     return workdayInvalidUrlCleanupService.cleanupInvalidWorkdayUrls(limit, batchSize, dryRun);
+  }
+
+  @PostMapping("/companies/equivalent/backfill")
+  public EquivalentCompanyEvidenceBackfillResponse backfillEquivalentCompanyEvidence() {
+    return equivalentCompanyEvidenceBackfillService.backfill();
   }
 
   @GetMapping("/jobs/page")
