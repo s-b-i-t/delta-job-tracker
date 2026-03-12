@@ -453,6 +453,127 @@ class DomainResolutionServiceTest {
   }
 
   @Test
+  void officialSiteIrFallbackRepresentativeLaneRecoversTargetRows() {
+    service = createServiceWithComOnlyHeuristicTlds();
+    List<CompanyIdentity> companies =
+        List.of(
+            new CompanyIdentity(
+                90L, "AAMI", "Acadian Asset Management Inc.", null, null, "0001748824", null, null, null, null),
+            new CompanyIdentity(
+                91L, "ACRE", "Ares Commercial Real Estate Corp", null, null, "0001529377", null, null, null, null),
+            new CompanyIdentity(
+                92L, "AD", "ARRAY DIGITAL INFRASTRUCTURE, INC.", null, null, "0000821130", null, null, null, null));
+    when(repository.findCompaniesMissingDomain(3)).thenReturn(companies);
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              String url = invocation.getArgument(0, String.class);
+              if ("https://aami.com/".equals(url)) {
+                return successHtml(
+                    url,
+                    """
+                    <html><head><title>Acadian Asset Management (NYSE: AAMI) | Investor Relations</title></head>
+                    <body>Shareholders and investors</body></html>
+                    """);
+              }
+              if ("https://acre.com/".equals(url)) {
+                return successHtmlRedirect(
+                    url,
+                    "https://investors.arescre.com/",
+                    """
+                    <html><head>
+                      <title>Investor Relations</title>
+                      <meta property="og:site_name" content="Ares CRE" />
+                    </head>
+                    <body>Ares Commercial Real Estate shareholders NYSE: ACRE</body></html>
+                    """);
+              }
+              if ("https://ad.com/".equals(url)) {
+                return successHtmlRedirect(
+                    url,
+                    "https://investors.arrayinc.com/",
+                    """
+                    <html><head>
+                      <title>Array | NYSE: AD | Investor Relations</title>
+                      <meta property="og:site_name" content="Array" />
+                    </head>
+                    <body>Investors</body></html>
+                    """);
+              }
+              return failedHtml(url, 404, "http_404");
+            });
+
+    DomainResolutionResult result = service.resolveMissingDomains(3);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(3);
+    assertThat(result.resolvedCount()).isEqualTo(3);
+    assertThat(result.noItemCount()).isZero();
+    assertThat(result.metrics().resolvedByMethod()).containsEntry("HEURISTIC", 3);
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(90L),
+            eq("aami.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(91L),
+            eq("investors.arescre.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(92L),
+            eq("investors.arrayinc.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+  }
+
+  @Test
+  void officialSiteIrFallbackRejectsTickerOnlyFalsePositive() {
+    service = createServiceWithComOnlyHeuristicTlds();
+    CompanyIdentity company =
+        new CompanyIdentity(
+            93L, "ADC", "AGREE REALTY CORP", null, null, "0000917251", null, null, null, null);
+    when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              String url = invocation.getArgument(0, String.class);
+              if ("https://adc.com/".equals(url)) {
+                return successHtml(
+                    url,
+                    """
+                    <html><head><title>Generic Holdings (NYSE: ADC) | Investor Relations</title></head>
+                    <body>Investors and shareholders</body></html>
+                    """);
+              }
+              return failedHtml(url, 404, "http_404");
+            });
+
+    DomainResolutionResult result = service.resolveMissingDomains(1);
+
+    assertThat(result.resolvedCount()).isZero();
+    assertThat(result.noItemCount()).isEqualTo(1);
+  }
+
+  @Test
   void reportsWdqsTimeoutWhenQueryTimesOut() {
     CompanyIdentity company =
         new CompanyIdentity(
@@ -970,6 +1091,21 @@ class DomainResolutionServiceTest {
         null);
   }
 
+  private HttpFetchResult successHtmlRedirect(String requestedUrl, String finalUrl, String body) {
+    return new HttpFetchResult(
+        requestedUrl,
+        URI.create(finalUrl),
+        200,
+        body,
+        body == null ? null : body.getBytes(),
+        "text/html",
+        null,
+        Instant.now(),
+        Duration.ofMillis(5),
+        null,
+        null);
+  }
+
   private HttpFetchResult failedHtml(String url, int status, String errorCode) {
     return new HttpFetchResult(
         url,
@@ -1013,6 +1149,19 @@ class DomainResolutionServiceTest {
               {"candidateCik":{"value":"0000320193"},"item":{"value":"http://www.wikidata.org/entity/Q312"},"officialWebsite":{"value":"https://www.apple.com"}}
             ]}}
             """;
+  }
+
+  private DomainResolutionService createServiceWithComOnlyHeuristicTlds() {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getData().setDomainsCsv("");
+    properties.getDomainResolution().setWdqsMinDelayMs(0);
+    properties.getDomainResolution().setBatchSize(10);
+    properties.getDomainResolution().setHeuristicTlds(List.of("com"));
+    DomainResolutionService customizedService =
+        new DomainResolutionService(
+            properties, repository, wdqsHttpClient, politeHttpClient, new ObjectMapper());
+    when(repository.findEquivalentResolvedDomainsByCompanyIds(anyList())).thenReturn(java.util.Map.of());
+    return customizedService;
   }
 
   private HttpFetchResult normalizedTitleAwareWdqsResponse(String formBody) {

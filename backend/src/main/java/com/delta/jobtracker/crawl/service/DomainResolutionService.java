@@ -73,6 +73,10 @@ public class DomainResolutionService {
   private static final double WIKIPEDIA_INFOBOX_CONFIDENCE = 0.9;
   private static final double HEURISTIC_CONFIDENCE = 0.7;
   private static final int HEURISTIC_NON_COM_TOP_SLUGS = 2;
+  private static final List<String> OFFICIAL_SITE_INVESTOR_MARKERS =
+      List.of("investor relations", "investors", "shareholders", "annual meeting", "earnings");
+  private static final List<String> OFFICIAL_SITE_EXCHANGE_MARKERS =
+      List.of("nyse", "nasdaq", "tsx", "asx", "euronext", "lse");
   private static final List<String> PARKED_PAGE_HINTS =
       List.of(
           "domain for sale",
@@ -1579,6 +1583,7 @@ public class DomainResolutionService {
     Document doc = Jsoup.parse(fetch.body(), fetch.finalUrlOrRequested());
     String pageTitle = doc.title() == null ? "" : doc.title();
     String bodyText = doc.body() == null ? "" : doc.body().text();
+    String ogSiteName = extractOgSiteName(doc);
     String verificationText = (pageTitle + " " + bodyText).toLowerCase(Locale.ROOT);
 
     if (signals == null || signals.strongTokens().isEmpty()) {
@@ -1596,6 +1601,11 @@ public class DomainResolutionService {
         hostnameContainsAcceptableRoot(candidateDomain, signals.acceptableRoots())
             || hostnameContainsAcceptableRoot(resolvedDomain, signals.acceptableRoots());
 
+    if (acceptByOfficialSiteSignals(
+        company, candidateDomain, resolvedDomain, pageTitle, bodyText, ogSiteName, signals, rootMatches)) {
+      return HeuristicVerdict.accept(resolvedDomain);
+    }
+
     if (!rootMatches) {
       return HeuristicVerdict.reject("root_mismatch");
     }
@@ -1605,6 +1615,161 @@ public class DomainResolutionService {
     }
 
     return HeuristicVerdict.accept(resolvedDomain);
+  }
+
+  private boolean acceptByOfficialSiteSignals(
+      CompanyIdentity company,
+      String candidateDomain,
+      String resolvedDomain,
+      String pageTitle,
+      String bodyText,
+      String ogSiteName,
+      NameSignals signals,
+      boolean rootMatches) {
+    if (company == null || !hasCik(company) || signals == null || signals.strongTokens().isEmpty()) {
+      return false;
+    }
+    String normalizedTitle = normalizeEvidenceText(pageTitle);
+    String normalizedBody = normalizeEvidenceText(bodyText);
+    String normalizedOgSiteName = normalizeEvidenceText(ogSiteName);
+    boolean exactTickerInTitle = containsExactTickerToken(pageTitle, company.ticker());
+    boolean aliasMatch =
+        hostnameContainsAcceptableRoot(candidateDomain, buildAliasRoots(ogSiteName))
+            || hostnameContainsAcceptableRoot(resolvedDomain, buildAliasRoots(ogSiteName));
+    boolean companyOrBaseMatch =
+        hasConservativeCompanyOrBaseMatch(
+            company, signals, normalizedTitle, normalizedBody, normalizedOgSiteName);
+    if (exactTickerInTitle && companyOrBaseMatch) {
+      return true;
+    }
+    boolean investorOrExchangeSignals =
+        containsAnyMarker(normalizedTitle, OFFICIAL_SITE_INVESTOR_MARKERS)
+            || containsAnyMarker(normalizedTitle, OFFICIAL_SITE_EXCHANGE_MARKERS)
+            || containsAnyMarker(normalizedBody, OFFICIAL_SITE_INVESTOR_MARKERS)
+            || containsAnyMarker(normalizedBody, OFFICIAL_SITE_EXCHANGE_MARKERS)
+            || containsAnyMarker(normalizedOgSiteName, OFFICIAL_SITE_INVESTOR_MARKERS)
+            || containsAnyMarker(normalizedOgSiteName, OFFICIAL_SITE_EXCHANGE_MARKERS);
+    if (investorOrExchangeSignals && companyOrBaseMatch && (rootMatches || aliasMatch)) {
+      return true;
+    }
+    return aliasMatch && exactTickerInTitle && hasBaseTokenMatch(company, signals, normalizedTitle, normalizedOgSiteName);
+  }
+
+  private boolean hasConservativeCompanyOrBaseMatch(
+      CompanyIdentity company,
+      NameSignals signals,
+      String normalizedTitle,
+      String normalizedBody,
+      String normalizedOgSiteName) {
+    String combined = (normalizedTitle + " " + normalizedOgSiteName + " " + normalizedBody).trim();
+    String strippedName = stripCorporateSuffixes(cleanupTitle(company.name() == null ? "" : company.name()));
+    String normalizedStrippedName = normalizeEvidenceText(strippedName);
+    if (!normalizedStrippedName.isBlank() && combined.contains(normalizedStrippedName)) {
+      return true;
+    }
+    int tokenMatches = 0;
+    for (String token : signals.strongTokens()) {
+      String normalizedToken = normalizeEvidenceText(token);
+      if (!normalizedToken.isBlank() && combined.contains(normalizedToken)) {
+        tokenMatches++;
+      }
+    }
+    if (tokenMatches >= Math.min(2, signals.strongTokens().size())) {
+      return true;
+    }
+    return hasBaseTokenMatch(company, signals, normalizedTitle, normalizedOgSiteName);
+  }
+
+  private boolean hasBaseTokenMatch(
+      CompanyIdentity company, NameSignals signals, String normalizedTitle, String normalizedOgSiteName) {
+    if (company == null || company.name() == null) {
+      return false;
+    }
+    String baseToken = firstBaseToken(signals, company.name());
+    if (baseToken == null || baseToken.isBlank()) {
+      return false;
+    }
+    return normalizedTitle.contains(baseToken) || normalizedOgSiteName.contains(baseToken);
+  }
+
+  private String firstBaseToken(NameSignals signals, String companyName) {
+    if (signals != null) {
+      for (String token : signals.strongTokens()) {
+        if (token != null && token.length() >= 4) {
+          return normalizeEvidenceText(token);
+        }
+      }
+    }
+    String stripped = normalizeEvidenceText(stripCorporateSuffixes(cleanupTitle(companyName)));
+    if (stripped.isBlank()) {
+      return null;
+    }
+    String[] tokens = stripped.split("\\s+");
+    for (String token : tokens) {
+      if (!token.isBlank() && token.length() >= 4) {
+        return token;
+      }
+    }
+    return null;
+  }
+
+  private boolean containsExactTickerToken(String text, String ticker) {
+    if (text == null || text.isBlank() || ticker == null || ticker.isBlank()) {
+      return false;
+    }
+    Pattern pattern =
+        Pattern.compile("(^|[^A-Z0-9])" + Pattern.quote(ticker.toUpperCase(Locale.ROOT)) + "([^A-Z0-9]|$)");
+    return pattern.matcher(text.toUpperCase(Locale.ROOT)).find();
+  }
+
+  private List<String> buildAliasRoots(String ogSiteName) {
+    if (ogSiteName == null || ogSiteName.isBlank()) {
+      return List.of();
+    }
+    String normalized = normalizeEvidenceText(ogSiteName);
+    if (normalized.isBlank()) {
+      return List.of();
+    }
+    LinkedHashSet<String> aliases = new LinkedHashSet<>();
+    aliases.add(normalized.replace(" ", ""));
+    aliases.add(normalized.replace(" ", "-"));
+    return aliases.stream().filter(alias -> alias != null && !alias.isBlank()).toList();
+  }
+
+  private boolean containsAnyMarker(String text, List<String> markers) {
+    if (text == null || text.isBlank() || markers == null || markers.isEmpty()) {
+      return false;
+    }
+    for (String marker : markers) {
+      if (marker != null && !marker.isBlank() && text.contains(marker.toLowerCase(Locale.ROOT))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private String extractOgSiteName(Document doc) {
+    if (doc == null) {
+      return "";
+    }
+    Element element = doc.selectFirst("meta[property=og:site_name], meta[name=og:site_name]");
+    if (element == null) {
+      return "";
+    }
+    String content = element.attr("content");
+    return content == null ? "" : content.trim();
+  }
+
+  private String normalizeEvidenceText(String value) {
+    if (value == null || value.isBlank()) {
+      return "";
+    }
+    return value
+        .toLowerCase(Locale.ROOT)
+        .replace('&', ' ')
+        .replaceAll("[^a-z0-9]+", " ")
+        .replaceAll("\\s+", " ")
+        .trim();
   }
 
   private boolean isLowConfidenceHeuristicSignals(NameSignals signals) {
