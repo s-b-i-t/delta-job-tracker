@@ -1636,6 +1636,9 @@ public class DomainResolutionService {
     boolean aliasMatch =
         hostnameContainsAcceptableRoot(candidateDomain, buildAliasRoots(ogSiteName))
             || hostnameContainsAcceptableRoot(resolvedDomain, buildAliasRoots(ogSiteName));
+    boolean deterministicAliasMatch =
+        hasDeterministicOfficialAliasMatch(
+            company, candidateDomain, resolvedDomain, normalizedTitle, normalizedOgSiteName);
     boolean companyOrBaseMatch =
         hasConservativeCompanyOrBaseMatch(
             company, signals, normalizedTitle, normalizedBody, normalizedOgSiteName);
@@ -1652,7 +1655,35 @@ public class DomainResolutionService {
     if (investorOrExchangeSignals && companyOrBaseMatch && (rootMatches || aliasMatch)) {
       return true;
     }
+    if (deterministicAliasMatch && exactTickerInTitle) {
+      return true;
+    }
     return aliasMatch && exactTickerInTitle && hasBaseTokenMatch(company, signals, normalizedTitle, normalizedOgSiteName);
+  }
+
+  private boolean hasDeterministicOfficialAliasMatch(
+      CompanyIdentity company,
+      String candidateDomain,
+      String resolvedDomain,
+      String normalizedTitle,
+      String normalizedOgSiteName) {
+    if (company == null || company.name() == null || company.name().isBlank()) {
+      return false;
+    }
+    List<String> aliasTokens = buildDeterministicAliasTokens(company.name());
+    if (aliasTokens.isEmpty()) {
+      return false;
+    }
+    for (String alias : aliasTokens) {
+      if (!containsExactToken(normalizedTitle, alias) && !containsExactToken(normalizedOgSiteName, alias)) {
+        continue;
+      }
+      if (hostnameContainsAcceptableRoot(candidateDomain, List.of(alias))
+          || hostnameContainsAcceptableRoot(resolvedDomain, List.of(alias))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private boolean hasConservativeCompanyOrBaseMatch(
@@ -1711,6 +1742,55 @@ public class DomainResolutionService {
       }
     }
     return null;
+  }
+
+  private List<String> buildDeterministicAliasTokens(String companyName) {
+    if (companyName == null || companyName.isBlank()) {
+      return List.of();
+    }
+    String cleaned = cleanupTitle(companyName);
+    String normalized = normalizeEvidenceText(cleaned);
+    if (normalized.isBlank()) {
+      return List.of();
+    }
+    LinkedHashSet<String> aliases = new LinkedHashSet<>();
+    String[] tokens = normalized.split("\\s+");
+    StringBuilder acronym = new StringBuilder();
+    for (String token : tokens) {
+      if (token == null || token.isBlank() || isAliasStopword(token)) {
+        continue;
+      }
+      acronym.append(token.charAt(0));
+    }
+    if (acronym.length() >= 2 && acronym.length() <= 6) {
+      aliases.add(acronym.toString());
+    }
+    return List.copyOf(aliases);
+  }
+
+  private boolean isAliasStopword(String token) {
+    if (token == null || token.isBlank()) {
+      return true;
+    }
+    return token.equals("the")
+        || token.equals("and")
+        || token.equals("of")
+        || token.equals("de")
+        || token.equals("du")
+        || token.equals("la")
+        || token.equals("le");
+  }
+
+  private boolean containsExactToken(String text, String token) {
+    if (text == null || text.isBlank() || token == null || token.isBlank()) {
+      return false;
+    }
+    Pattern pattern =
+        Pattern.compile(
+            "(^|[^a-z0-9])"
+                + Pattern.quote(token.toLowerCase(Locale.ROOT))
+                + "([^a-z0-9]|$)");
+    return pattern.matcher(text.toLowerCase(Locale.ROOT)).find();
   }
 
   private boolean containsExactTickerToken(String text, String ticker) {
