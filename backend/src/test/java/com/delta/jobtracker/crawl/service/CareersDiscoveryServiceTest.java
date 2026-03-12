@@ -2,6 +2,7 @@ package com.delta.jobtracker.crawl.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -89,7 +90,8 @@ class CareersDiscoveryServiceTest {
             homepageDetector,
             sitemapDetector,
             hostCrawlStateService,
-            landingDiscoveryService);
+            landingDiscoveryService,
+            new CareersLandingLinkExtractor());
   }
 
   @Test
@@ -147,6 +149,78 @@ class CareersDiscoveryServiceTest {
             eq("vendor_probe"),
             eq(true));
     verify(httpClient).get(eq("https://acme.com/"), anyString(), anyInt());
+  }
+
+  @Test
+  void fullModeFollowsCareersLandingLinksToExtractSupportedEndpoint() {
+    CompanyTarget company = new CompanyTarget(9L, "ACME", "Acme Corp", null, "acme.com", null);
+    String homepage = "https://acme.com/";
+    String careers = "https://acme.com/careers";
+    String jobsPage = "https://acme.com/careers/jobs-at-acme";
+    String jobsHtml = "<a href=\"https://boards.greenhouse.io/acme\">Open Roles</a>";
+
+    when(repository.findCareersDiscoveryState(9L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careers), anyString(), anyInt()))
+        .thenReturn(successHtml(careers, "<a href=\"/careers/jobs-at-acme\">Search Jobs</a>"));
+    when(httpClient.get(eq(jobsPage), anyString(), anyInt())).thenReturn(successHtml(jobsPage, jobsHtml));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.funnel().vendorDetected()).isTrue();
+    assertThat(outcome.funnel().endpointExtracted()).isTrue();
+    assertThat(outcome.funnel().endpointUrl()).isEqualTo("https://boards.greenhouse.io/acme");
+    assertThat(outcome.funnel().atsDiscoveryResult().evidence()).isEqualTo("careers_landing_followup");
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(9L),
+            eq(AtsType.GREENHOUSE),
+            eq("https://boards.greenhouse.io/acme"),
+            eq(jobsPage),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing_followup"),
+            eq(true));
+    verify(httpClient).get(eq(jobsPage), anyString(), anyInt());
+  }
+
+  @Test
+  void vendorProbeDoesNotFollowCareersLandingLinks() {
+    CompanyTarget company = new CompanyTarget(10L, "ACME", "Acme Corp", null, "acme.com", null);
+    String homepage = "https://acme.com/";
+    String careers = "https://acme.com/careers";
+    String jobsPage = "https://acme.com/careers/jobs-at-acme";
+
+    when(repository.findCareersDiscoveryState(10L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careers), anyString(), anyInt()))
+        .thenReturn(successHtml(careers, "<a href=\"/careers/jobs-at-acme\">Search Jobs</a>"));
+    lenient()
+        .when(httpClient.get(anyString(), anyString()))
+        .thenReturn(failureFetch("https://example.com"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, true);
+
+    assertThat(outcome.hasEndpoints()).isFalse();
+    assertThat(outcome.funnel().careersUrlFound()).isTrue();
+    assertThat(outcome.funnel().careersDiscoveryStageFailure())
+        .isEqualTo("CAREERS_PAGE_200_NO_VENDOR_SIGNATURE");
+    verify(httpClient, never()).get(eq(jobsPage), anyString(), anyInt());
+    verify(repository, never())
+        .upsertAtsEndpoint(
+            eq(10L),
+            any(),
+            anyString(),
+            eq(jobsPage),
+            anyDouble(),
+            any(Instant.class),
+            eq("careers_landing_followup"),
+            eq(true));
   }
 
   @Test

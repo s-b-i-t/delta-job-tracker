@@ -67,6 +67,7 @@ public class CareersDiscoveryService {
       List.of("/", "/careers", "/jobs", "/about/careers");
   private static final int MAX_LINK_SCAN_PAGES = 6;
   private static final int MAX_LINK_SCAN_ENDPOINTS = 10;
+  private static final int MAX_CAREERS_LANDING_FOLLOWUP_PAGES = 3;
 
   private static final List<String> HINT_TOKENS =
       List.of("careers", "jobs", "join", "talent", "opportunities", "work-with-us");
@@ -82,6 +83,7 @@ public class CareersDiscoveryService {
   private final AtsFingerprintFromSitemapsDetector sitemapDetector;
   private final HostCrawlStateService hostCrawlStateService;
   private final CareersLandingPageDiscoveryService careersLandingPageDiscoveryService;
+  private final CareersLandingLinkExtractor careersLandingLinkExtractor;
 
   public CareersDiscoveryService(
       CrawlerProperties properties,
@@ -94,7 +96,8 @@ public class CareersDiscoveryService {
       AtsFingerprintFromHtmlLinksDetector homepageLinksDetector,
       AtsFingerprintFromSitemapsDetector sitemapDetector,
       HostCrawlStateService hostCrawlStateService,
-      CareersLandingPageDiscoveryService careersLandingPageDiscoveryService) {
+      CareersLandingPageDiscoveryService careersLandingPageDiscoveryService,
+      CareersLandingLinkExtractor careersLandingLinkExtractor) {
     this.properties = properties;
     this.repository = repository;
     this.httpClient = httpClient;
@@ -106,6 +109,7 @@ public class CareersDiscoveryService {
     this.sitemapDetector = sitemapDetector;
     this.hostCrawlStateService = hostCrawlStateService;
     this.careersLandingPageDiscoveryService = careersLandingPageDiscoveryService;
+    this.careersLandingLinkExtractor = careersLandingLinkExtractor;
   }
 
   public CareersDiscoveryResult discover(Integer requestedLimit) {
@@ -482,6 +486,73 @@ public class CareersDiscoveryService {
               metrics.incrementVendorDetected();
             }
           } else {
+            if (!vendorProbeOnly) {
+              LandingFollowupProbeResult followup =
+                  probeCareersLandingFollowup(
+                      company,
+                      landing.careersUrlFinal(),
+                      landing.responseBody(),
+                      metrics,
+                      seen,
+                      countsByType,
+                      cooldownSkips);
+              requestCount += followup.requestCount();
+              if (followup.hasEndpoints()) {
+                AtsDetectionRecord first = followup.endpoints().getFirst();
+                vendorDetected = true;
+                vendorName = first.atsType().name();
+                endpointExtracted = true;
+                endpointUrl = first.atsUrl();
+                atsDiscoveryResult =
+                    AtsDiscoveryResult.validated(
+                        first.atsType(), first.atsUrl(), "careers_landing_followup");
+                registerEndpoints(
+                    company,
+                    followup.discoveredFromUrl(),
+                    followup.endpoints(),
+                    "careers_landing_followup",
+                    0.9,
+                    true,
+                    seen,
+                    countsByType);
+                if (metrics != null) {
+                  metrics.incrementVendorDetected();
+                  metrics.incrementEndpointExtracted();
+                }
+                updateDiscoveryStateSuccess(company);
+                return new DiscoveryOutcome(
+                    countsByType,
+                    null,
+                    cooldownSkips.get(),
+                    false,
+                    false,
+                    new DiscoveryFunnel(
+                        careersUrlFound,
+                        careersUrlInitial,
+                        careersUrlFinal,
+                        careersDiscoveryMethod,
+                        careersStageFailure,
+                        vendorDetected,
+                        vendorName,
+                        endpointExtracted,
+                        endpointUrl,
+                        httpStatusFirstFailure,
+                        requestCount,
+                        atsDiscoveryResult));
+              }
+              if (followup.detectedType() != AtsType.UNKNOWN) {
+                vendorDetected = true;
+                vendorName = followup.detectedType().name();
+                atsDiscoveryResult =
+                    AtsDiscoveryResult.unvalidated(
+                        followup.detectedType(),
+                        "careers_landing_followup_vendor_signature",
+                        followup.discoveredFromUrl());
+                if (metrics != null) {
+                  metrics.incrementVendorDetected();
+                }
+              }
+            }
             careersStageFailure =
                 CareersLandingPageDiscoveryService.FailureReason
                     .CAREERS_PAGE_200_NO_VENDOR_SIGNATURE
@@ -821,6 +892,80 @@ public class CareersDiscoveryService {
         endpointsFound += endpoints.size();
       }
     }
+  }
+
+  private LandingFollowupProbeResult probeCareersLandingFollowup(
+      CompanyTarget company,
+      String landingUrl,
+      String landingHtml,
+      DiscoveryMetrics metrics,
+      LinkedHashSet<String> seen,
+      Map<AtsType, Integer> countsByType,
+      AtomicInteger cooldownSkips) {
+    if (landingUrl == null
+        || landingUrl.isBlank()
+        || landingHtml == null
+        || landingHtml.isBlank()
+        || company == null) {
+      return LandingFollowupProbeResult.none();
+    }
+
+    int requestsIssued = 0;
+    int pagesConsidered = 0;
+    for (String candidate :
+        careersLandingLinkExtractor.extractRanked(
+            landingHtml, landingUrl, MAX_CAREERS_LANDING_FOLLOWUP_PAGES + 1)) {
+      if (candidate == null || candidate.isBlank() || candidate.equalsIgnoreCase(landingUrl)) {
+        continue;
+      }
+      if (pagesConsidered >= MAX_CAREERS_LANDING_FOLLOWUP_PAGES) {
+        break;
+      }
+      pagesConsidered++;
+
+      List<AtsDetectionRecord> directEndpoints = atsEndpointExtractor.extract(candidate, null);
+      if (!directEndpoints.isEmpty()) {
+        return LandingFollowupProbeResult.validated(candidate, directEndpoints, requestsIssued);
+      }
+
+      if (isHostCoolingDown(candidate)) {
+        if (cooldownSkips != null) {
+          cooldownSkips.incrementAndGet();
+        }
+        continue;
+      }
+      if (!robotsTxtService.isAllowed(candidate)) {
+        recordCooldownFailure(candidate, ReasonCodeClassifier.ROBOTS_BLOCKED);
+        continue;
+      }
+
+      HttpFetchResult fetch = fetchTracked(candidate, HTML_ACCEPT, MAX_HOMEPAGE_BYTES, metrics);
+      requestsIssued++;
+      if ("body_too_large".equals(fetch.errorCode())) {
+        recordCooldownSuccess(candidate);
+        continue;
+      }
+      if (!fetch.isSuccessful() || fetch.body() == null || fetch.body().isBlank()) {
+        recordCooldownFromFetch(candidate, fetch);
+        continue;
+      }
+      recordCooldownSuccess(candidate);
+
+      String resolvedUrl = fetch.finalUrlOrRequested();
+      List<AtsDetectionRecord> extracted = atsEndpointExtractor.extract(resolvedUrl, fetch.body());
+      if (extracted.isEmpty()) {
+        extracted = resolveGreenhouseShortLinks(fetch.body());
+      }
+      if (!extracted.isEmpty()) {
+        return LandingFollowupProbeResult.validated(resolvedUrl, extracted, requestsIssued);
+      }
+
+      AtsType detected = atsDetector.detect(resolvedUrl, fetch.body());
+      if (detected != AtsType.UNKNOWN) {
+        return LandingFollowupProbeResult.detected(resolvedUrl, detected, requestsIssued);
+      }
+    }
+    return LandingFollowupProbeResult.none(requestsIssued);
   }
 
   private boolean isAtsLink(String href) {
@@ -1839,6 +1984,41 @@ public class CareersDiscoveryService {
   }
 
   record DiscoveryFailure(String reasonCode, String candidateUrl, String detail) {}
+
+  private record LandingFollowupProbeResult(
+      String discoveredFromUrl,
+      AtsType detectedType,
+      List<AtsDetectionRecord> endpoints,
+      int requestCount) {
+    private LandingFollowupProbeResult {
+      detectedType = detectedType == null ? AtsType.UNKNOWN : detectedType;
+      endpoints = endpoints == null ? List.of() : List.copyOf(endpoints);
+    }
+
+    private static LandingFollowupProbeResult none() {
+      return none(0);
+    }
+
+    private static LandingFollowupProbeResult none(int requestCount) {
+      return new LandingFollowupProbeResult(null, AtsType.UNKNOWN, List.of(), requestCount);
+    }
+
+    private static LandingFollowupProbeResult detected(
+        String discoveredFromUrl, AtsType detectedType, int requestCount) {
+      return new LandingFollowupProbeResult(discoveredFromUrl, detectedType, List.of(), requestCount);
+    }
+
+    private static LandingFollowupProbeResult validated(
+        String discoveredFromUrl, List<AtsDetectionRecord> endpoints, int requestCount) {
+      AtsType firstType =
+          endpoints == null || endpoints.isEmpty() ? AtsType.UNKNOWN : endpoints.getFirst().atsType();
+      return new LandingFollowupProbeResult(discoveredFromUrl, firstType, endpoints, requestCount);
+    }
+
+    private boolean hasEndpoints() {
+      return !endpoints.isEmpty();
+    }
+  }
 
   record DiscoveryFunnel(
       boolean careersUrlFound,
