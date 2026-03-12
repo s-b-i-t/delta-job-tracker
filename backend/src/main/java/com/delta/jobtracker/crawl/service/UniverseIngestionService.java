@@ -4,6 +4,7 @@ import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.PoliteHttpClient;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import com.delta.jobtracker.crawl.model.IngestionSummary;
+import com.delta.jobtracker.crawl.model.EquivalentCompanyEvidenceBackfillResponse;
 import com.delta.jobtracker.crawl.model.SecIngestionResult;
 import com.delta.jobtracker.crawl.model.SecUniverseIngestionSummary;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -46,18 +47,21 @@ public class UniverseIngestionService {
   private final Sp500WikipediaClient sp500WikipediaClient;
   private final PoliteHttpClient httpClient;
   private final ObjectMapper objectMapper;
+  private final EquivalentCompanyEvidenceBackfillService equivalentCompanyEvidenceBackfillService;
 
   public UniverseIngestionService(
       CrawlerProperties properties,
       CrawlJdbcRepository repository,
       Sp500WikipediaClient sp500WikipediaClient,
       PoliteHttpClient httpClient,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      EquivalentCompanyEvidenceBackfillService equivalentCompanyEvidenceBackfillService) {
     this.properties = properties;
     this.repository = repository;
     this.sp500WikipediaClient = sp500WikipediaClient;
     this.httpClient = httpClient;
     this.objectMapper = objectMapper;
+    this.equivalentCompanyEvidenceBackfillService = equivalentCompanyEvidenceBackfillService;
   }
 
   public IngestionSummary ingest() {
@@ -116,6 +120,7 @@ public class UniverseIngestionService {
     List<String> tickers = new ArrayList<>();
     if (!records.isEmpty()) {
       upsertSecCompanies(records, companyIdsByTicker, counts);
+      runEquivalentEvidenceBackfill("ingestSecCompanies");
       for (SecCompanyRecord record : records) {
         tickers.add(record.ticker());
       }
@@ -146,6 +151,7 @@ public class UniverseIngestionService {
         inserted++;
       }
     }
+    runEquivalentEvidenceBackfill("ingestSecUniverse");
     int total = inserted + updated;
     return new SecUniverseIngestionSummary(
         inserted, updated, total, errors.totalCount(), errors.sampleErrors());
@@ -256,6 +262,7 @@ public class UniverseIngestionService {
     int before = counts.companiesUpserted;
     if (!records.isEmpty()) {
       upsertSecCompanies(records, companyIdsByTicker, counts);
+      runEquivalentEvidenceBackfill("ingest(source=sec)");
     }
     return counts.companiesUpserted > before;
   }
@@ -271,6 +278,7 @@ public class UniverseIngestionService {
     List<String> tickers = new ArrayList<>();
     if (!records.isEmpty()) {
       upsertSecCompanies(records, companyIdsByTicker, counts);
+      runEquivalentEvidenceBackfill("ingestCompaniesFromSec(limit)");
       for (SecCompanyRecord record : records) {
         tickers.add(record.ticker());
       }
@@ -288,6 +296,18 @@ public class UniverseIngestionService {
           repository.upsertCompany(record.ticker(), record.name(), null, null, record.cik());
       companyIdsByTicker.put(record.ticker(), companyId);
       counts.companiesUpserted++;
+    }
+  }
+
+  private void runEquivalentEvidenceBackfill(String trigger) {
+    EquivalentCompanyEvidenceBackfillResponse response = equivalentCompanyEvidenceBackfillService.backfill();
+    if (response.totalRowsInserted() > 0) {
+      log.info(
+          "Equivalent-row evidence backfill completed after {}: domainRowsInserted={}, atsRowsInserted={}, totalRowsInserted={}",
+          trigger,
+          response.domainRowsInserted(),
+          response.atsRowsInserted(),
+          response.totalRowsInserted());
     }
   }
 
