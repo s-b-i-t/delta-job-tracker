@@ -47,6 +47,7 @@ public class DomainResolutionService {
   private static final String METHOD_WIKIPEDIA = "WIKIPEDIA_TITLE";
   private static final String METHOD_CIK = "CIK";
   private static final String METHOD_EQUIVALENT_CIK = "EQUIVALENT_CIK";
+  private static final String METHOD_NORMALIZED_TITLE = "NORMALIZED_COMPANY_TITLE";
   private static final String METHOD_HEURISTIC = "HEURISTIC_NAME";
   private static final String METHOD_WIKIPEDIA_INFOBOX = "WIKIPEDIA_INFOBOX";
   private static final String METHOD_NONE = "NONE";
@@ -588,6 +589,11 @@ public class DomainResolutionService {
               company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
         return;
       }
+      if (!METHOD_NORMALIZED_TITLE.equals(method)
+          && tryNormalizedCompanyTitleFallbackLookup(
+          company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
+        return;
+      }
       if (tryWikipediaInfoboxFallback(company, "no_item", counts, metrics, deadline)) {
         return;
       }
@@ -947,6 +953,78 @@ public class DomainResolutionService {
     return true;
   }
 
+  private boolean tryNormalizedCompanyTitleFallbackLookup(
+      CompanyIdentity company,
+      Counts counts,
+      ErrorCollector errors,
+      ResolutionMetricsCollector metrics,
+      Instant deadline,
+      Map<String, HttpFetchResult> heuristicFetchCache,
+      HeuristicBudget heuristicBudget) {
+    if (company == null || hasWikipediaTitle(company) || !hasCik(company) || company.name() == null) {
+      return false;
+    }
+    Instant now = Instant.now();
+    if (shouldSkipCached(company, METHOD_NORMALIZED_TITLE, now)) {
+      return false;
+    }
+    if (deadline != null && now.isAfter(deadline)) {
+      return false;
+    }
+    List<String> titles = buildTitleVariants(company.name());
+    if (titles.isEmpty()) {
+      return false;
+    }
+
+    metrics.incrementWdqsTitleBatch();
+    Instant wdqsStartedAt = Instant.now();
+    WdqsLookupResult lookupResult = fetchWdqsMatchesByTitle(titles);
+    metrics.addWdqsDuration(Duration.between(wdqsStartedAt, Instant.now()).toMillis());
+    if (lookupResult.lookup() == null) {
+      String errorCategory =
+          lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
+      if (tryHeuristicFallback(
+          company,
+          errorCategory,
+          counts,
+          errors,
+          metrics,
+          deadline,
+          heuristicFetchCache,
+          heuristicBudget)) {
+        return true;
+      }
+      if ("wdqs_timeout".equals(errorCategory)) {
+        counts.wdqsTimeout++;
+      } else {
+        counts.wdqsError++;
+      }
+      errors.add(company, errorCategory);
+      repository.updateCompanyDomainResolutionCache(
+          company.companyId(),
+          METHOD_NORMALIZED_TITLE,
+          "wdqs_timeout".equals(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
+          errorCategory,
+          now);
+      return true;
+    }
+
+    WdqsMatch match = findMatch(titles, lookupResult.lookup().matches());
+    applyMatch(
+        company,
+        match,
+        METHOD_NORMALIZED_TITLE,
+        "normalized_company_name",
+        false,
+        counts,
+        errors,
+        metrics,
+        deadline,
+        heuristicFetchCache,
+        heuristicBudget);
+    return true;
+  }
+
   private boolean hasWikipediaTitle(CompanyIdentity company) {
     return company != null
         && company.wikipediaTitle() != null
@@ -1209,6 +1287,9 @@ public class DomainResolutionService {
     String cleaned = value.trim();
     cleaned = cleaned.replaceAll("\\s*/.*$", "");
     cleaned = cleaned.replaceAll("\\s*\\(.*\\)$", "");
+    cleaned = cleaned.replaceAll("\\s*,\\s*", ", ");
+    cleaned = cleaned.replaceAll("^[,;:\\s]+", "");
+    cleaned = cleaned.replaceAll("[,;:\\s]+$", "");
     cleaned = cleaned.replaceAll("\\s+", " ").trim();
     return cleaned;
   }
@@ -1230,7 +1311,7 @@ public class DomainResolutionService {
     if (end == tokens.length) {
       return cleaned;
     }
-    return String.join(" ", java.util.Arrays.copyOf(tokens, end)).trim();
+    return cleanupTitle(String.join(" ", java.util.Arrays.copyOf(tokens, end)).trim());
   }
 
   private String normalizeSuffixToken(String token) {
