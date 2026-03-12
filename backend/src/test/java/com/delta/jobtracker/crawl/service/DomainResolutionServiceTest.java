@@ -571,6 +571,147 @@ class DomainResolutionServiceTest {
     assertThat(result.noItemCount()).isEqualTo(1);
   }
 
+  @Test
+  void officialSiteIrAliasFallbackRecoversAcronymIssuerRows() {
+    service = createServiceWithComOnlyHeuristicTlds();
+    List<CompanyIdentity> companies =
+        List.of(
+            new CompanyIdentity(
+                94L,
+                "CM",
+                "CANADIAN IMPERIAL BANK OF COMMERCE /CAN/",
+                null,
+                null,
+                "0001045520",
+                null,
+                null,
+                null,
+                null),
+            new CompanyIdentity(
+                95L,
+                "CMC",
+                "COMMERCIAL METALS Co",
+                null,
+                null,
+                "0000022444",
+                null,
+                null,
+                null,
+                null));
+    when(repository.findCompaniesMissingDomain(2)).thenReturn(companies);
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              String url = invocation.getArgument(0, String.class);
+              if ("https://canadianimperialbankofcommerce.com/".equals(url)
+                  || "https://canadian-imperial-bank-of-commerce.com/".equals(url)
+                  || "https://commercialmetals.com/".equals(url)
+                  || "https://commercial-metals.com/".equals(url)) {
+                return failedHtml(url, 404, "http_404");
+              }
+              if ("https://cm.com/".equals(url)) {
+                return successHtmlRedirect(
+                    url,
+                    "https://investors.cibc.com/",
+                    """
+                    <html><head>
+                      <title>CIBC | NYSE: CM | Investor Relations</title>
+                      <meta property="og:site_name" content="CIBC" />
+                    </head>
+                    <body>Shareholders and investors</body></html>
+                    """);
+              }
+              if ("https://cmc.com/".equals(url)) {
+                return successHtmlRedirect(
+                    url,
+                    "https://investors.cmc.com/",
+                    """
+                    <html><head>
+                      <title>CMC | NYSE: CMC | Investor Relations</title>
+                      <meta property="og:site_name" content="CMC" />
+                    </head>
+                    <body>Investors</body></html>
+                    """);
+              }
+              return failedHtml(url, 404, "http_404");
+            });
+
+    DomainResolutionResult result = service.resolveMissingDomains(2);
+
+    assertThat(result.metrics().companiesInputCount()).isEqualTo(2);
+    assertThat(result.resolvedCount()).isEqualTo(2);
+    assertThat(result.noItemCount()).isZero();
+    assertThat(result.metrics().resolvedByMethod()).containsEntry("HEURISTIC", 2);
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(94L),
+            eq("investors.cibc.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(95L),
+            eq("investors.cmc.com"),
+            isNull(),
+            eq("HEURISTIC"),
+            eq(0.7),
+            any(Instant.class),
+            eq("HEURISTIC_NAME_COM"),
+            isNull());
+  }
+
+  @Test
+  void officialSiteIrAliasFallbackRejectsAliasOnMismatchedOfficialDomain() {
+    service = createServiceWithComOnlyHeuristicTlds();
+    CompanyIdentity company =
+        new CompanyIdentity(
+            96L,
+            "CM",
+            "CANADIAN IMPERIAL BANK OF COMMERCE /CAN/",
+            null,
+            null,
+            "0001045520",
+            null,
+            null,
+            null,
+            null);
+    when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(successFetch(wdqsEmptyResponse()));
+    when(politeHttpClient.get(anyString(), anyString(), anyInt()))
+        .thenAnswer(
+            invocation -> {
+              String url = invocation.getArgument(0, String.class);
+              if ("https://canadianimperialbankofcommerce.com/".equals(url)
+                  || "https://canadian-imperial-bank-of-commerce.com/".equals(url)) {
+                return failedHtml(url, 404, "http_404");
+              }
+              if ("https://cm.com/".equals(url)) {
+                return successHtmlRedirect(
+                    url,
+                    "https://investors.examplebank.com/",
+                    """
+                    <html><head>
+                      <title>CIBC | NYSE: CM | Investor Relations</title>
+                      <meta property="og:site_name" content="CIBC" />
+                    </head>
+                    <body>Investors and shareholders</body></html>
+                    """);
+              }
+              return failedHtml(url, 404, "http_404");
+            });
+
+    DomainResolutionResult result = service.resolveMissingDomains(1);
+
+    assertThat(result.resolvedCount()).isZero();
+    assertThat(result.noItemCount()).isEqualTo(1);
+  }
   void reportsWdqsTimeoutWhenQueryTimesOut() {
     CompanyIdentity company =
         new CompanyIdentity(
