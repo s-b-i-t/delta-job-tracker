@@ -291,6 +291,49 @@ class CareersDiscoveryServiceTest {
   }
 
   @Test
+  void fullModeFollowupExtractsSuccessFactorsEndpointFromSiblingCareersSubdomain() {
+    CompanyTarget company =
+        new CompanyTarget(14L, "ADMA", "ADMA BIOLOGICS, INC.", null, "www.admabiologics.com", null);
+    String homepage = "https://www.admabiologics.com/";
+    String careers = "https://www.admabiologics.com/careers";
+    String openings = "https://careers.admabiologics.com/search/?q=&locationsearch=";
+    String endpoint = "https://career4.successfactors.com/career";
+
+    when(repository.findCareersDiscoveryState(14L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careers), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(
+                careers,
+                "<a href=\"https://careers.admabiologics.com/search/?q=&locationsearch=\">Current Openings</a>"));
+    when(httpClient.get(eq(openings), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(
+                openings,
+                "<script src=\"https://career4.successfactors.com/career?company=acme\"></script>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.funnel().endpointUrl()).isEqualTo(endpoint);
+    assertThat(outcome.funnel().atsDiscoveryResult().evidence())
+        .isEqualTo("careers_landing_followup");
+    verify(httpClient).get(eq(openings), anyString(), anyInt());
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(14L),
+            eq(AtsType.SUCCESSFACTORS),
+            eq(endpoint),
+            eq(openings),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing_followup"),
+            eq(true));
+  }
+
+  @Test
   void vendorProbeDoesNotFollowCareersLandingLinks() {
     CompanyTarget company = new CompanyTarget(10L, "ACME", "Acme Corp", null, "acme.com", null);
     String homepage = "https://acme.com/";

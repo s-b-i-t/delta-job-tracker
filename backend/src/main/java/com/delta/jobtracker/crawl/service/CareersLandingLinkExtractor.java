@@ -142,7 +142,29 @@ class CareersLandingLinkExtractor {
     }
     return candidateHost.equals(baseHost)
         || candidateHost.endsWith("." + baseHost)
-        || baseHost.endsWith("." + candidateHost);
+        || baseHost.endsWith("." + candidateHost)
+        || isSiblingCareersHost(baseHost, candidateHost);
+  }
+
+  private boolean isSiblingCareersHost(String baseHost, String candidateHost) {
+    String baseParent = parentDomain(baseHost);
+    String candidateParent = parentDomain(candidateHost);
+    if (baseParent == null || candidateParent == null || !baseParent.equals(candidateParent)) {
+      return false;
+    }
+    return hasCareersHostPrefix(baseHost) || hasCareersHostPrefix(candidateHost);
+  }
+
+  private boolean hasCareersHostPrefix(String host) {
+    return host.startsWith("careers.") || host.startsWith("jobs.") || host.startsWith("www.");
+  }
+
+  private String parentDomain(String host) {
+    String[] labels = host.split("\\.");
+    if (labels.length < 3) {
+      return null;
+    }
+    return labels[labels.length - 2] + "." + labels[labels.length - 1];
   }
 
   Set<String> defaultFallbackCandidates(String domain) {

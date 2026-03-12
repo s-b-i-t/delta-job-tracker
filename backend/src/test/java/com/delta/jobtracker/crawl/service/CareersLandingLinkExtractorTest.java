@@ -48,6 +48,22 @@ class CareersLandingLinkExtractorTest {
   }
 
   @Test
+  void followsSiblingCareersSubdomainTargets() {
+    String html =
+        """
+        <html><body>
+          <a href=\"https://careers.example.com/search/?q=&locationsearch=\">Search Jobs</a>
+          <a href=\"https://examplecareers.net/jobs\">External</a>
+        </body></html>
+        """;
+
+    List<String> ranked = extractor.extractRanked(html, "https://www.example.com/careers", 5);
+
+    assertThat(ranked)
+        .containsExactly("https://careers.example.com/search/?q=&locationsearch=");
+  }
+
+  @Test
   void defaultFallbackCandidatesAreBoundedAndOrdered() {
     List<String> candidates = extractor.defaultFallbackCandidates("example.com").stream().toList();
 
