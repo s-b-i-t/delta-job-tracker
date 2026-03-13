@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,8 +46,8 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setMaxDurationSeconds(1);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
-    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
     when(repository.insertCareersDiscoveryRun(
             eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
         .thenReturn(99L);
@@ -114,8 +115,8 @@ class CareersDiscoveryRunServiceTest {
     CompanyTarget c1 = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
     CompanyTarget c2 = new CompanyTarget(2L, "BBB", "Beta", null, "beta.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(2);
-    when(repository.findCompaniesWithDomainWithoutAts(2)).thenReturn(List.of(c1, c2));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(2);
+    when(repository.findCompaniesWithDomainWithoutAts(2, false)).thenReturn(List.of(c1, c2));
     when(repository.insertCareersDiscoveryRun(
             eq(2), eq(2), eq(2), eq(2), anyInt(), anyInt(), anyInt()))
         .thenReturn(100L);
@@ -157,8 +158,8 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setHardTimeoutSeconds(120);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
-    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
     when(repository.insertCareersDiscoveryRun(
             eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
         .thenReturn(104L);
@@ -197,8 +198,8 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setHardTimeoutSeconds(120);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
-    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
     when(repository.insertCareersDiscoveryRun(
             eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
         .thenReturn(101L);
@@ -253,8 +254,8 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setPerHostFailureCutoff(6);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
-    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
     when(repository.insertCareersDiscoveryRun(
             eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
         .thenReturn(102L);
@@ -302,8 +303,8 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setPerHostFailureCutoff(6);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
-    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
     when(repository.insertCareersDiscoveryRun(
             eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
         .thenReturn(103L);
@@ -380,8 +381,8 @@ class CareersDiscoveryRunServiceTest {
     CompanyTarget c1 = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
     CompanyTarget c2 = new CompanyTarget(2L, "BBB", "Beta", null, "beta.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(2);
-    when(repository.findCompaniesWithDomainWithoutAts(2)).thenReturn(List.of(c1, c2));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(2);
+    when(repository.findCompaniesWithDomainWithoutAts(2, false)).thenReturn(List.of(c1, c2));
     when(repository.insertCareersDiscoveryRun(eq(2), eq(2), eq(2), eq(2), eq(1), eq(120), eq(3)))
         .thenReturn(104L);
     when(repository.countAtsEndpointsForCompany(anyLong())).thenReturn(0);
@@ -423,8 +424,8 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setHardTimeoutSeconds(120);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
-    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
     when(repository.insertCareersDiscoveryRun(
             eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
         .thenReturn(105L);
@@ -512,8 +513,8 @@ class CareersDiscoveryRunServiceTest {
     properties.getCareersDiscovery().setHardTimeoutSeconds(120);
     CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
 
-    when(repository.countCompaniesWithDomainWithoutAtsEligible()).thenReturn(1);
-    when(repository.findCompaniesWithDomainWithoutAts(1)).thenReturn(List.of(company));
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
     when(repository.insertCareersDiscoveryRun(
             eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
         .thenReturn(106L);
@@ -562,6 +563,32 @@ class CareersDiscoveryRunServiceTest {
             requestCountCaptor.capture(),
             anyInt());
     assertThat(requestCountCaptor.getValue()).isEqualTo(1);
+  }
+
+  @Test
+  void fullModeSelectionIncludesVendorProbeOnlyEndpointsWhileVendorProbeModeStaysStrict() {
+    CrawlerProperties properties = new CrawlerProperties();
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(107L);
+    when(repository.countAtsEndpointsForCompany(1L)).thenReturn(0);
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean(), anyInt()))
+        .thenReturn(new CareersDiscoveryService.DiscoveryOutcome(Map.of(), null, 0, false, false));
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    verify(repository).countCompaniesWithDomainWithoutAtsEligible(false);
+    verify(repository).findCompaniesWithDomainWithoutAts(1, false);
+    verify(repository, never()).countCompaniesWithDomainWithoutAtsEligible(true);
+    verify(repository, never()).findCompaniesWithDomainWithoutAts(1, true);
   }
 
   private static final class DirectExecutorService extends AbstractExecutorService {

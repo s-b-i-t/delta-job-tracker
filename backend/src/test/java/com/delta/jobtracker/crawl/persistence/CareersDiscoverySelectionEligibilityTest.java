@@ -2,6 +2,7 @@ package com.delta.jobtracker.crawl.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import java.time.Instant;
 import java.util.List;
@@ -76,5 +77,33 @@ class CareersDiscoverySelectionEligibilityTest {
 
     assertThat(secondIds).doesNotContainAnyElementsOf(firstIds);
     assertThat(second).extracting(CompanyTarget::ticker).contains(tickerC);
+  }
+
+  @Test
+  void fullModeSelectionIncludesVendorProbeOnlyEndpointsButVendorProbeSelectionDoesNot() {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    String ticker = "VP" + suffix;
+
+    long companyId = repository.upsertCompany(ticker, "Vendor Probe Co " + suffix, "Tech");
+    repository.upsertCompanyDomain(companyId, "vp-" + suffix.toLowerCase() + ".example.com", null);
+    repository.upsertAtsEndpoint(
+        companyId,
+        AtsType.GREENHOUSE,
+        "https://boards.greenhouse.io/" + suffix.toLowerCase(),
+        "https://boards.greenhouse.io/" + suffix.toLowerCase(),
+        0.9,
+        Instant.now(),
+        "vendor_probe",
+        true);
+
+    List<String> tickers = List.of(ticker);
+
+    assertThat(repository.countCompaniesWithDomainWithoutAtsEligible(true)).isZero();
+    assertThat(repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 1, true)).isEmpty();
+
+    assertThat(repository.countCompaniesWithDomainWithoutAtsEligible(false)).isEqualTo(1);
+    assertThat(repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 1, false))
+        .extracting(CompanyTarget::companyId)
+        .containsExactly(companyId);
   }
 }

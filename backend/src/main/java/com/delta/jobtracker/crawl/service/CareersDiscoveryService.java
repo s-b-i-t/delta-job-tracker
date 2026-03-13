@@ -123,7 +123,8 @@ public class CareersDiscoveryService {
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
 
-    List<CompanyTarget> companies = repository.findCompaniesWithDomainWithoutAts(limit);
+    List<CompanyTarget> companies =
+        repository.findCompaniesWithDomainWithoutAts(limit, vendorProbeOnly);
     return discoverForCompanies(companies, deadline, vendorProbeOnly);
   }
 
@@ -143,7 +144,7 @@ public class CareersDiscoveryService {
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
     List<CompanyTarget> companies =
-        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
+        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit, vendorProbeOnly);
     return discoverForCompanies(companies, deadline, vendorProbeOnly);
   }
 
@@ -154,7 +155,7 @@ public class CareersDiscoveryService {
             ? properties.getCareersDiscovery().getDefaultLimit()
             : Math.max(1, requestedLimit);
     List<CompanyTarget> companies =
-        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit);
+        repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, limit, vendorProbeOnly);
     DiscoveryMetrics metrics = new DiscoveryMetrics();
     CareersDiscoveryResult result =
         discoverForCompanies(companies, deadline, vendorProbeOnly, metrics);

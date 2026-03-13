@@ -1874,7 +1874,11 @@ public class CrawlJdbcRepository {
   }
 
   public int countCompaniesWithDomainWithoutAtsEligible() {
-    MapSqlParameterSource params = atsDiscoverySelectionParams(null);
+    return countCompaniesWithDomainWithoutAtsEligible(true);
+  }
+
+  public int countCompaniesWithDomainWithoutAtsEligible(boolean vendorProbeOnlySelection) {
+    MapSqlParameterSource params = atsDiscoverySelectionParams(null, vendorProbeOnlySelection);
     String sql =
         """
                 SELECT COUNT(*)
@@ -1898,7 +1902,12 @@ public class CrawlJdbcRepository {
   }
 
   public List<CompanyTarget> findCompaniesWithDomainWithoutAts(int limit) {
-    MapSqlParameterSource params = atsDiscoverySelectionParams(limit);
+    return findCompaniesWithDomainWithoutAts(limit, true);
+  }
+
+  public List<CompanyTarget> findCompaniesWithDomainWithoutAts(
+      int limit, boolean vendorProbeOnlySelection) {
+    MapSqlParameterSource params = atsDiscoverySelectionParams(limit, vendorProbeOnlySelection);
 
     return jdbc.query(
         """
@@ -1931,10 +1940,16 @@ public class CrawlJdbcRepository {
 
   public List<CompanyTarget> findCompaniesWithDomainWithoutAtsByTickers(
       List<String> tickers, int limit) {
+    return findCompaniesWithDomainWithoutAtsByTickers(tickers, limit, true);
+  }
+
+  public List<CompanyTarget> findCompaniesWithDomainWithoutAtsByTickers(
+      List<String> tickers, int limit, boolean vendorProbeOnlySelection) {
     if (tickers == null || tickers.isEmpty()) {
       return List.of();
     }
-    MapSqlParameterSource params = atsDiscoverySelectionParams(limit).addValue("tickers", tickers);
+    MapSqlParameterSource params =
+        atsDiscoverySelectionParams(limit, vendorProbeOnlySelection).addValue("tickers", tickers);
     return jdbc.query(
         """
                 SELECT c.id AS company_id,
@@ -1965,7 +1980,8 @@ public class CrawlJdbcRepository {
         companyTargetRowMapper());
   }
 
-  private MapSqlParameterSource atsDiscoverySelectionParams(Integer limit) {
+  private MapSqlParameterSource atsDiscoverySelectionParams(
+      Integer limit, boolean vendorProbeOnlySelection) {
     Instant now = Instant.now();
     int cacheTtlMinutes = properties.getCareersDiscovery().getCacheTtlMinutes();
     int semiPermanentRetryHours = properties.getCareersDiscovery().getSemiPermanentRetryHours();
@@ -1979,6 +1995,7 @@ public class CrawlJdbcRepository {
             .addValue("atsSelectionNow", toTimestamp(now))
             .addValue("atsCacheRetryCutoff", toTimestamp(cacheRetryCutoff))
             .addValue("atsSemiPermanentRetryCutoff", toTimestamp(semiPermanentRetryCutoff))
+            .addValue("vendorProbeOnlySelection", vendorProbeOnlySelection)
             .addValue("atsSemiPermanentReasonCodes", ATS_DISCOVERY_SEMI_PERMANENT_REASON_CODES);
     if (limit != null) {
       params.addValue("limit", Math.max(1, limit));
@@ -1992,6 +2009,11 @@ public class CrawlJdbcRepository {
                     SELECT 1
                     FROM ats_endpoints ae
                     WHERE ae.company_id = %1$s.id
+                      AND (
+                        :vendorProbeOnlySelection = TRUE
+                        OR ae.detection_method IS NULL
+                        OR LOWER(ae.detection_method) <> 'vendor_probe'
+                      )
                 )
                   AND (
                     %2$s.next_attempt_at IS NULL
