@@ -510,6 +510,8 @@ class DomainResolutionServiceTest {
     assertThat(result.resolvedCount()).isZero();
     assertThat(result.noItemCount()).isEqualTo(1);
   }
+
+  @Test
   void reportsWdqsTimeoutWhenQueryTimesOut() {
     CompanyIdentity company =
         new CompanyIdentity(
@@ -521,6 +523,68 @@ class DomainResolutionServiceTest {
 
     assertThat(result.wdqsTimeoutCount()).isEqualTo(1);
     assertThat(result.wdqsErrorCount()).isZero();
+  }
+
+  @Test
+  void wdqsChunkingPreservesSuccessfulLaterChunksWhenEarlierChunkTimesOut() {
+    service = createServiceWithWdqsChunkSize(1);
+    CompanyIdentity timedOut =
+        new CompanyIdentity(66L, "ALFA", "Alpha", null, "Alpha", null, null, null, null, null);
+    CompanyIdentity resolved =
+        new CompanyIdentity(67L, "BETA", "Beta", null, "Beta", null, null, null, null, null);
+    when(repository.findCompaniesMissingDomain(2)).thenReturn(List.of(timedOut, resolved));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(timeoutFetch("connect_timeout"))
+        .thenReturn(timeoutFetch("connect_timeout"))
+        .thenReturn(timeoutFetch("connect_timeout"))
+        .thenReturn(successFetch(wdqsResponseForTitle("Beta", "Q42", "https://beta.com")));
+
+    DomainResolutionResult result = service.resolveMissingDomains(2);
+
+    assertThat(result.resolvedCount()).isEqualTo(1);
+    assertThat(result.wdqsTimeoutCount()).isEqualTo(1);
+    assertThat(result.wdqsErrorCount()).isZero();
+    assertThat(result.sampleErrors()).anyMatch(error -> error.contains("wdqs_connect_timeout"));
+    assertThat(result.metrics().wdqsTitleBatchCount()).isEqualTo(1);
+    assertThat(result.metrics().wdqsTitleRequestCount()).isEqualTo(2);
+    assertThat(result.metrics().wdqsFailureByCategory()).containsEntry("wdqs_connect_timeout", 1);
+    verify(repository)
+        .updateCompanyDomainResolutionCache(
+            eq(66L),
+            eq("WIKIPEDIA_TITLE"),
+            eq("WDQS_TIMEOUT"),
+            eq("wdqs_connect_timeout"),
+            any(Instant.class));
+    verify(repository)
+        .upsertCompanyDomain(
+            eq(67L),
+            eq("beta.com"),
+            isNull(),
+            eq("WIKIDATA"),
+            eq(0.95),
+            any(Instant.class),
+            eq("enwiki_sitelink"),
+            eq("Q42"));
+  }
+
+  @Test
+  void wdqsRetryTracksRetryCategoryAndSucceedsOnSecondAttempt() {
+    service = createServiceWithWdqsChunkSize(1);
+    CompanyIdentity company =
+        new CompanyIdentity(68L, "GAM", "Gamma", null, "Gamma", null, null, null, null, null);
+    when(repository.findCompaniesMissingDomain(1)).thenReturn(List.of(company));
+    when(wdqsHttpClient.postForm(anyString(), anyString(), anyString()))
+        .thenReturn(timeoutFetch("read_timeout"))
+        .thenReturn(successFetch(wdqsResponseForTitle("Gamma", "Q68", "https://gamma.com")));
+
+    DomainResolutionResult result = service.resolveMissingDomains(1);
+
+    assertThat(result.resolvedCount()).isEqualTo(1);
+    assertThat(result.wdqsTimeoutCount()).isZero();
+    assertThat(result.wdqsErrorCount()).isZero();
+    assertThat(result.metrics().wdqsRetryCount()).isEqualTo(1);
+    assertThat(result.metrics().wdqsRetryByCategory()).containsEntry("wdqs_read_timeout", 1);
+    verify(wdqsHttpClient, times(2)).postForm(anyString(), anyString(), anyString());
   }
 
   @Test
@@ -998,6 +1062,10 @@ class DomainResolutionServiceTest {
   }
 
   private HttpFetchResult timeoutFetch() {
+    return timeoutFetch("timeout");
+  }
+
+  private HttpFetchResult timeoutFetch(String errorCode) {
     return new HttpFetchResult(
         "https://query.wikidata.org",
         null,
@@ -1008,8 +1076,8 @@ class DomainResolutionServiceTest {
         null,
         Instant.now(),
         Duration.ZERO,
-        "timeout",
-        "timeout");
+        errorCode,
+        errorCode);
   }
 
   private HttpFetchResult successHtml(String url, String body) {
@@ -1087,11 +1155,31 @@ class DomainResolutionServiceTest {
             """;
   }
 
+  private String wdqsResponseForTitle(String candidateTitle, String qid, String website) {
+    return """
+            {"results":{"bindings":[
+              {"candidateTitle":{"value":"%s"},"articleTitle":{"value":"%s"},"item":{"value":"http://www.wikidata.org/entity/%s"},"officialWebsite":{"value":"%s"}}
+            ]}}
+            """
+        .formatted(candidateTitle, candidateTitle, qid, website);
+  }
+
+  private DomainResolutionService createServiceWithWdqsChunkSize(int chunkSize) {
+    CrawlerProperties properties = new CrawlerProperties();
+    properties.getData().setDomainsCsv("");
+    properties.getDomainResolution().setWdqsMinDelayMs(0);
+    properties.getDomainResolution().setBatchSize(10);
+    properties.getDomainResolution().setWdqsQueryChunkSize(chunkSize);
+    return new DomainResolutionService(
+        properties, repository, wdqsHttpClient, politeHttpClient, new ObjectMapper());
+  }
+
   private DomainResolutionService createServiceWithComOnlyHeuristicTlds() {
     CrawlerProperties properties = new CrawlerProperties();
     properties.getData().setDomainsCsv("");
     properties.getDomainResolution().setWdqsMinDelayMs(0);
     properties.getDomainResolution().setBatchSize(10);
+    properties.getDomainResolution().setWdqsQueryChunkSize(10);
     properties.getDomainResolution().setHeuristicTlds(List.of("com"));
     DomainResolutionService customizedService =
         new DomainResolutionService(

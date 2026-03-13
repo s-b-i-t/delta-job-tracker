@@ -385,6 +385,7 @@ public class CrawlerProperties {
   public static class DomainResolution {
     private int defaultLimit = 50;
     private int batchSize = 50;
+    private int wdqsQueryChunkSize = 10;
     private int wdqsMinDelayMs = 2000;
     private int wdqsTimeoutSeconds = 8;
     private int cacheTtlMinutes = 720;
@@ -406,6 +407,14 @@ public class CrawlerProperties {
 
     public void setBatchSize(int batchSize) {
       this.batchSize = Math.max(1, batchSize);
+    }
+
+    public int getWdqsQueryChunkSize() {
+      return Math.max(1, wdqsQueryChunkSize);
+    }
+
+    public void setWdqsQueryChunkSize(int wdqsQueryChunkSize) {
+      this.wdqsQueryChunkSize = Math.max(1, wdqsQueryChunkSize);
     }
 
     public int getWdqsMinDelayMs() {

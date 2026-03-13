@@ -3,8 +3,11 @@ package com.delta.jobtracker.crawl.http;
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.model.HttpFetchResult;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
@@ -12,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ExecutorService;
+import javax.net.ssl.SSLException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -84,14 +88,39 @@ public class WdqsHttpClient {
         budget.recordResult(result);
       }
       return result;
+    } catch (HttpConnectTimeoutException e) {
+      HttpFetchResult result = errorResult(url, startedAt, "connect_timeout", e.getMessage());
+      if (budget != null) {
+        budget.recordResult(result);
+      }
+      return result;
     } catch (HttpTimeoutException e) {
-      HttpFetchResult result = errorResult(url, startedAt, "timeout", e.getMessage());
+      HttpFetchResult result = errorResult(url, startedAt, "read_timeout", e.getMessage());
+      if (budget != null) {
+        budget.recordResult(result);
+      }
+      return result;
+    } catch (UnknownHostException e) {
+      HttpFetchResult result = errorResult(url, startedAt, "dns_error", e.getMessage());
+      if (budget != null) {
+        budget.recordResult(result);
+      }
+      return result;
+    } catch (ConnectException e) {
+      HttpFetchResult result = errorResult(url, startedAt, "connect_error", e.getMessage());
+      if (budget != null) {
+        budget.recordResult(result);
+      }
+      return result;
+    } catch (SSLException e) {
+      HttpFetchResult result = errorResult(url, startedAt, "ssl_error", e.getMessage());
       if (budget != null) {
         budget.recordResult(result);
       }
       return result;
     } catch (IOException e) {
-      HttpFetchResult result = errorResult(url, startedAt, "io_error", e.getMessage());
+      HttpFetchResult result =
+          errorResult(url, startedAt, classifyIoException(e), e.getMessage());
       if (budget != null) {
         budget.recordResult(result);
       }
@@ -138,5 +167,25 @@ public class WdqsHttpClient {
     } catch (Exception e) {
       return null;
     }
+  }
+
+  private String classifyIoException(IOException error) {
+    if (error == null) {
+      return "io_error";
+    }
+    if (error instanceof UnknownHostException) {
+      return "dns_error";
+    }
+    if (error instanceof ConnectException) {
+      return "connect_error";
+    }
+    if (error instanceof SSLException) {
+      return "ssl_error";
+    }
+    String message = error.getMessage();
+    if (message != null && message.toLowerCase().contains("timeout")) {
+      return "read_timeout";
+    }
+    return "io_error";
   }
 }

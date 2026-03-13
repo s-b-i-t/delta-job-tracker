@@ -231,11 +231,12 @@ public class DomainResolutionService {
     }
     int batchCount = (companies.size() + batchSize - 1) / batchSize;
     log.info(
-        "Domain resolver starting: companies={}, with_wikipedia_title={}, with_cik={}, batch_size={}",
+        "Domain resolver starting: companies={}, with_wikipedia_title={}, with_cik={}, batch_size={}, wdqs_chunk_size={}",
         companies.size(),
         totalWithTitle,
         totalWithCik,
-        batchSize);
+        batchSize,
+        properties.getDomainResolution().getWdqsQueryChunkSize());
 
     for (int from = 0; from < companies.size(); from += batchSize) {
       if (deadline != null && Instant.now().isAfter(deadline)) {
@@ -391,45 +392,13 @@ public class DomainResolutionService {
             companiesByTitle.keySet().size());
         metrics.incrementWdqsTitleBatch();
         Instant wdqsStartedAt = Instant.now();
-        WdqsLookupResult lookupResult =
-            fetchWdqsMatchesByTitle(new ArrayList<>(companiesByTitle.keySet()));
+        WdqsLookupBatchResult lookupResult =
+            fetchWdqsMatchesByTitle(new ArrayList<>(companiesByTitle.keySet()), metrics);
         metrics.addWdqsDuration(Duration.between(wdqsStartedAt, Instant.now()).toMillis());
-        if (lookupResult.lookup() == null) {
-          String errorCategory =
-              lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
-          for (CompanyIdentity company : titlesByCompany.keySet()) {
-            if (tryCikFallbackLookup(
-                company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
-              continue;
-            }
-            if (tryHeuristicFallback(
-                company,
-                errorCategory,
-                counts,
-                errors,
-                metrics,
-                deadline,
-                heuristicFetchCache,
-                heuristicBudget)) {
-              continue;
-            }
-            if ("wdqs_timeout".equals(errorCategory)) {
-              counts.wdqsTimeout++;
-            } else {
-              counts.wdqsError++;
-            }
-            errors.add(company, errorCategory);
-            repository.updateCompanyDomainResolutionCache(
-                company.companyId(),
-                METHOD_WIKIPEDIA,
-                "wdqs_timeout".equals(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
-                errorCategory,
-                Instant.now());
-          }
-        } else {
-          for (Map.Entry<CompanyIdentity, List<String>> entry : titlesByCompany.entrySet()) {
-            CompanyIdentity company = entry.getKey();
-            WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
+        for (Map.Entry<CompanyIdentity, List<String>> entry : titlesByCompany.entrySet()) {
+          CompanyIdentity company = entry.getKey();
+          WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
+          if (match != null) {
             applyMatch(
                 company,
                 match,
@@ -442,7 +411,35 @@ public class DomainResolutionService {
                 deadline,
                 heuristicFetchCache,
                 heuristicBudget);
+            continue;
           }
+          String errorCategory = findFailureCategory(entry.getValue(), lookupResult.failedCategories());
+          if (errorCategory != null) {
+            applyWdqsLookupFailure(
+                company,
+                METHOD_WIKIPEDIA,
+                errorCategory,
+                true,
+                counts,
+                errors,
+                metrics,
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget);
+            continue;
+          }
+          applyMatch(
+              company,
+              null,
+              METHOD_WIKIPEDIA,
+              "enwiki_sitelink",
+              true,
+              counts,
+              errors,
+              metrics,
+              deadline,
+              heuristicFetchCache,
+              heuristicBudget);
         }
       }
 
@@ -455,41 +452,13 @@ public class DomainResolutionService {
             companiesByCik.keySet().size());
         metrics.incrementWdqsCikBatch();
         Instant wdqsStartedAt = Instant.now();
-        WdqsLookupResult lookupResult =
-            fetchWdqsMatchesByCik(new ArrayList<>(companiesByCik.keySet()));
+        WdqsLookupBatchResult lookupResult =
+            fetchWdqsMatchesByCik(new ArrayList<>(companiesByCik.keySet()), metrics);
         metrics.addWdqsDuration(Duration.between(wdqsStartedAt, Instant.now()).toMillis());
-        if (lookupResult.lookup() == null) {
-          String errorCategory =
-              lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
-          for (CompanyIdentity company : ciksByCompany.keySet()) {
-            if (tryHeuristicFallback(
-                company,
-                errorCategory,
-                counts,
-                errors,
-                metrics,
-                deadline,
-                heuristicFetchCache,
-                heuristicBudget)) {
-              continue;
-            }
-            if ("wdqs_timeout".equals(errorCategory)) {
-              counts.wdqsTimeout++;
-            } else {
-              counts.wdqsError++;
-            }
-            errors.add(company, errorCategory);
-            repository.updateCompanyDomainResolutionCache(
-                company.companyId(),
-                METHOD_CIK,
-                "wdqs_timeout".equals(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
-                errorCategory,
-                Instant.now());
-          }
-        } else {
-          for (Map.Entry<CompanyIdentity, List<String>> entry : ciksByCompany.entrySet()) {
-            CompanyIdentity company = entry.getKey();
-            WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
+        for (Map.Entry<CompanyIdentity, List<String>> entry : ciksByCompany.entrySet()) {
+          CompanyIdentity company = entry.getKey();
+          WdqsMatch match = findMatch(entry.getValue(), lookupResult.lookup().matches());
+          if (match != null) {
             applyMatch(
                 company,
                 match,
@@ -502,7 +471,35 @@ public class DomainResolutionService {
                 deadline,
                 heuristicFetchCache,
                 heuristicBudget);
+            continue;
           }
+          String errorCategory = findFailureCategory(entry.getValue(), lookupResult.failedCategories());
+          if (errorCategory != null) {
+            applyWdqsLookupFailure(
+                company,
+                METHOD_CIK,
+                errorCategory,
+                false,
+                counts,
+                errors,
+                metrics,
+                deadline,
+                heuristicFetchCache,
+                heuristicBudget);
+            continue;
+          }
+          applyMatch(
+              company,
+              null,
+              METHOD_CIK,
+              "cik",
+              false,
+              counts,
+              errors,
+              metrics,
+              deadline,
+              heuristicFetchCache,
+              heuristicBudget);
         }
       }
     }
@@ -646,6 +643,61 @@ public class DomainResolutionService {
         company.companyId(), method, STATUS_RESOLVED, null, Instant.now());
     counts.resolved++;
     metrics.recordResolved("WIKIDATA");
+  }
+
+  private void applyWdqsLookupFailure(
+      CompanyIdentity company,
+      String method,
+      String errorCategory,
+      boolean allowCikFallback,
+      Counts counts,
+      ErrorCollector errors,
+      ResolutionMetricsCollector metrics,
+      Instant deadline,
+      Map<String, HttpFetchResult> heuristicFetchCache,
+      HeuristicBudget heuristicBudget) {
+    if (allowCikFallback
+        && tryCikFallbackLookup(
+            company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
+      return;
+    }
+    if (tryHeuristicFallback(
+        company,
+        errorCategory,
+        counts,
+        errors,
+        metrics,
+        deadline,
+        heuristicFetchCache,
+        heuristicBudget)) {
+      return;
+    }
+    metrics.recordWdqsFailure(errorCategory);
+    if (isWdqsTimeoutCategory(errorCategory)) {
+      counts.wdqsTimeout++;
+    } else {
+      counts.wdqsError++;
+    }
+    errors.add(company, errorCategory);
+    repository.updateCompanyDomainResolutionCache(
+        company.companyId(),
+        method,
+        isWdqsTimeoutCategory(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
+        errorCategory,
+        Instant.now());
+  }
+
+  private String findFailureCategory(List<String> keys, Map<String, String> failedCategories) {
+    if (keys == null || keys.isEmpty() || failedCategories == null || failedCategories.isEmpty()) {
+      return null;
+    }
+    for (String key : keys) {
+      String category = failedCategories.get(key);
+      if (category != null && !category.isBlank()) {
+        return category;
+      }
+    }
+    return null;
   }
 
   private boolean tryWikipediaInfoboxFallback(
@@ -866,11 +918,14 @@ public class DomainResolutionService {
 
     metrics.incrementWdqsCikBatch();
     Instant wdqsStartedAt = Instant.now();
-    WdqsLookupResult lookupResult = fetchWdqsMatchesByCik(ciks);
+    WdqsLookupBatchResult lookupResult = fetchWdqsMatchesByCik(ciks, metrics);
     metrics.addWdqsDuration(Duration.between(wdqsStartedAt, Instant.now()).toMillis());
-    if (lookupResult.lookup() == null) {
-      String errorCategory =
-          lookupResult.errorCategory() == null ? "wdqs_error" : lookupResult.errorCategory();
+    WdqsMatch match = findMatch(ciks, lookupResult.lookup().matches());
+    if (match == null) {
+      String errorCategory = findFailureCategory(ciks, lookupResult.failedCategories());
+      if (errorCategory == null) {
+        return false;
+      }
       if (tryHeuristicFallback(
           company,
           errorCategory,
@@ -882,7 +937,8 @@ public class DomainResolutionService {
           heuristicBudget)) {
         return true;
       }
-      if ("wdqs_timeout".equals(errorCategory)) {
+      metrics.recordWdqsFailure(errorCategory);
+      if (isWdqsTimeoutCategory(errorCategory)) {
         counts.wdqsTimeout++;
       } else {
         counts.wdqsError++;
@@ -891,13 +947,11 @@ public class DomainResolutionService {
       repository.updateCompanyDomainResolutionCache(
           company.companyId(),
           METHOD_CIK,
-          "wdqs_timeout".equals(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
+          isWdqsTimeoutCategory(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
           errorCategory,
           Instant.now());
       return true;
     }
-
-    WdqsMatch match = findMatch(ciks, lookupResult.lookup().matches());
     applyMatch(
         company,
         match,
@@ -942,39 +996,50 @@ public class DomainResolutionService {
     return attemptedAt.plus(Duration.ofMinutes(ttlMinutes)).isAfter(now);
   }
 
-  private WdqsLookupResult fetchWdqsMatchesByTitle(List<String> titles) {
+  private WdqsLookupBatchResult fetchWdqsMatchesByTitle(
+      List<String> titles, ResolutionMetricsCollector metrics) {
     if (titles.isEmpty()) {
-      return new WdqsLookupResult(new WdqsLookup(Map.of()), null);
-    }
-
-    String values =
-        titles.stream()
-            .map(title -> sparqlLangLiteral(title, "en"))
-            .reduce((a, b) -> a + " " + b)
-            .orElse("");
-
-    String query =
-        """
-                PREFIX schema: <http://schema.org/>
-                SELECT ?candidateTitle ?articleTitle ?item ?officialWebsite WHERE {
-                  VALUES ?candidateTitle { %s }
-                  ?article schema:isPartOf <https://en.wikipedia.org/> ;
-                           schema:name ?articleTitle ;
-                           schema:about ?item .
-                  FILTER (LCASE(STR(?articleTitle)) = LCASE(STR(?candidateTitle)))
-                  OPTIONAL { ?item wdt:P856 ?officialWebsite . }
-                }
-                """
-            .formatted(values);
-
-    WdqsQueryResult queryResult = executeWdqsQuery(query);
-    if (queryResult.root() == null) {
-      return new WdqsLookupResult(null, queryResult.errorCategory());
+      return new WdqsLookupBatchResult(new WdqsLookup(Map.of()), Map.of());
     }
 
     Map<String, WdqsMatch> matches = new HashMap<>();
-    JsonNode bindings = queryResult.root().path("results").path("bindings");
-    if (bindings.isArray()) {
+    Map<String, String> failedCategories = new LinkedHashMap<>();
+    for (List<String> chunk : partitionWdqsKeys(titles)) {
+      metrics.incrementWdqsTitleRequest();
+      String values =
+          chunk.stream()
+              .map(title -> sparqlLangLiteral(title, "en"))
+              .reduce((a, b) -> a + " " + b)
+              .orElse("");
+
+      String query =
+          """
+                  PREFIX schema: <http://schema.org/>
+                  SELECT ?candidateTitle ?articleTitle ?item ?officialWebsite WHERE {
+                    VALUES ?candidateTitle { %s }
+                    ?article schema:isPartOf <https://en.wikipedia.org/> ;
+                             schema:name ?articleTitle ;
+                             schema:about ?item .
+                    FILTER (LCASE(STR(?articleTitle)) = LCASE(STR(?candidateTitle)))
+                    OPTIONAL { ?item wdt:P856 ?officialWebsite . }
+                  }
+                  """
+              .formatted(values);
+
+      WdqsQueryResult queryResult = executeWdqsQuery(query, metrics);
+      if (queryResult.root() == null) {
+        String errorCategory =
+            queryResult.errorCategory() == null ? "wdqs_error" : queryResult.errorCategory();
+        for (String title : chunk) {
+          failedCategories.put(title, errorCategory);
+        }
+        continue;
+      }
+
+      JsonNode bindings = queryResult.root().path("results").path("bindings");
+      if (!bindings.isArray()) {
+        continue;
+      }
       for (JsonNode row : bindings) {
         String candidate = row.path("candidateTitle").path("value").asText(null);
         String title = row.path("articleTitle").path("value").asText(null);
@@ -994,34 +1059,46 @@ public class DomainResolutionService {
         }
       }
     }
-    return new WdqsLookupResult(new WdqsLookup(matches), null);
+    return new WdqsLookupBatchResult(new WdqsLookup(matches), Map.copyOf(failedCategories));
   }
 
-  private WdqsLookupResult fetchWdqsMatchesByCik(List<String> ciks) {
+  private WdqsLookupBatchResult fetchWdqsMatchesByCik(
+      List<String> ciks, ResolutionMetricsCollector metrics) {
     if (ciks.isEmpty()) {
-      return new WdqsLookupResult(new WdqsLookup(Map.of()), null);
-    }
-
-    String values = ciks.stream().map(this::sparqlLiteral).reduce((a, b) -> a + " " + b).orElse("");
-
-    String query =
-        """
-                SELECT ?candidateCik ?item ?officialWebsite WHERE {
-                  VALUES ?candidateCik { %s }
-                  ?item wdt:%s ?candidateCik .
-                  OPTIONAL { ?item wdt:P856 ?officialWebsite . }
-                }
-                """
-            .formatted(values, CIK_PROPERTY);
-
-    WdqsQueryResult queryResult = executeWdqsQuery(query);
-    if (queryResult.root() == null) {
-      return new WdqsLookupResult(null, queryResult.errorCategory());
+      return new WdqsLookupBatchResult(new WdqsLookup(Map.of()), Map.of());
     }
 
     Map<String, WdqsMatch> matches = new HashMap<>();
-    JsonNode bindings = queryResult.root().path("results").path("bindings");
-    if (bindings.isArray()) {
+    Map<String, String> failedCategories = new LinkedHashMap<>();
+    for (List<String> chunk : partitionWdqsKeys(ciks)) {
+      metrics.incrementWdqsCikRequest();
+      String values =
+          chunk.stream().map(this::sparqlLiteral).reduce((a, b) -> a + " " + b).orElse("");
+
+      String query =
+          """
+                  SELECT ?candidateCik ?item ?officialWebsite WHERE {
+                    VALUES ?candidateCik { %s }
+                    ?item wdt:%s ?candidateCik .
+                    OPTIONAL { ?item wdt:P856 ?officialWebsite . }
+                  }
+                  """
+              .formatted(values, CIK_PROPERTY);
+
+      WdqsQueryResult queryResult = executeWdqsQuery(query, metrics);
+      if (queryResult.root() == null) {
+        String errorCategory =
+            queryResult.errorCategory() == null ? "wdqs_error" : queryResult.errorCategory();
+        for (String cik : chunk) {
+          failedCategories.put(cik, errorCategory);
+        }
+        continue;
+      }
+
+      JsonNode bindings = queryResult.root().path("results").path("bindings");
+      if (!bindings.isArray()) {
+        continue;
+      }
       for (JsonNode row : bindings) {
         String candidate = row.path("candidateCik").path("value").asText(null);
         String item = row.path("item").path("value").asText(null);
@@ -1040,10 +1117,10 @@ public class DomainResolutionService {
         }
       }
     }
-    return new WdqsLookupResult(new WdqsLookup(matches), null);
+    return new WdqsLookupBatchResult(new WdqsLookup(matches), Map.copyOf(failedCategories));
   }
 
-  private WdqsQueryResult executeWdqsQuery(String sparql) {
+  private WdqsQueryResult executeWdqsQuery(String sparql, ResolutionMetricsCollector metrics) {
     String encoded = URLEncoder.encode(sparql, StandardCharsets.UTF_8);
     String formBody = "query=" + encoded;
     String lastCategory = null;
@@ -1063,10 +1140,11 @@ public class DomainResolutionService {
         }
       }
 
-      lastCategory = isTimeout(fetch) ? "wdqs_timeout" : "wdqs_error";
+      lastCategory = classifyWdqsFailure(fetch);
       log.warn(
-          "WDQS query failed attempt={} status={} errorCode={} bodySample={}",
+          "WDQS query failed attempt={} category={} status={} errorCode={} bodySample={}",
           attempt,
+          lastCategory,
           fetch.statusCode(),
           fetch.errorCode(),
           sampleBody(fetch.body()));
@@ -1074,6 +1152,7 @@ public class DomainResolutionService {
       if (!shouldRetry(fetch) || attempt == WDQS_MAX_ATTEMPTS) {
         return new WdqsQueryResult(null, lastCategory);
       }
+      metrics.recordWdqsRetry(lastCategory);
       sleepBackoff(attempt);
     }
     return new WdqsQueryResult(null, lastCategory == null ? "wdqs_error" : lastCategory);
@@ -1097,6 +1176,19 @@ public class DomainResolutionService {
       wdqsNextAllowedAt =
           Instant.now().plusMillis(properties.getDomainResolution().getWdqsMinDelayMs());
     }
+  }
+
+  private List<List<String>> partitionWdqsKeys(List<String> values) {
+    if (values == null || values.isEmpty()) {
+      return List.of();
+    }
+    int chunkSize = properties.getDomainResolution().getWdqsQueryChunkSize();
+    List<List<String>> chunks = new ArrayList<>();
+    for (int from = 0; from < values.size(); from += chunkSize) {
+      int to = Math.min(values.size(), from + chunkSize);
+      chunks.add(List.copyOf(values.subList(from, to)));
+    }
+    return List.copyOf(chunks);
   }
 
   private List<String> buildTitleVariants(String rawTitle) {
@@ -1851,24 +1943,53 @@ public class DomainResolutionService {
   }
 
   private boolean shouldRetry(HttpFetchResult fetch) {
-    if (fetch == null) {
-      return true;
-    }
-    if (fetch.errorCode() != null) {
-      return true;
-    }
-    int status = fetch.statusCode();
-    return status == 429 || status >= 500;
+    return isRetryableWdqsCategory(classifyWdqsFailure(fetch));
   }
 
-  private boolean isTimeout(HttpFetchResult fetch) {
+  private String classifyWdqsFailure(HttpFetchResult fetch) {
     if (fetch == null) {
-      return false;
+      return "wdqs_error";
     }
     if (fetch.errorCode() != null) {
-      return fetch.errorCode().toLowerCase(Locale.ROOT).contains("timeout");
+      String code = fetch.errorCode().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
+      if (code.startsWith("wdqs_")) {
+        return code;
+      }
+      return "wdqs_" + code;
     }
-    return fetch.statusCode() == 408;
+    int status = fetch.statusCode();
+    if (status == 408) {
+      return "wdqs_http_408";
+    }
+    if (status == 429) {
+      return "wdqs_http_429";
+    }
+    if (status >= 500) {
+      return "wdqs_http_5xx";
+    }
+    if (status > 0) {
+      return "wdqs_http_" + status;
+    }
+    return "wdqs_error";
+  }
+
+  private boolean isRetryableWdqsCategory(String category) {
+    if (category == null || category.isBlank()) {
+      return false;
+    }
+    return isWdqsTimeoutCategory(category)
+        || "wdqs_http_429".equals(category)
+        || "wdqs_http_5xx".equals(category)
+        || "wdqs_dns_error".equals(category)
+        || "wdqs_connect_error".equals(category)
+        || "wdqs_io_error".equals(category);
+  }
+
+  private boolean isWdqsTimeoutCategory(String category) {
+    if (category == null || category.isBlank()) {
+      return false;
+    }
+    return category.contains("timeout") || "wdqs_http_408".equals(category);
   }
 
   private void sleepBackoff(int attempt) {
@@ -1965,6 +2086,9 @@ public class DomainResolutionService {
     private int cachedSkipCount;
     private int wdqsTitleBatchCount;
     private int wdqsCikBatchCount;
+    private int wdqsTitleRequestCount;
+    private int wdqsCikRequestCount;
+    private int wdqsRetryCount;
     private int wikipediaInfoboxTriedCount;
     private int wikipediaInfoboxResolvedCount;
     private int wikipediaInfoboxRejectedCount;
@@ -1976,6 +2100,8 @@ public class DomainResolutionService {
     private long wdqsDurationMs;
     private long wikipediaInfoboxDurationMs;
     private long heuristicDurationMs;
+    private final Map<String, Integer> wdqsFailureByCategory = new LinkedHashMap<>();
+    private final Map<String, Integer> wdqsRetryByCategory = new LinkedHashMap<>();
     private final Map<String, Integer> heuristicCandidatesTriedByTld = new LinkedHashMap<>();
     private final Map<String, Integer> heuristicResolvedByTld = new LinkedHashMap<>();
     private final Map<String, Integer> resolvedByMethod = new LinkedHashMap<>();
@@ -2009,6 +2135,25 @@ public class DomainResolutionService {
 
     private void incrementWdqsCikBatch() {
       wdqsCikBatchCount++;
+    }
+
+    private void incrementWdqsTitleRequest() {
+      wdqsTitleRequestCount++;
+    }
+
+    private void incrementWdqsCikRequest() {
+      wdqsCikRequestCount++;
+    }
+
+    private void recordWdqsRetry(String category) {
+      wdqsRetryCount++;
+      String key = (category == null || category.isBlank()) ? "wdqs_error" : category;
+      wdqsRetryByCategory.put(key, wdqsRetryByCategory.getOrDefault(key, 0) + 1);
+    }
+
+    private void recordWdqsFailure(String category) {
+      String key = (category == null || category.isBlank()) ? "wdqs_error" : category;
+      wdqsFailureByCategory.put(key, wdqsFailureByCategory.getOrDefault(key, 0) + 1);
     }
 
     private void incrementHeuristicCompaniesTried() {
@@ -2091,6 +2236,9 @@ public class DomainResolutionService {
           cachedSkipCount,
           wdqsTitleBatchCount,
           wdqsCikBatchCount,
+          wdqsTitleRequestCount,
+          wdqsCikRequestCount,
+          wdqsRetryCount,
           wikipediaInfoboxTriedCount,
           wikipediaInfoboxResolvedCount,
           wikipediaInfoboxRejectedCount,
@@ -2103,6 +2251,8 @@ public class DomainResolutionService {
           wdqsDurationMs,
           wikipediaInfoboxDurationMs,
           heuristicDurationMs,
+          Map.copyOf(wdqsFailureByCategory),
+          Map.copyOf(wdqsRetryByCategory),
           Map.copyOf(heuristicCandidatesTriedByTld),
           Map.copyOf(heuristicResolvedByTld),
           Map.copyOf(resolvedByMethod),
@@ -2133,7 +2283,8 @@ public class DomainResolutionService {
 
   private record NameSignals(List<String> strongTokens, List<String> acceptableRoots) {}
 
-  private record WdqsLookupResult(WdqsLookup lookup, String errorCategory) {}
+  private record WdqsLookupBatchResult(
+      WdqsLookup lookup, Map<String, String> failedCategories) {}
 
   private record WdqsQueryResult(JsonNode root, String errorCategory) {}
 
