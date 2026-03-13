@@ -396,7 +396,7 @@ public class CareersDiscoveryService {
             if (metrics != null) {
               metrics.incrementHomepageFound(endpoints.keySet());
             }
-            updateDiscoveryStateSuccess(company);
+            updateDiscoveryStateSuccess(company, vendorProbeOnly);
             return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
           }
         }
@@ -449,7 +449,7 @@ public class CareersDiscoveryService {
               metrics.incrementVendorDetected();
               metrics.incrementEndpointExtracted();
             }
-            updateDiscoveryStateSuccess(company);
+            updateDiscoveryStateSuccess(company, vendorProbeOnly);
             return new DiscoveryOutcome(
                 countsByType,
                 null,
@@ -511,7 +511,7 @@ public class CareersDiscoveryService {
         if (metrics != null) {
           metrics.incrementSitemapFound(sitemapResult.endpoints().keySet());
         }
-        updateDiscoveryStateSuccess(company);
+        updateDiscoveryStateSuccess(company, vendorProbeOnly);
         return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
       }
     }
@@ -557,7 +557,7 @@ public class CareersDiscoveryService {
         atsDiscoveryResult =
             AtsDiscoveryResult.validated(
                 vendorEndpoint.atsType(), vendorEndpoint.atsUrl(), "vendor_probe");
-        updateDiscoveryStateSuccess(company);
+        updateDiscoveryStateSuccess(company, vendorProbeOnly);
         return new DiscoveryOutcome(
             countsByType,
             null,
@@ -644,7 +644,7 @@ public class CareersDiscoveryService {
               metrics.incrementVendorDetected();
             }
           }
-          updateDiscoveryStateSuccess(company);
+          updateDiscoveryStateSuccess(company, vendorProbeOnly);
           return new DiscoveryOutcome(
               countsByType,
               null,
@@ -1360,8 +1360,8 @@ public class CareersDiscoveryService {
     return state.nextAttemptAt().isAfter(Instant.now());
   }
 
-  private void updateDiscoveryStateSuccess(CompanyTarget company) {
-    if (company == null) {
+  private void updateDiscoveryStateSuccess(CompanyTarget company, boolean vendorProbeOnly) {
+    if (company == null || vendorProbeOnly) {
       return;
     }
     repository.upsertCareersDiscoveryState(company.companyId(), Instant.now(), null, null, 0, null);

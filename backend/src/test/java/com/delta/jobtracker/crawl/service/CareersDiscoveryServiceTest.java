@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -114,11 +115,13 @@ class CareersDiscoveryServiceTest {
             any(Instant.class),
             eq("homepage_link"),
             eq(true));
+    verify(repository)
+        .upsertCareersDiscoveryState(eq(1L), any(Instant.class), isNull(), isNull(), eq(0), isNull());
     verify(httpClient, never()).get(eq("https://acme.com/careers"), anyString());
   }
 
   @Test
-  void vendorProbeOnlyPersistsEndpoint() {
+  void vendorProbeOnlyPersistsEndpointWithoutRefreshingDiscoveryState() {
     CompanyTarget company = new CompanyTarget(2L, "ACME", "Acme Corp", null, "acme.com", null);
     String vendorUrl = "https://boards.greenhouse.io/acme";
     String homepage = "https://acme.com/";
@@ -144,6 +147,8 @@ class CareersDiscoveryServiceTest {
             any(Instant.class),
             eq("vendor_probe"),
             eq(true));
+    verify(repository, never())
+        .upsertCareersDiscoveryState(anyLong(), any(Instant.class), any(), any(), anyInt(), any());
     verify(httpClient).get(eq("https://acme.com/"), anyString(), anyInt());
   }
 

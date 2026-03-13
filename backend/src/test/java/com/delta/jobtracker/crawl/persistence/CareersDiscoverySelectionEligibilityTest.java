@@ -106,4 +106,46 @@ class CareersDiscoverySelectionEligibilityTest {
         .extracting(CompanyTarget::companyId)
         .containsExactly(companyId);
   }
+
+  @Test
+  void fullModeSelectionStillExcludesFreshVendorProbeRowsWhenRecentAttemptStateExists() {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    String ticker = "VH" + suffix;
+
+    long companyId = repository.upsertCompany(ticker, "Vendor Handoff Co " + suffix, "Tech");
+    repository.upsertCompanyDomain(
+        companyId, "vh-" + suffix.toLowerCase() + ".example.com", null);
+    repository.upsertAtsEndpoint(
+        companyId,
+        AtsType.GREENHOUSE,
+        "https://boards.greenhouse.io/" + suffix.toLowerCase(),
+        "https://boards.greenhouse.io/" + suffix.toLowerCase(),
+        0.9,
+        Instant.now(),
+        "vendor_probe",
+        true);
+    jdbcTemplate.update(
+        """
+        MERGE INTO careers_discovery_state (
+          company_id,
+          last_attempt_at,
+          last_reason_code,
+          last_candidate_url,
+          consecutive_failures,
+          next_attempt_at
+        ) KEY(company_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        companyId,
+        java.sql.Timestamp.from(Instant.now()),
+        null,
+        null,
+        0,
+        null);
+
+    List<String> tickers = List.of(ticker);
+
+    assertThat(repository.countCompaniesWithDomainWithoutAtsEligible(false)).isZero();
+    assertThat(repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 1, false)).isEmpty();
+  }
 }
