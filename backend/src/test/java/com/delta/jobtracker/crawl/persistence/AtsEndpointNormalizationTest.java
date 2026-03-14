@@ -171,4 +171,57 @@ class AtsEndpointNormalizationTest {
     assertThat(row.get("promoted_from_vendor_probe_at")).isNotNull();
     assertThat(row.get("last_revalidated_at")).isNotNull();
   }
+
+  @Test
+  void sameCanonicalEndpointConfirmationWithoutPromotionKeepsPromotionTimestampNull() {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    long companyId =
+        repository.upsertCompany("CF" + suffix, "Confirmation Norm " + suffix, "Technology");
+
+    Instant detectedAt = Instant.now();
+    repository.upsertAtsEndpoint(
+        companyId,
+        AtsType.GREENHOUSE,
+        "https://boards.greenhouse.io/confirmco",
+        "https://confirmco.com/jobs",
+        0.9,
+        detectedAt.minusSeconds(60),
+        "homepage_link",
+        true);
+
+    CrawlJdbcRepository.AtsEndpointUpsertOutcome outcome =
+        repository.upsertAtsEndpoint(
+            companyId,
+            AtsType.GREENHOUSE,
+            "https://boards.greenhouse.io/confirmco",
+            "https://confirmco.com/careers",
+            0.95,
+            detectedAt,
+            "homepage_link",
+            true);
+
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("companyId", companyId);
+    Map<String, Object> row =
+        jdbc.queryForMap(
+            """
+                SELECT detection_method,
+                       discovered_from_url,
+                       promoted_from_vendor_probe_at,
+                       last_revalidated_at
+                FROM ats_endpoints
+                WHERE company_id = :companyId
+                  AND ats_type = 'GREENHOUSE'
+                """,
+            params);
+
+    assertThat(outcome.inserted()).isFalse();
+    assertThat(outcome.promotedFromVendorProbe()).isFalse();
+    assertThat(outcome.confirmedExisting()).isTrue();
+    assertThat(outcome.previousDetectionMethod()).isEqualTo("homepage_link");
+    assertThat(outcome.currentDetectionMethod()).isEqualTo("homepage_link");
+    assertThat(row.get("detection_method")).isEqualTo("homepage_link");
+    assertThat(row.get("discovered_from_url")).isEqualTo("https://confirmco.com/careers");
+    assertThat(row.get("promoted_from_vendor_probe_at")).isNull();
+    assertThat(row.get("last_revalidated_at")).isNotNull();
+  }
 }

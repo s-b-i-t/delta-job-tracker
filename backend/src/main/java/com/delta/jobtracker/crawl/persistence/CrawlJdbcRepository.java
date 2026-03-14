@@ -2519,8 +2519,8 @@ public class CrawlJdbcRepository {
             .addValue("detectedAt", toTimestamp(safeDetectedAt))
             .addValue("detectionMethod", detectionMethod)
             .addValue("verified", verified)
-            .addValue("lastRevalidatedAt", null)
-            .addValue("promotedFromVendorProbeAt", null);
+            .addValue("lastRevalidatedAt", null, Types.TIMESTAMP_WITH_TIMEZONE)
+            .addValue("promotedFromVendorProbeAt", null, Types.TIMESTAMP_WITH_TIMEZONE);
     try {
       jdbc.update(
           """
@@ -2577,10 +2577,14 @@ public class CrawlJdbcRepository {
             .addValue("detectedAt", toTimestamp(detectedAt))
             .addValue("detectionMethod", detectionMethod)
             .addValue("verified", verified)
-            .addValue("lastRevalidatedAt", toTimestamp(detectedAt))
+            .addValue(
+                "lastRevalidatedAt",
+                toTimestamp(detectedAt),
+                Types.TIMESTAMP_WITH_TIMEZONE)
             .addValue(
                 "promotedFromVendorProbeAt",
-                promotedFromVendorProbe ? toTimestamp(detectedAt) : null);
+                promotedFromVendorProbe ? toTimestamp(detectedAt) : null,
+                Types.TIMESTAMP_WITH_TIMEZONE);
     jdbc.update(
         """
             UPDATE ats_endpoints
@@ -2591,11 +2595,10 @@ public class CrawlJdbcRepository {
                 verified = COALESCE(:verified, verified),
                 last_revalidated_at = :lastRevalidatedAt,
                 promoted_from_vendor_probe_at =
-                    CASE
-                        WHEN :promotedFromVendorProbeAt IS NOT NULL
-                            THEN COALESCE(promoted_from_vendor_probe_at, :promotedFromVendorProbeAt)
-                        ELSE promoted_from_vendor_probe_at
-                    END
+                    COALESCE(
+                        promoted_from_vendor_probe_at,
+                        :promotedFromVendorProbeAt
+                    )
             WHERE company_id = :companyId
               AND ats_type = :atsType
               AND ats_url = :atsUrl
