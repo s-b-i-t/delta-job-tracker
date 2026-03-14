@@ -18,6 +18,8 @@ public record CareersDiscoveryRunStatus(
     int succeededCount,
     int failedCount,
     int endpointsAdded,
+    int endpointsPromoted,
+    int endpointsConfirmed,
     String lastError,
     int companiesConsidered,
     int homepageScanned,

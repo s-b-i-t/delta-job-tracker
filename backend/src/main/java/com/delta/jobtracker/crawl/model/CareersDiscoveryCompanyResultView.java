@@ -23,6 +23,8 @@ public record CareersDiscoveryCompanyResultView(
     String vendorName,
     boolean endpointExtracted,
     String endpointUrl,
+    int endpointsPromoted,
+    int endpointsConfirmed,
     Integer httpStatusFirstFailure,
     Integer requestCount,
     AtsDiscoveryResult atsDiscoveryResult) {}

@@ -29,6 +29,8 @@ class CareersDiscoveryRunGuardrailPersistenceTest {
         3,
         2,
         4,
+        2,
+        3,
         "partial",
         5,
         4,
@@ -66,5 +68,7 @@ class CareersDiscoveryRunGuardrailPersistenceTest {
     assertEquals(3, status.succeededCount());
     assertEquals(2, status.failedCount());
     assertEquals(4, status.endpointsAdded());
+    assertEquals(2, status.endpointsPromoted());
+    assertEquals(3, status.endpointsConfirmed());
   }
 }

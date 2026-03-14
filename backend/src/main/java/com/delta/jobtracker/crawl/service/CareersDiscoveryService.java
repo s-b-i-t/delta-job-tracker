@@ -297,40 +297,44 @@ public class CareersDiscoveryService {
     Integer httpStatusFirstFailure = null;
     int requestCount = 0;
     AtsDiscoveryResult atsDiscoveryResult = AtsDiscoveryResult.notFound("none", null);
+    EndpointPersistenceStats endpointPersistence = new EndpointPersistenceStats();
 
     if (company == null) {
       DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
-      return new DiscoveryOutcome(
-          countsByType,
-          failure,
-          cooldownSkips.get(),
-          false,
-          false,
-          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
+          return new DiscoveryOutcome(
+              countsByType,
+              failure,
+              cooldownSkips.get(),
+              false,
+              false,
+              new DiscoveryFunnel(
+                  false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     boolean hasDomain = company.domain() != null && !company.domain().isBlank();
     if (!hasDomain && !vendorProbeOnly) {
       DiscoveryFailure failure = new DiscoveryFailure("discovery_no_domain", null, null);
-      return new DiscoveryOutcome(
-          countsByType,
-          failure,
-          cooldownSkips.get(),
-          false,
-          false,
-          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
+          return new DiscoveryOutcome(
+              countsByType,
+              failure,
+              cooldownSkips.get(),
+              false,
+              false,
+              new DiscoveryFunnel(
+                  false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (isCompanyCoolingDown(company.companyId())) {
       cooldownSkips.incrementAndGet();
       DiscoveryFailure failure = new DiscoveryFailure("discovery_company_cooldown", null, null);
-      return new DiscoveryOutcome(
-          countsByType,
-          failure,
-          cooldownSkips.get(),
-          true,
-          false,
-          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
+          return new DiscoveryOutcome(
+              countsByType,
+              failure,
+              cooldownSkips.get(),
+              true,
+              false,
+              new DiscoveryFunnel(
+                  false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (deadlineExceeded(deadline)) {
@@ -339,13 +343,14 @@ public class CareersDiscoveryService {
         metrics.incrementTimeBudgetExceeded();
       }
       updateDiscoveryState(company, failure);
-      return new DiscoveryOutcome(
-          countsByType,
-          failure,
-          cooldownSkips.get(),
-          false,
-          true,
-          new DiscoveryFunnel(false, null, null, null, null, false, null, false, null, null, 0));
+          return new DiscoveryOutcome(
+              countsByType,
+              failure,
+              cooldownSkips.get(),
+              false,
+              true,
+              new DiscoveryFunnel(
+                  false, null, null, null, null, false, null, false, null, null, 0));
     }
 
     if (!vendorProbeOnly && hasDomain) {
@@ -386,6 +391,7 @@ public class CareersDiscoveryService {
           Map<AtsDetectionRecord, String> endpoints =
               homepageLinksDetector.detect(fetch.body(), homepageUrl);
           if (!endpoints.isEmpty()) {
+            AtsDetectionRecord first = endpoints.keySet().iterator().next();
             registerEndpoints(
                 company,
                 homepageUrl,
@@ -394,12 +400,43 @@ public class CareersDiscoveryService {
                 0.95,
                 true,
                 seen,
-                countsByType);
+                countsByType,
+                endpointPersistence);
             if (metrics != null) {
               metrics.incrementHomepageFound(endpoints.keySet());
             }
+            vendorDetected = true;
+            vendorName = first.atsType().name();
+            endpointExtracted = true;
+            endpointUrl = first.atsUrl();
+            atsDiscoveryResult =
+                AtsDiscoveryResult.validated(first.atsType(), first.atsUrl(), "homepage_link");
+            if (metrics != null) {
+              metrics.incrementVendorDetected();
+              metrics.incrementEndpointExtracted();
+            }
             updateDiscoveryStateSuccess(company, vendorProbeOnly);
-            return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+            return new DiscoveryOutcome(
+                countsByType,
+                null,
+                cooldownSkips.get(),
+                false,
+                false,
+                new DiscoveryFunnel(
+                    false,
+                    null,
+                    null,
+                    "homepage_link",
+                    null,
+                    vendorDetected,
+                    vendorName,
+                    endpointExtracted,
+                    endpointUrl,
+                    endpointPersistence.endpointsPromoted(),
+                    endpointPersistence.endpointsConfirmed(),
+                    null,
+                    1,
+                    atsDiscoveryResult));
           }
         }
       }
@@ -448,7 +485,8 @@ public class CareersDiscoveryService {
                 0.9,
                 true,
                 seen,
-                countsByType);
+                countsByType,
+                endpointPersistence);
             if (metrics != null) {
               metrics.incrementVendorDetected();
               metrics.incrementEndpointExtracted();
@@ -470,6 +508,8 @@ public class CareersDiscoveryService {
                     vendorName,
                     endpointExtracted,
                     endpointUrl,
+                    endpointPersistence.endpointsPromoted(),
+                    endpointPersistence.endpointsConfirmed(),
                     httpStatusFirstFailure,
                     requestCount,
                     atsDiscoveryResult));
@@ -510,13 +550,48 @@ public class CareersDiscoveryService {
       }
       SitemapDetectionOutcome sitemapResult = discoverAtsFromSitemaps(company, metrics, failures);
       if (sitemapResult != null && sitemapResult.hasEndpoints()) {
+        AtsDetectionRecord first = sitemapResult.endpoints().keySet().iterator().next();
         registerEndpoints(
-            company, sitemapResult.endpoints(), "sitemap", 0.92, true, seen, countsByType);
+            company,
+            sitemapResult.endpoints(),
+            "sitemap",
+            0.92,
+            true,
+            seen,
+            countsByType,
+            endpointPersistence);
         if (metrics != null) {
           metrics.incrementSitemapFound(sitemapResult.endpoints().keySet());
+          metrics.incrementVendorDetected();
+          metrics.incrementEndpointExtracted();
         }
+        vendorDetected = true;
+        vendorName = first.atsType().name();
+        endpointExtracted = true;
+        endpointUrl = first.atsUrl();
+        atsDiscoveryResult = AtsDiscoveryResult.validated(first.atsType(), first.atsUrl(), "sitemap");
         updateDiscoveryStateSuccess(company, vendorProbeOnly);
-        return new DiscoveryOutcome(countsByType, null, cooldownSkips.get(), false, false);
+        return new DiscoveryOutcome(
+            countsByType,
+            null,
+            cooldownSkips.get(),
+            false,
+            false,
+            new DiscoveryFunnel(
+                careersUrlFound,
+                careersUrlInitial,
+                careersUrlFinal,
+                "sitemap",
+                careersStageFailure,
+                vendorDetected,
+                vendorName,
+                endpointExtracted,
+                endpointUrl,
+                endpointPersistence.endpointsPromoted(),
+                endpointPersistence.endpointsConfirmed(),
+                httpStatusFirstFailure,
+                requestCount,
+                atsDiscoveryResult));
       }
     }
 
@@ -548,7 +623,8 @@ public class CareersDiscoveryService {
             0.9,
             true,
             seen,
-            countsByType);
+            countsByType,
+            endpointPersistence);
         if (metrics != null) {
           metrics.incrementVendorFound(vendorEndpoint);
           metrics.incrementVendorDetected();
@@ -578,6 +654,8 @@ public class CareersDiscoveryService {
                 vendorName,
                 endpointExtracted,
                 endpointUrl,
+                endpointPersistence.endpointsPromoted(),
+                endpointPersistence.endpointsConfirmed(),
                 httpStatusFirstFailure,
                 requestCount,
                 atsDiscoveryResult));
@@ -632,7 +710,15 @@ public class CareersDiscoveryService {
         List<AtsDetectionRecord> extracted = atsEndpointExtractor.extract(resolved, fetch.body());
         if (!extracted.isEmpty()) {
           registerEndpoints(
-              company, candidate, extracted, "careers_path", 0.85, true, seen, countsByType);
+              company,
+              candidate,
+              extracted,
+              "careers_path",
+              0.85,
+              true,
+              seen,
+              countsByType,
+              endpointPersistence);
           if (metrics != null) {
             metrics.incrementEndpointExtracted();
           }
@@ -665,6 +751,8 @@ public class CareersDiscoveryService {
                   vendorName,
                   endpointExtracted,
                   endpointUrl,
+                  endpointPersistence.endpointsPromoted(),
+                  endpointPersistence.endpointsConfirmed(),
                   httpStatusFirstFailure,
                   requestCount,
                   atsDiscoveryResult));
@@ -703,6 +791,8 @@ public class CareersDiscoveryService {
             vendorName,
             endpointExtracted,
             endpointUrl,
+            endpointPersistence.endpointsPromoted(),
+            endpointPersistence.endpointsConfirmed(),
             httpStatusFirstFailure,
             requestCount,
             atsDiscoveryResult));
@@ -821,7 +911,7 @@ public class CareersDiscoveryService {
         if (endpoints.isEmpty()) {
           continue;
         }
-        registerEndpoints(company, page, endpoints, "link", 0.85, true, seen, countsByType);
+        registerEndpoints(company, page, endpoints, "link", 0.85, true, seen, countsByType, null);
         endpointsFound += endpoints.size();
       }
     }
@@ -998,7 +1088,8 @@ public class CareersDiscoveryService {
       double confidence,
       boolean verified,
       LinkedHashSet<String> seen,
-      Map<AtsType, Integer> countsByType) {
+      Map<AtsType, Integer> countsByType,
+      EndpointPersistenceStats endpointPersistence) {
     if (endpointsWithSource == null || endpointsWithSource.isEmpty()) {
       return;
     }
@@ -1011,7 +1102,8 @@ public class CareersDiscoveryService {
           confidence,
           verified,
           seen,
-          countsByType);
+          countsByType,
+          endpointPersistence);
     }
   }
 
@@ -1023,7 +1115,8 @@ public class CareersDiscoveryService {
       double confidence,
       boolean verified,
       LinkedHashSet<String> seen,
-      Map<AtsType, Integer> countsByType) {
+      Map<AtsType, Integer> countsByType,
+      EndpointPersistenceStats endpointPersistence) {
     if (endpoints == null || endpoints.isEmpty()) {
       return;
     }
@@ -1036,7 +1129,8 @@ public class CareersDiscoveryService {
           confidence,
           verified,
           seen,
-          countsByType);
+          countsByType,
+          endpointPersistence);
     }
   }
 
@@ -1048,7 +1142,8 @@ public class CareersDiscoveryService {
       double confidence,
       boolean verified,
       LinkedHashSet<String> seen,
-      Map<AtsType, Integer> countsByType) {
+      Map<AtsType, Integer> countsByType,
+      EndpointPersistenceStats endpointPersistence) {
     String endpointUrl = endpoint.atsUrl();
     if (endpointUrl == null || endpointUrl.isBlank()) {
       return;
@@ -1058,7 +1153,8 @@ public class CareersDiscoveryService {
       return;
     }
     seen.add(key);
-    repository.upsertAtsEndpoint(
+    CrawlJdbcRepository.AtsEndpointUpsertOutcome upsertOutcome =
+        repository.upsertAtsEndpoint(
         company.companyId(),
         endpoint.atsType(),
         endpointUrl,
@@ -1067,6 +1163,9 @@ public class CareersDiscoveryService {
         Instant.now(),
         detectionMethod,
         verified);
+    if (endpointPersistence != null) {
+      endpointPersistence.record(upsertOutcome);
+    }
     countsByType.put(endpoint.atsType(), countsByType.getOrDefault(endpoint.atsType(), 0) + 1);
   }
 
@@ -1789,6 +1888,30 @@ public class CareersDiscoveryService {
     }
   }
 
+  private static final class EndpointPersistenceStats {
+    private int endpointsPromoted;
+    private int endpointsConfirmed;
+
+    private void record(CrawlJdbcRepository.AtsEndpointUpsertOutcome outcome) {
+      if (outcome == null) {
+        return;
+      }
+      if (outcome.promotedFromVendorProbe()) {
+        endpointsPromoted++;
+      } else if (outcome.confirmedExisting()) {
+        endpointsConfirmed++;
+      }
+    }
+
+    private int endpointsPromoted() {
+      return endpointsPromoted;
+    }
+
+    private int endpointsConfirmed() {
+      return endpointsConfirmed;
+    }
+  }
+
   interface VendorProbeLimiter {
     boolean tryAcquire(String host);
   }
@@ -1805,6 +1928,8 @@ public class CareersDiscoveryService {
       String vendorName,
       boolean endpointExtracted,
       String endpointUrl,
+      int endpointsPromoted,
+      int endpointsConfirmed,
       Integer httpStatusFirstFailure,
       int requestCount,
       AtsDiscoveryResult atsDiscoveryResult) {
@@ -1830,6 +1955,40 @@ public class CareersDiscoveryService {
           vendorName,
           endpointExtracted,
           endpointUrl,
+          0,
+          0,
+          httpStatusFirstFailure,
+          requestCount,
+          AtsDiscoveryResult.fromPersistence(
+              vendorName, endpointUrl, endpointExtracted, careersDiscoveryMethod, null));
+    }
+
+    DiscoveryFunnel(
+        boolean careersUrlFound,
+        String careersUrlInitial,
+        String careersUrlFinal,
+        String careersDiscoveryMethod,
+        String careersDiscoveryStageFailure,
+        boolean vendorDetected,
+        String vendorName,
+        boolean endpointExtracted,
+        String endpointUrl,
+        int endpointsPromoted,
+        int endpointsConfirmed,
+        Integer httpStatusFirstFailure,
+        int requestCount) {
+      this(
+          careersUrlFound,
+          careersUrlInitial,
+          careersUrlFinal,
+          careersDiscoveryMethod,
+          careersDiscoveryStageFailure,
+          vendorDetected,
+          vendorName,
+          endpointExtracted,
+          endpointUrl,
+          endpointsPromoted,
+          endpointsConfirmed,
           httpStatusFirstFailure,
           requestCount,
           AtsDiscoveryResult.fromPersistence(
@@ -1847,6 +2006,8 @@ public class CareersDiscoveryService {
           null,
           false,
           null,
+          0,
+          0,
           null,
           0,
           AtsDiscoveryResult.notFound("none", null));

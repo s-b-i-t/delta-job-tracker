@@ -219,6 +219,41 @@ class CareersDiscoveryServiceTest {
   }
 
   @Test
+  void fullModeLandingDiscoveryCountsVendorProbePromotionWhenCanonicalRowIsStrengthened() {
+    CompanyTarget company = new CompanyTarget(9L, "ACME", "Acme Corp", null, "acme.com", null);
+    String homepage = "https://acme.com/";
+    String careersPage = "https://acme.com/careers";
+    when(repository.findCareersDiscoveryState(9L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careersPage), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(careersPage, "<a href=\"https://boards.greenhouse.io/acme\">Jobs</a>"));
+    when(repository.upsertAtsEndpoint(
+            eq(9L),
+            eq(AtsType.GREENHOUSE),
+            eq("https://boards.greenhouse.io/acme"),
+            eq(careersPage),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing"),
+            eq(true)))
+        .thenReturn(
+            CrawlJdbcRepository.AtsEndpointUpsertOutcome.promoted(
+                "vendor_probe", "careers_landing"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.funnel()).isNotNull();
+    assertThat(outcome.funnel().endpointsPromoted()).isEqualTo(1);
+    assertThat(outcome.funnel().endpointsConfirmed()).isEqualTo(0);
+    assertThat(outcome.funnel().atsDiscoveryResult()).isNotNull();
+    assertThat(outcome.funnel().atsDiscoveryResult().evidence()).isEqualTo("careers_landing");
+  }
+
+  @Test
   void sitemapDetectionFindsAtsEndpoint() {
     CompanyTarget company = new CompanyTarget(4L, "SITE", "Site Corp", null, "sitemapco.com", null);
     String homepage = "https://sitemapco.com/";

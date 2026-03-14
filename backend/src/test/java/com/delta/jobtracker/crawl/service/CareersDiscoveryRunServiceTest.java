@@ -18,6 +18,7 @@ import static org.mockito.Mockito.when;
 import com.delta.jobtracker.config.CrawlerProperties;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudget;
 import com.delta.jobtracker.crawl.http.CanaryHttpBudgetContext;
+import com.delta.jobtracker.crawl.model.AtsType;
 import com.delta.jobtracker.crawl.model.HostCrawlState;
 import com.delta.jobtracker.crawl.model.CompanyTarget;
 import com.delta.jobtracker.crawl.persistence.CrawlJdbcRepository;
@@ -84,6 +85,8 @@ class CareersDiscoveryRunServiceTest {
     verify(repository, atLeastOnce())
         .updateCareersDiscoveryRunProgress(
             eq(99L),
+            anyInt(),
+            anyInt(),
             anyInt(),
             anyInt(),
             anyInt(),
@@ -214,6 +217,8 @@ class CareersDiscoveryRunServiceTest {
             anyInt(),
             anyInt(),
             anyInt(),
+            anyInt(),
+            anyInt(),
             any(),
             anyInt(),
             anyInt(),
@@ -272,6 +277,8 @@ class CareersDiscoveryRunServiceTest {
     verify(repository, atLeastOnce())
         .updateCareersDiscoveryRunProgress(
             eq(102L),
+            anyInt(),
+            anyInt(),
             anyInt(),
             anyInt(),
             anyInt(),
@@ -343,12 +350,16 @@ class CareersDiscoveryRunServiceTest {
             any(),
             anyBoolean(),
             any(),
+            anyInt(),
+            anyInt(),
             any(),
             any());
     ArgumentCaptor<Integer> hostSkipCaptor = ArgumentCaptor.forClass(Integer.class);
     verify(repository, atLeastOnce())
         .updateCareersDiscoveryRunProgress(
             eq(103L),
+            anyInt(),
+            anyInt(),
             anyInt(),
             anyInt(),
             anyInt(),
@@ -470,6 +481,8 @@ class CareersDiscoveryRunServiceTest {
             any(),
             anyBoolean(),
             any(),
+            anyInt(),
+            anyInt(),
             any(),
             any());
     verify(repository)
@@ -483,6 +496,8 @@ class CareersDiscoveryRunServiceTest {
     verify(repository, atLeastOnce())
         .updateCareersDiscoveryRunProgress(
             eq(105L),
+            anyInt(),
+            anyInt(),
             anyInt(),
             anyInt(),
             anyInt(),
@@ -546,6 +561,8 @@ class CareersDiscoveryRunServiceTest {
             anyInt(),
             anyInt(),
             anyInt(),
+            anyInt(),
+            anyInt(),
             any(),
             anyInt(),
             anyInt(),
@@ -589,6 +606,99 @@ class CareersDiscoveryRunServiceTest {
     verify(repository).findCompaniesWithDomainWithoutAts(1, false);
     verify(repository, never()).countCompaniesWithDomainWithoutAtsEligible(true);
     verify(repository, never()).findCompaniesWithDomainWithoutAts(1, true);
+  }
+
+  @Test
+  void discoveryRunPersistsPromotionMetricsWhenEndpointRowIsUpgradedWithoutInsert() {
+    CrawlerProperties properties = new CrawlerProperties();
+    CompanyTarget company = new CompanyTarget(1L, "AAA", "Alpha", null, "alpha.com", null);
+
+    when(repository.countCompaniesWithDomainWithoutAtsEligible(false)).thenReturn(1);
+    when(repository.findCompaniesWithDomainWithoutAts(1, false)).thenReturn(List.of(company));
+    when(repository.insertCareersDiscoveryRun(
+            eq(1), eq(1), eq(1), eq(1), anyInt(), anyInt(), anyInt()))
+        .thenReturn(108L);
+    when(repository.countAtsEndpointsForCompany(1L)).thenReturn(1, 1);
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        new CareersDiscoveryService.DiscoveryOutcome(
+            Map.of(AtsType.GREENHOUSE, 1),
+            null,
+            0,
+            false,
+            false,
+            new CareersDiscoveryService.DiscoveryFunnel(
+                true,
+                "https://alpha.com/careers",
+                "https://alpha.com/careers",
+                "careers_landing",
+                null,
+                true,
+                "GREENHOUSE",
+                true,
+                "https://boards.greenhouse.io/alpha",
+                1,
+                0,
+                200,
+                2));
+    when(discoveryService.discoverForCompany(any(), any(), any(), any(), anyBoolean(), anyInt()))
+        .thenReturn(outcome);
+
+    CareersDiscoveryRunService service =
+        new CareersDiscoveryRunService(
+            repository, discoveryService, new DirectExecutorService(), properties);
+
+    service.startAsync(1, 1, false);
+
+    verify(repository)
+        .upsertCareersDiscoveryCompanyResult(
+            eq(108L),
+            eq(1L),
+            eq("SUCCEEDED"),
+            isNull(),
+            eq("ATS_DETECTED"),
+            eq(1),
+            any(),
+            isNull(),
+            isNull(),
+            eq(true),
+            eq("https://alpha.com/careers"),
+            eq("https://alpha.com/careers"),
+            eq("careers_landing"),
+            isNull(),
+            eq(true),
+            eq("GREENHOUSE"),
+            eq(true),
+            eq("https://boards.greenhouse.io/alpha"),
+            eq(1),
+            eq(0),
+            eq(200),
+            eq(2));
+    verify(repository)
+        .updateCareersDiscoveryRunProgress(
+            eq(108L),
+            eq(1),
+            eq(1),
+            eq(0),
+            eq(0),
+            eq(1),
+            eq(0),
+            isNull(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyMap(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt(),
+            anyInt());
   }
 
   private static final class DirectExecutorService extends AbstractExecutorService {

@@ -53,5 +53,7 @@ class CareersDiscoveryCompanyResultUpsertTest {
     assertEquals("SUCCEEDED", view.status());
     assertEquals(2, view.foundEndpointsCount());
     assertEquals("ATS_DETECTED", view.stage());
+    assertEquals(0, view.endpointsPromoted());
+    assertEquals(0, view.endpointsConfirmed());
   }
 }

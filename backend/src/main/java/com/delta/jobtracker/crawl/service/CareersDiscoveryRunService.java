@@ -141,6 +141,8 @@ public class CareersDiscoveryRunService {
     int succeeded = 0;
     int failed = 0;
     int endpointsAdded = 0;
+    int endpointsPromoted = 0;
+    int endpointsConfirmed = 0;
     String lastError = null;
     Instant runStarted = Instant.now();
     int companiesConsidered = 0;
@@ -230,6 +232,10 @@ public class CareersDiscoveryRunService {
                 requestDelta = outcome.funnel().requestCount();
               }
               requestCountTotal += Math.max(0, requestDelta);
+              if (outcome != null && outcome.funnel() != null) {
+                endpointsPromoted += Math.max(0, outcome.funnel().endpointsPromoted());
+                endpointsConfirmed += Math.max(0, outcome.funnel().endpointsConfirmed());
+              }
               int afterCount = repository.countAtsEndpointsForCompany(company.companyId());
               endpointsAdded += Math.max(0, afterCount - beforeCount);
               if (outcome != null && outcome.countsByType() != null) {
@@ -321,6 +327,8 @@ public class CareersDiscoveryRunService {
               outcome == null || outcome.funnel() == null ? null : outcome.funnel().vendorName(),
               outcome != null && outcome.funnel() != null && outcome.funnel().endpointExtracted(),
               outcome == null || outcome.funnel() == null ? null : outcome.funnel().endpointUrl(),
+              outcome == null || outcome.funnel() == null ? 0 : outcome.funnel().endpointsPromoted(),
+              outcome == null || outcome.funnel() == null ? 0 : outcome.funnel().endpointsConfirmed(),
               outcome == null || outcome.funnel() == null
                   ? null
                   : outcome.funnel().httpStatusFirstFailure(),
@@ -337,6 +345,8 @@ public class CareersDiscoveryRunService {
               succeeded,
               failed,
               endpointsAdded,
+              endpointsPromoted,
+              endpointsConfirmed,
               lastError,
               companiesConsidered,
               companiesAttemptedCount,
@@ -369,6 +379,8 @@ public class CareersDiscoveryRunService {
             succeeded,
             failed,
             endpointsAdded,
+            endpointsPromoted,
+            endpointsConfirmed,
             abortReason,
             companiesConsidered,
             companiesAttemptedCount,
@@ -498,6 +510,8 @@ public class CareersDiscoveryRunService {
         status.succeededCount(),
         status.failedCount(),
         status.endpointsAdded(),
+        status.endpointsPromoted(),
+        status.endpointsConfirmed(),
         status.lastError(),
         status.companiesConsidered(),
         status.homepageScanned(),

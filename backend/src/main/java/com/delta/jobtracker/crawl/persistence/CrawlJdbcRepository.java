@@ -272,6 +272,8 @@ public class CrawlJdbcRepository {
       int succeededCount,
       int failedCount,
       int endpointsAdded,
+      int endpointsPromoted,
+      int endpointsConfirmed,
       String lastError,
       int companiesConsidered,
       int homepageScanned,
@@ -290,6 +292,8 @@ public class CrawlJdbcRepository {
         succeededCount,
         failedCount,
         endpointsAdded,
+        endpointsPromoted,
+        endpointsConfirmed,
         lastError,
         companiesConsidered,
         companiesConsidered,
@@ -314,6 +318,8 @@ public class CrawlJdbcRepository {
       int succeededCount,
       int failedCount,
       int endpointsAdded,
+      int endpointsPromoted,
+      int endpointsConfirmed,
       String lastError,
       int companiesConsidered,
       int companiesAttemptedCount,
@@ -337,6 +343,8 @@ public class CrawlJdbcRepository {
             .addValue("succeededCount", succeededCount)
             .addValue("failedCount", failedCount)
             .addValue("endpointsAdded", endpointsAdded)
+            .addValue("endpointsPromoted", endpointsPromoted)
+            .addValue("endpointsConfirmed", endpointsConfirmed)
             .addValue("lastError", truncateErrorDetail(lastError))
             .addValue("companiesConsidered", Math.max(0, companiesConsidered))
             .addValue("companiesAttemptedCount", Math.max(0, companiesAttemptedCount))
@@ -360,6 +368,8 @@ public class CrawlJdbcRepository {
                     succeeded_count = :succeededCount,
                     failed_count = :failedCount,
                     endpoints_added = :endpointsAdded,
+                    endpoints_promoted = :endpointsPromoted,
+                    endpoints_confirmed = :endpointsConfirmed,
                     last_error = COALESCE(:lastError, last_error),
                     companies_considered = :companiesConsidered,
                     companies_attempted_count = :companiesAttemptedCount,
@@ -575,6 +585,8 @@ public class CrawlJdbcRepository {
                        succeeded_count,
                        failed_count,
                        endpoints_added,
+                       endpoints_promoted,
+                       endpoints_confirmed,
                        last_error,
                        companies_considered,
                        homepage_scanned,
@@ -613,6 +625,8 @@ public class CrawlJdbcRepository {
                     rs.getInt("succeeded_count"),
                     rs.getInt("failed_count"),
                     rs.getInt("endpoints_added"),
+                    rs.getInt("endpoints_promoted"),
+                    rs.getInt("endpoints_confirmed"),
                     rs.getString("last_error"),
                     rs.getInt("companies_considered"),
                     rs.getInt("homepage_scanned"),
@@ -657,6 +671,8 @@ public class CrawlJdbcRepository {
                        succeeded_count,
                        failed_count,
                        endpoints_added,
+                       endpoints_promoted,
+                       endpoints_confirmed,
                        last_error,
                        companies_considered,
                        homepage_scanned,
@@ -696,6 +712,8 @@ public class CrawlJdbcRepository {
                     rs.getInt("succeeded_count"),
                     rs.getInt("failed_count"),
                     rs.getInt("endpoints_added"),
+                    rs.getInt("endpoints_promoted"),
+                    rs.getInt("endpoints_confirmed"),
                     rs.getString("last_error"),
                     rs.getInt("companies_considered"),
                     rs.getInt("homepage_scanned"),
@@ -751,6 +769,8 @@ public class CrawlJdbcRepository {
         null,
         false,
         null,
+        0,
+        0,
         null,
         null);
   }
@@ -774,6 +794,8 @@ public class CrawlJdbcRepository {
       String vendorName,
       boolean endpointExtracted,
       String endpointUrl,
+      int endpointsPromoted,
+      int endpointsConfirmed,
       Integer httpStatusFirstFailure,
       Integer requestCount) {
     MapSqlParameterSource params =
@@ -796,6 +818,8 @@ public class CrawlJdbcRepository {
             .addValue("vendorName", vendorName)
             .addValue("endpointExtracted", endpointExtracted)
             .addValue("endpointUrl", endpointUrl)
+            .addValue("endpointsPromoted", Math.max(0, endpointsPromoted))
+            .addValue("endpointsConfirmed", Math.max(0, endpointsConfirmed))
             .addValue("httpStatusFirstFailure", httpStatusFirstFailure)
             .addValue("requestCount", requestCount);
     if (postgres) {
@@ -820,6 +844,8 @@ public class CrawlJdbcRepository {
                         vendor_name,
                         endpoint_extracted,
                         endpoint_url,
+                        endpoints_promoted,
+                        endpoints_confirmed,
                         http_status_first_failure,
                         request_count,
                         created_at
@@ -843,6 +869,8 @@ public class CrawlJdbcRepository {
                         :vendorName,
                         :endpointExtracted,
                         :endpointUrl,
+                        :endpointsPromoted,
+                        :endpointsConfirmed,
                         :httpStatusFirstFailure,
                         :requestCount,
                         NOW()
@@ -865,6 +893,8 @@ public class CrawlJdbcRepository {
                         vendor_name = EXCLUDED.vendor_name,
                         endpoint_extracted = EXCLUDED.endpoint_extracted,
                         endpoint_url = EXCLUDED.endpoint_url,
+                        endpoints_promoted = EXCLUDED.endpoints_promoted,
+                        endpoints_confirmed = EXCLUDED.endpoints_confirmed,
                         http_status_first_failure = EXCLUDED.http_status_first_failure,
                         request_count = EXCLUDED.request_count,
                         created_at = NOW()
@@ -892,6 +922,8 @@ public class CrawlJdbcRepository {
                     vendor_name = :vendorName,
                     endpoint_extracted = :endpointExtracted,
                     endpoint_url = :endpointUrl,
+                    endpoints_promoted = :endpointsPromoted,
+                    endpoints_confirmed = :endpointsConfirmed,
                     http_status_first_failure = :httpStatusFirstFailure,
                     request_count = :requestCount,
                     created_at = NOW()
@@ -923,6 +955,8 @@ public class CrawlJdbcRepository {
                 vendor_name,
                 endpoint_extracted,
                 endpoint_url,
+                endpoints_promoted,
+                endpoints_confirmed,
                 http_status_first_failure,
                 request_count,
                 created_at
@@ -946,6 +980,8 @@ public class CrawlJdbcRepository {
                 :vendorName,
                 :endpointExtracted,
                 :endpointUrl,
+                :endpointsPromoted,
+                :endpointsConfirmed,
                 :httpStatusFirstFailure,
                 :requestCount,
                 NOW()
@@ -984,6 +1020,8 @@ public class CrawlJdbcRepository {
                        r.vendor_name,
                        r.endpoint_extracted,
                        r.endpoint_url,
+                       r.endpoints_promoted,
+                       r.endpoints_confirmed,
                        r.http_status_first_failure,
                        r.request_count
                 FROM careers_discovery_company_results r
@@ -1016,6 +1054,8 @@ public class CrawlJdbcRepository {
                 rs.getString("vendor_name"),
                 rs.getBoolean("endpoint_extracted"),
                 rs.getString("endpoint_url"),
+                rs.getInt("endpoints_promoted"),
+                rs.getInt("endpoints_confirmed"),
                 rs.getObject("http_status_first_failure", Integer.class),
                 rs.getObject("request_count", Integer.class),
                 AtsDiscoveryResult.fromPersistence(
@@ -2429,18 +2469,18 @@ public class CrawlJdbcRepository {
     return Boolean.TRUE.equals(found);
   }
 
-  public void upsertAtsEndpoint(
+  public AtsEndpointUpsertOutcome upsertAtsEndpoint(
       long companyId,
       AtsType atsType,
       String atsUrl,
       String discoveredFromUrl,
       double confidence,
       Instant detectedAt) {
-    upsertAtsEndpoint(
+    return upsertAtsEndpoint(
         companyId, atsType, atsUrl, discoveredFromUrl, confidence, detectedAt, "legacy", true);
   }
 
-  public void upsertAtsEndpoint(
+  public AtsEndpointUpsertOutcome upsertAtsEndpoint(
       long companyId,
       AtsType atsType,
       String atsUrl,
@@ -2451,8 +2491,82 @@ public class CrawlJdbcRepository {
       boolean verified) {
     String normalizedUrl = normalizeAtsEndpointUrl(atsType, atsUrl);
     if (normalizedUrl == null) {
-      return;
+      return AtsEndpointUpsertOutcome.none();
     }
+    Instant safeDetectedAt = detectedAt == null ? Instant.now() : detectedAt;
+    AtsEndpointSnapshot existing = findAtsEndpointSnapshot(companyId, atsType, normalizedUrl);
+    if (existing != null) {
+      updateExistingAtsEndpoint(
+          companyId,
+          atsType,
+          normalizedUrl,
+          discoveredFromUrl,
+          confidence,
+          safeDetectedAt,
+          detectionMethod,
+          verified,
+          existing);
+      return classifyAtsEndpointUpsert(existing.detectionMethod(), detectionMethod, false);
+    }
+
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("atsType", atsType.name())
+            .addValue("atsUrl", normalizedUrl)
+            .addValue("discoveredFromUrl", discoveredFromUrl)
+            .addValue("confidence", confidence)
+            .addValue("detectedAt", toTimestamp(safeDetectedAt))
+            .addValue("detectionMethod", detectionMethod)
+            .addValue("verified", verified)
+            .addValue("lastRevalidatedAt", null)
+            .addValue("promotedFromVendorProbeAt", null);
+    try {
+      jdbc.update(
+          """
+                      INSERT INTO ats_endpoints (
+                          company_id, ats_type, ats_url, detected_at, discovered_from_url, confidence,
+                          detection_method, verified, last_revalidated_at, promoted_from_vendor_probe_at
+                      )
+                      VALUES (
+                          :companyId, :atsType, :atsUrl, :detectedAt, :discoveredFromUrl, :confidence,
+                          :detectionMethod, :verified, :lastRevalidatedAt, :promotedFromVendorProbeAt
+                      )
+                      """,
+          params);
+      return AtsEndpointUpsertOutcome.inserted(detectionMethod);
+    } catch (DataIntegrityViolationException ignored) {
+      AtsEndpointSnapshot concurrent = findAtsEndpointSnapshot(companyId, atsType, normalizedUrl);
+      if (concurrent == null) {
+        return AtsEndpointUpsertOutcome.none();
+      }
+      updateExistingAtsEndpoint(
+          companyId,
+          atsType,
+          normalizedUrl,
+          discoveredFromUrl,
+          confidence,
+          safeDetectedAt,
+          detectionMethod,
+          verified,
+          concurrent);
+      return classifyAtsEndpointUpsert(concurrent.detectionMethod(), detectionMethod, false);
+    }
+  }
+
+  private void updateExistingAtsEndpoint(
+      long companyId,
+      AtsType atsType,
+      String normalizedUrl,
+      String discoveredFromUrl,
+      double confidence,
+      Instant detectedAt,
+      String detectionMethod,
+      boolean verified,
+      AtsEndpointSnapshot existing) {
+    boolean promotedFromVendorProbe =
+        isVendorProbeDetectionMethod(existing == null ? null : existing.detectionMethod())
+            && !isVendorProbeDetectionMethod(detectionMethod);
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("companyId", companyId)
@@ -2462,51 +2576,67 @@ public class CrawlJdbcRepository {
             .addValue("confidence", confidence)
             .addValue("detectedAt", toTimestamp(detectedAt))
             .addValue("detectionMethod", detectionMethod)
-            .addValue("verified", verified);
-    int updated =
-        jdbc.update(
+            .addValue("verified", verified)
+            .addValue("lastRevalidatedAt", toTimestamp(detectedAt))
+            .addValue(
+                "promotedFromVendorProbeAt",
+                promotedFromVendorProbe ? toTimestamp(detectedAt) : null);
+    jdbc.update(
+        """
+            UPDATE ats_endpoints
+            SET detected_at = :detectedAt,
+                discovered_from_url = COALESCE(:discoveredFromUrl, discovered_from_url),
+                confidence = :confidence,
+                detection_method = COALESCE(:detectionMethod, detection_method),
+                verified = COALESCE(:verified, verified),
+                last_revalidated_at = :lastRevalidatedAt,
+                promoted_from_vendor_probe_at =
+                    CASE
+                        WHEN :promotedFromVendorProbeAt IS NOT NULL
+                            THEN COALESCE(promoted_from_vendor_probe_at, :promotedFromVendorProbeAt)
+                        ELSE promoted_from_vendor_probe_at
+                    END
+            WHERE company_id = :companyId
+              AND ats_type = :atsType
+              AND ats_url = :atsUrl
+            """,
+        params);
+  }
+
+  private AtsEndpointSnapshot findAtsEndpointSnapshot(long companyId, AtsType atsType, String atsUrl) {
+    List<AtsEndpointSnapshot> rows =
+        jdbc.query(
             """
-                UPDATE ats_endpoints
-                SET detected_at = :detectedAt,
-                    discovered_from_url = COALESCE(:discoveredFromUrl, discovered_from_url),
-                    confidence = :confidence,
-                    detection_method = COALESCE(:detectionMethod, detection_method),
-                    verified = COALESCE(:verified, verified)
+                SELECT detection_method
+                FROM ats_endpoints
                 WHERE company_id = :companyId
                   AND ats_type = :atsType
                   AND ats_url = :atsUrl
                 """,
-            params);
-    if (updated == 0) {
-      try {
-        jdbc.update(
-            """
-                        INSERT INTO ats_endpoints (
-                            company_id, ats_type, ats_url, detected_at, discovered_from_url, confidence,
-                            detection_method, verified
-                        )
-                        VALUES (
-                            :companyId, :atsType, :atsUrl, :detectedAt, :discoveredFromUrl, :confidence,
-                            :detectionMethod, :verified
-                        )
-                        """,
-            params);
-      } catch (DataIntegrityViolationException ignored) {
-        jdbc.update(
-            """
-                        UPDATE ats_endpoints
-                        SET detected_at = :detectedAt,
-                            discovered_from_url = COALESCE(:discoveredFromUrl, discovered_from_url),
-                            confidence = :confidence,
-                            detection_method = COALESCE(:detectionMethod, detection_method),
-                            verified = COALESCE(:verified, verified)
-                        WHERE company_id = :companyId
-                          AND ats_type = :atsType
-                          AND ats_url = :atsUrl
-                        """,
-            params);
-      }
+            new MapSqlParameterSource()
+                .addValue("companyId", companyId)
+                .addValue("atsType", atsType.name())
+                .addValue("atsUrl", atsUrl),
+            (rs, rowNum) -> new AtsEndpointSnapshot(rs.getString("detection_method")));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  private AtsEndpointUpsertOutcome classifyAtsEndpointUpsert(
+      String previousDetectionMethod, String currentDetectionMethod, boolean inserted) {
+    if (inserted) {
+      return AtsEndpointUpsertOutcome.inserted(currentDetectionMethod);
     }
+    boolean promotedFromVendorProbe =
+        isVendorProbeDetectionMethod(previousDetectionMethod)
+            && !isVendorProbeDetectionMethod(currentDetectionMethod);
+    if (promotedFromVendorProbe) {
+      return AtsEndpointUpsertOutcome.promoted(previousDetectionMethod, currentDetectionMethod);
+    }
+    return AtsEndpointUpsertOutcome.confirmed(previousDetectionMethod, currentDetectionMethod);
+  }
+
+  private boolean isVendorProbeDetectionMethod(String detectionMethod) {
+    return detectionMethod != null && "vendor_probe".equalsIgnoreCase(detectionMethod.trim());
   }
 
   public void upsertJobPosting(
@@ -4383,4 +4513,33 @@ public class CrawlJdbcRepository {
 
   public record CareersDiscoveryRunFunnelCounts(
       int careersUrlFoundCount, int vendorDetectedCount, int endpointExtractedCount) {}
+
+  private record AtsEndpointSnapshot(String detectionMethod) {}
+
+  public record AtsEndpointUpsertOutcome(
+      boolean inserted,
+      boolean promotedFromVendorProbe,
+      boolean confirmedExisting,
+      String previousDetectionMethod,
+      String currentDetectionMethod) {
+    public static AtsEndpointUpsertOutcome none() {
+      return new AtsEndpointUpsertOutcome(false, false, false, null, null);
+    }
+
+    public static AtsEndpointUpsertOutcome inserted(String currentDetectionMethod) {
+      return new AtsEndpointUpsertOutcome(true, false, false, null, currentDetectionMethod);
+    }
+
+    public static AtsEndpointUpsertOutcome promoted(
+        String previousDetectionMethod, String currentDetectionMethod) {
+      return new AtsEndpointUpsertOutcome(
+          false, true, false, previousDetectionMethod, currentDetectionMethod);
+    }
+
+    public static AtsEndpointUpsertOutcome confirmed(
+        String previousDetectionMethod, String currentDetectionMethod) {
+      return new AtsEndpointUpsertOutcome(
+          false, false, true, previousDetectionMethod, currentDetectionMethod);
+    }
+  }
 }
