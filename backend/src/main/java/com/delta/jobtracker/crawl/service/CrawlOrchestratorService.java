@@ -110,6 +110,7 @@ public class CrawlOrchestratorService {
     try (CanaryHttpBudgetContext.Scope scope =
         budget == null ? null : CanaryHttpBudgetContext.activate(budget)) {
       List<String> tickers = request.normalizedTickers();
+      DomainResolutionResult resolution = null;
       int companyLimit =
           request.companyLimit() == null
               ? properties.getApi().getDefaultCompanyLimit()
@@ -128,7 +129,7 @@ public class CrawlOrchestratorService {
               : startedAt.plusSeconds(properties.getRun().getMaxDurationSeconds());
 
       if (shouldResolveDomains(request)) {
-        DomainResolutionResult resolution =
+        resolution =
             tickers.isEmpty()
                 ? domainResolutionService.resolveMissingDomains(resolveLimit, deadline)
                 : domainResolutionService.resolveMissingDomainsForTickers(
@@ -168,8 +169,13 @@ public class CrawlOrchestratorService {
           crawlRunId, attempted, succeeded, failed, jobsExtracted, Instant.now());
 
       if (targets.isEmpty()) {
-        status = "NO_TARGETS";
-        notes = "No company domains matched";
+        if (didExecuteTargetedDomainOnlyWork(request, tickers, resolution)) {
+          status = "COMPLETED";
+          notes = "domain_resolution_only companies=0";
+        } else {
+          status = "NO_TARGETS";
+          notes = "No company domains matched";
+        }
         summaries = List.of();
       } else {
         List<CompletableFuture<CompanyCrawlSummary>> futures = new ArrayList<>();
@@ -369,5 +375,27 @@ public class CrawlOrchestratorService {
       }
     }
     return new ArrayList<>(merged.values());
+  }
+
+  private boolean didExecuteTargetedDomainOnlyWork(
+      CrawlRunRequest request, List<String> tickers, DomainResolutionResult resolution) {
+    if (tickers == null || tickers.isEmpty()) {
+      return false;
+    }
+    if (!shouldResolveDomains(request) || shouldDiscoverCareers(request)) {
+      return false;
+    }
+    if (resolution == null) {
+      return false;
+    }
+    if (resolution.metrics() != null && resolution.metrics().companiesAttemptedCount() > 0) {
+      return true;
+    }
+    return resolution.resolvedCount() > 0
+        || resolution.noWikipediaTitleCount() > 0
+        || resolution.noItemCount() > 0
+        || resolution.noP856Count() > 0
+        || resolution.wdqsErrorCount() > 0
+        || resolution.wdqsTimeoutCount() > 0;
   }
 }
