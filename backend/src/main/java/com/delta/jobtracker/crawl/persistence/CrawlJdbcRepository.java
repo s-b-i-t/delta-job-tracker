@@ -1461,6 +1461,63 @@ public class CrawlJdbcRepository {
         params);
   }
 
+  public void insertDomainResolutionAttempt(
+      long companyId,
+      Instant startedAt,
+      Instant finishedAt,
+      String selectionMode,
+      String finalMethod,
+      String finalStatus,
+      String errorCategory,
+      String resolvedDomain,
+      String resolvedSource,
+      String resolvedMethod,
+      String stepTraceJson) {
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
+            .addValue("companyId", companyId)
+            .addValue("startedAt", toTimestamp(startedAt))
+            .addValue("finishedAt", toTimestamp(finishedAt))
+            .addValue("selectionMode", selectionMode)
+            .addValue("finalMethod", finalMethod)
+            .addValue("finalStatus", finalStatus)
+            .addValue("errorCategory", errorCategory)
+            .addValue("resolvedDomain", resolvedDomain)
+            .addValue("resolvedSource", resolvedSource)
+            .addValue("resolvedMethod", resolvedMethod)
+            .addValue("stepTraceJson", stepTraceJson == null ? "[]" : stepTraceJson);
+    jdbc.update(
+        """
+                INSERT INTO domain_resolution_attempts (
+                    company_id,
+                    started_at,
+                    finished_at,
+                    selection_mode,
+                    final_method,
+                    final_status,
+                    error_category,
+                    resolved_domain,
+                    resolved_source,
+                    resolved_method,
+                    step_trace_json
+                )
+                VALUES (
+                    :companyId,
+                    :startedAt,
+                    :finishedAt,
+                    :selectionMode,
+                    :finalMethod,
+                    :finalStatus,
+                    :errorCategory,
+                    :resolvedDomain,
+                    :resolvedSource,
+                    :resolvedMethod,
+                    :stepTraceJson
+                )
+                """,
+        params);
+  }
+
   public void upsertCompanyDomain(long companyId, String domain, String careersHintUrl) {
     upsertCompanyDomain(companyId, domain, careersHintUrl, "MANUAL", 1.0, Instant.now());
   }

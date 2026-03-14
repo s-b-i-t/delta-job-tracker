@@ -56,6 +56,10 @@ public class DomainResolutionService {
   private static final String STATUS_WDQS_TIMEOUT = "WDQS_TIMEOUT";
   private static final String STATUS_NO_IDENTIFIER = "NO_IDENTIFIER";
   private static final String STATUS_INFOBOX_ERROR = "INFOBOX_ERROR";
+  private static final String SELECTION_MODE_ELIGIBLE_BATCH = "eligible_batch";
+  private static final String SELECTION_MODE_ELIGIBLE_BATCH_INCLUDE_NON_EMPLOYER =
+      "eligible_batch_include_non_employer";
+  private static final String SELECTION_MODE_TICKER_TARGETED = "ticker_targeted";
   private static final int MAX_ERROR_SAMPLES = 10;
   private static final int MAX_NOT_EMPLOYER_SAMPLES = 10;
   private static final int WDQS_MAX_ATTEMPTS = 3;
@@ -170,6 +174,9 @@ public class DomainResolutionService {
         missingDomain,
         limit,
         deadline,
+        includeNonEmployerCandidates
+            ? SELECTION_MODE_ELIGIBLE_BATCH_INCLUDE_NON_EMPLOYER
+            : SELECTION_MODE_ELIGIBLE_BATCH,
         missingDomain.size(),
         selectionEligibleCount,
         skippedNotEmployerCount,
@@ -191,13 +198,21 @@ public class DomainResolutionService {
         repository.findCompaniesMissingDomainByTickers(tickers, limit);
     List<CompanyIdentity> companies = missingDomain == null ? List.of() : missingDomain;
     return resolveCompanies(
-        companies, limit, deadline, companies.size(), companies.size(), 0, List.of());
+        companies,
+        limit,
+        deadline,
+        SELECTION_MODE_TICKER_TARGETED,
+        companies.size(),
+        companies.size(),
+        0,
+        List.of());
   }
 
   private DomainResolutionResult resolveCompanies(
       List<CompanyIdentity> missingDomain,
       int limit,
       Instant deadline,
+      String selectionMode,
       int selectionReturnedCount,
       int selectionEligibleCount,
       int skippedNotEmployerCount,
@@ -254,6 +269,8 @@ public class DomainResolutionService {
       Map<String, List<CompanyIdentity>> companiesByTitle = new LinkedHashMap<>();
       Map<CompanyIdentity, List<String>> ciksByCompany = new LinkedHashMap<>();
       Map<String, List<CompanyIdentity>> companiesByCik = new LinkedHashMap<>();
+      Map<CompanyIdentity, DomainResolutionAttemptContext> attemptsByCompany =
+          new LinkedHashMap<>();
 
       for (CompanyIdentity company : batch) {
         if (deadline != null && Instant.now().isAfter(deadline)) {
@@ -268,10 +285,14 @@ public class DomainResolutionService {
           if (shouldSkipCached(company, METHOD_WIKIPEDIA, now)) {
             if (hasCik(company) && !shouldSkipCached(company, METHOD_CIK, now)) {
               metrics.incrementCompaniesAttempted();
+              DomainResolutionAttemptContext attempt =
+                  beginAttempt(attemptsByCompany, company, selectionMode, now);
+              attempt.addStep("selection", METHOD_CIK, "queued", "cached_wikipedia");
               List<String> ciks = buildCikVariants(company.cik());
               if (ciks.isEmpty()) {
                 if (tryHeuristicFallback(
                     company,
+                    attempt,
                     "no_cik",
                     counts,
                     errors,
@@ -283,8 +304,9 @@ public class DomainResolutionService {
                 }
                 counts.noWikipediaTitle++;
                 errors.add(company, "no_cik");
-                repository.updateCompanyDomainResolutionCache(
-                    company.companyId(), METHOD_CIK, STATUS_NO_IDENTIFIER, "no_cik", now);
+                attempt.addStep("identifier_check", METHOD_CIK, STATUS_NO_IDENTIFIER, "no_cik");
+                finalizeCompanyAttempt(
+                    company, attempt, METHOD_CIK, STATUS_NO_IDENTIFIER, "no_cik", null);
                 continue;
               }
               ciksByCompany.put(company, ciks);
@@ -297,11 +319,16 @@ public class DomainResolutionService {
             continue;
           }
           metrics.incrementCompaniesAttempted();
+          DomainResolutionAttemptContext attempt =
+              beginAttempt(attemptsByCompany, company, selectionMode, now);
+          attempt.addStep("selection", METHOD_WIKIPEDIA, "queued", "wikipedia_title");
           List<String> titles = buildTitleVariants(company.wikipediaTitle());
           if (titles.isEmpty()) {
             if (hasCik(company) && !shouldSkipCached(company, METHOD_CIK, now)) {
+              attempt.addStep("wikipedia_lookup", METHOD_WIKIPEDIA, "skipped", "no_title_variants");
               List<String> ciks = buildCikVariants(company.cik());
               if (!ciks.isEmpty()) {
+                attempt.addStep("selection", METHOD_CIK, "queued", "cik_fallback");
                 ciksByCompany.put(company, ciks);
                 for (String cik : ciks) {
                   companiesByCik.computeIfAbsent(cik, ignored -> new ArrayList<>()).add(company);
@@ -311,6 +338,7 @@ public class DomainResolutionService {
             }
             if (tryHeuristicFallback(
                 company,
+                attempt,
                 "no_wikipedia_title",
                 counts,
                 errors,
@@ -322,12 +350,15 @@ public class DomainResolutionService {
             }
             counts.noWikipediaTitle++;
             errors.add(company, "no_wikipedia_title");
-            repository.updateCompanyDomainResolutionCache(
-                company.companyId(),
+            attempt.addStep(
+                "identifier_check", METHOD_WIKIPEDIA, STATUS_NO_IDENTIFIER, "no_wikipedia_title");
+            finalizeCompanyAttempt(
+                company,
+                attempt,
                 METHOD_WIKIPEDIA,
                 STATUS_NO_IDENTIFIER,
                 "no_wikipedia_title",
-                now);
+                null);
             continue;
           }
           titlesByCompany.put(company, titles);
@@ -340,10 +371,14 @@ public class DomainResolutionService {
             continue;
           }
           metrics.incrementCompaniesAttempted();
+          DomainResolutionAttemptContext attempt =
+              beginAttempt(attemptsByCompany, company, selectionMode, now);
+          attempt.addStep("selection", METHOD_CIK, "queued", "cik");
           List<String> ciks = buildCikVariants(company.cik());
           if (ciks.isEmpty()) {
             if (tryHeuristicFallback(
                 company,
+                attempt,
                 "no_cik",
                 counts,
                 errors,
@@ -355,8 +390,9 @@ public class DomainResolutionService {
             }
             counts.noWikipediaTitle++;
             errors.add(company, "no_cik");
-            repository.updateCompanyDomainResolutionCache(
-                company.companyId(), METHOD_CIK, STATUS_NO_IDENTIFIER, "no_cik", now);
+            attempt.addStep("identifier_check", METHOD_CIK, STATUS_NO_IDENTIFIER, "no_cik");
+            finalizeCompanyAttempt(
+                company, attempt, METHOD_CIK, STATUS_NO_IDENTIFIER, "no_cik", null);
             continue;
           }
           ciksByCompany.put(company, ciks);
@@ -365,8 +401,11 @@ public class DomainResolutionService {
           }
         } else {
           metrics.incrementCompaniesAttempted();
+          DomainResolutionAttemptContext attempt =
+              beginAttempt(attemptsByCompany, company, selectionMode, now);
           if (tryHeuristicFallback(
               company,
+              attempt,
               "no_identifier",
               counts,
               errors,
@@ -378,8 +417,9 @@ public class DomainResolutionService {
           }
           counts.noWikipediaTitle++;
           errors.add(company, "no_identifier");
-          repository.updateCompanyDomainResolutionCache(
-              company.companyId(), METHOD_NONE, STATUS_NO_IDENTIFIER, "no_identifier", now);
+          attempt.addStep("identifier_check", METHOD_NONE, STATUS_NO_IDENTIFIER, "no_identifier");
+          finalizeCompanyAttempt(
+              company, attempt, METHOD_NONE, STATUS_NO_IDENTIFIER, "no_identifier", null);
         }
       }
 
@@ -401,6 +441,7 @@ public class DomainResolutionService {
           if (match != null) {
             applyMatch(
                 company,
+                attemptsByCompany.get(company),
                 match,
                 METHOD_WIKIPEDIA,
                 "enwiki_sitelink",
@@ -413,10 +454,12 @@ public class DomainResolutionService {
                 heuristicBudget);
             continue;
           }
-          String errorCategory = findFailureCategory(entry.getValue(), lookupResult.failedCategories());
+          String errorCategory =
+              findFailureCategory(entry.getValue(), lookupResult.failedCategories());
           if (errorCategory != null) {
             applyWdqsLookupFailure(
                 company,
+                attemptsByCompany.get(company),
                 METHOD_WIKIPEDIA,
                 errorCategory,
                 true,
@@ -430,6 +473,7 @@ public class DomainResolutionService {
           }
           applyMatch(
               company,
+              attemptsByCompany.get(company),
               null,
               METHOD_WIKIPEDIA,
               "enwiki_sitelink",
@@ -461,6 +505,7 @@ public class DomainResolutionService {
           if (match != null) {
             applyMatch(
                 company,
+                attemptsByCompany.get(company),
                 match,
                 METHOD_CIK,
                 "cik",
@@ -473,10 +518,12 @@ public class DomainResolutionService {
                 heuristicBudget);
             continue;
           }
-          String errorCategory = findFailureCategory(entry.getValue(), lookupResult.failedCategories());
+          String errorCategory =
+              findFailureCategory(entry.getValue(), lookupResult.failedCategories());
           if (errorCategory != null) {
             applyWdqsLookupFailure(
                 company,
+                attemptsByCompany.get(company),
                 METHOD_CIK,
                 errorCategory,
                 false,
@@ -490,6 +537,7 @@ public class DomainResolutionService {
           }
           applyMatch(
               company,
+              attemptsByCompany.get(company),
               null,
               METHOD_CIK,
               "cik",
@@ -523,6 +571,89 @@ public class DomainResolutionService {
         metrics.toModel(Duration.between(startedAt, Instant.now()).toMillis()));
   }
 
+  private DomainResolutionAttemptContext beginAttempt(
+      Map<CompanyIdentity, DomainResolutionAttemptContext> attemptsByCompany,
+      CompanyIdentity company,
+      String selectionMode,
+      Instant startedAt) {
+    return attemptsByCompany.computeIfAbsent(
+        company,
+        ignored ->
+            new DomainResolutionAttemptContext(
+                startedAt == null ? Instant.now() : startedAt, selectionMode));
+  }
+
+  private void finalizeCompanyAttempt(
+      CompanyIdentity company,
+      DomainResolutionAttemptContext attempt,
+      String finalMethod,
+      String finalStatus,
+      String errorCategory,
+      ResolvedDomainWrite resolvedWrite) {
+    if (company == null || attempt == null) {
+      return;
+    }
+    Instant finishedAt = Instant.now();
+    if (resolvedWrite != null
+        && resolvedWrite.domain() != null
+        && !resolvedWrite.domain().isBlank()) {
+      repository.upsertCompanyDomain(
+          company.companyId(),
+          resolvedWrite.domain(),
+          null,
+          resolvedWrite.source(),
+          resolvedWrite.confidence(),
+          finishedAt,
+          resolvedWrite.resolutionMethod(),
+          resolvedWrite.wikidataQid());
+    }
+    repository.updateCompanyDomainResolutionCache(
+        company.companyId(), finalMethod, finalStatus, errorCategory, finishedAt);
+    repository.insertDomainResolutionAttempt(
+        company.companyId(),
+        attempt.startedAt(),
+        finishedAt,
+        attempt.selectionMode(),
+        finalMethod,
+        finalStatus,
+        errorCategory,
+        resolvedWrite == null ? null : resolvedWrite.domain(),
+        resolvedWrite == null ? null : resolvedWrite.source(),
+        resolvedWrite == null ? null : resolvedWrite.resolutionMethod(),
+        serializeAttemptSteps(attempt.steps()));
+  }
+
+  private String serializeAttemptSteps(List<DomainResolutionAttemptStep> steps) {
+    try {
+      return objectMapper.writeValueAsString(steps == null ? List.of() : steps);
+    } catch (Exception e) {
+      log.warn("Failed to serialize domain resolution attempt steps", e);
+      return "[]";
+    }
+  }
+
+  private void recordStep(
+      DomainResolutionAttemptContext attempt,
+      String stage,
+      String method,
+      String outcome,
+      String detail) {
+    recordStep(attempt, stage, method, outcome, detail, null);
+  }
+
+  private void recordStep(
+      DomainResolutionAttemptContext attempt,
+      String stage,
+      String method,
+      String outcome,
+      String detail,
+      String resolvedDomain) {
+    if (attempt == null) {
+      return;
+    }
+    attempt.addStep(stage, method, outcome, detail, resolvedDomain);
+  }
+
   private WdqsMatch findMatch(List<String> titles, Map<String, WdqsMatch> matches) {
     for (String title : titles) {
       WdqsMatch match = matches.get(title);
@@ -535,6 +666,7 @@ public class DomainResolutionService {
 
   private void applyMatch(
       CompanyIdentity company,
+      DomainResolutionAttemptContext attempt,
       WdqsMatch match,
       String method,
       String resolutionMethod,
@@ -546,16 +678,25 @@ public class DomainResolutionService {
       Map<String, HttpFetchResult> heuristicFetchCache,
       HeuristicBudget heuristicBudget) {
     if (match == null) {
+      recordStep(attempt, "wdqs_lookup", method, STATUS_NO_ITEM, resolutionMethod);
       if (allowCikFallback
           && tryCikFallbackLookup(
-              company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
+              company,
+              attempt,
+              counts,
+              errors,
+              metrics,
+              deadline,
+              heuristicFetchCache,
+              heuristicBudget)) {
         return;
       }
-      if (tryWikipediaInfoboxFallback(company, "no_item", counts, metrics, deadline)) {
+      if (tryWikipediaInfoboxFallback(company, attempt, "no_item", counts, metrics, deadline)) {
         return;
       }
       if (tryHeuristicFallback(
           company,
+          attempt,
           "no_item",
           counts,
           errors,
@@ -567,21 +708,29 @@ public class DomainResolutionService {
       }
       counts.noItem++;
       errors.add(company, "no_item");
-      repository.updateCompanyDomainResolutionCache(
-          company.companyId(), method, STATUS_NO_ITEM, "no_item", Instant.now());
+      finalizeCompanyAttempt(company, attempt, method, STATUS_NO_ITEM, "no_item", null);
       return;
     }
     if (match.website() == null || match.website().isBlank()) {
+      recordStep(attempt, "wdqs_lookup", method, STATUS_NO_P856, resolutionMethod);
       if (allowCikFallback
           && tryCikFallbackLookup(
-              company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
+              company,
+              attempt,
+              counts,
+              errors,
+              metrics,
+              deadline,
+              heuristicFetchCache,
+              heuristicBudget)) {
         return;
       }
-      if (tryWikipediaInfoboxFallback(company, "no_p856", counts, metrics, deadline)) {
+      if (tryWikipediaInfoboxFallback(company, attempt, "no_p856", counts, metrics, deadline)) {
         return;
       }
       if (tryHeuristicFallback(
           company,
+          attempt,
           "no_p856",
           counts,
           errors,
@@ -593,23 +742,32 @@ public class DomainResolutionService {
       }
       counts.noP856++;
       errors.add(company, "no_p856");
-      repository.updateCompanyDomainResolutionCache(
-          company.companyId(), method, STATUS_NO_P856, "no_p856", Instant.now());
+      finalizeCompanyAttempt(company, attempt, method, STATUS_NO_P856, "no_p856", null);
       return;
     }
 
     String domain = normalizeDomain(match.website());
     if (domain == null) {
+      recordStep(attempt, "wdqs_lookup", method, STATUS_INVALID_WEBSITE, resolutionMethod);
       if (allowCikFallback
           && tryCikFallbackLookup(
-              company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
+              company,
+              attempt,
+              counts,
+              errors,
+              metrics,
+              deadline,
+              heuristicFetchCache,
+              heuristicBudget)) {
         return;
       }
-      if (tryWikipediaInfoboxFallback(company, "invalid_website_url", counts, metrics, deadline)) {
+      if (tryWikipediaInfoboxFallback(
+          company, attempt, "invalid_website_url", counts, metrics, deadline)) {
         return;
       }
       if (tryHeuristicFallback(
           company,
+          attempt,
           "invalid_website_url",
           counts,
           errors,
@@ -621,32 +779,26 @@ public class DomainResolutionService {
       }
       counts.noP856++;
       errors.add(company, "invalid_website_url");
-      repository.updateCompanyDomainResolutionCache(
-          company.companyId(),
-          method,
-          STATUS_INVALID_WEBSITE,
-          "invalid_website_url",
-          Instant.now());
+      finalizeCompanyAttempt(
+          company, attempt, method, STATUS_INVALID_WEBSITE, "invalid_website_url", null);
       return;
     }
 
-    repository.upsertCompanyDomain(
-        company.companyId(),
-        domain,
+    recordStep(attempt, "wdqs_lookup", method, STATUS_RESOLVED, resolutionMethod, domain);
+    finalizeCompanyAttempt(
+        company,
+        attempt,
+        method,
+        STATUS_RESOLVED,
         null,
-        "WIKIDATA",
-        0.95,
-        Instant.now(),
-        resolutionMethod,
-        match.qid());
-    repository.updateCompanyDomainResolutionCache(
-        company.companyId(), method, STATUS_RESOLVED, null, Instant.now());
+        new ResolvedDomainWrite(domain, "WIKIDATA", 0.95, resolutionMethod, match.qid()));
     counts.resolved++;
     metrics.recordResolved("WIKIDATA");
   }
 
   private void applyWdqsLookupFailure(
       CompanyIdentity company,
+      DomainResolutionAttemptContext attempt,
       String method,
       String errorCategory,
       boolean allowCikFallback,
@@ -656,13 +808,22 @@ public class DomainResolutionService {
       Instant deadline,
       Map<String, HttpFetchResult> heuristicFetchCache,
       HeuristicBudget heuristicBudget) {
+    recordStep(attempt, "wdqs_lookup", method, errorCategory, "transport_failure");
     if (allowCikFallback
         && tryCikFallbackLookup(
-            company, counts, errors, metrics, deadline, heuristicFetchCache, heuristicBudget)) {
+            company,
+            attempt,
+            counts,
+            errors,
+            metrics,
+            deadline,
+            heuristicFetchCache,
+            heuristicBudget)) {
       return;
     }
     if (tryHeuristicFallback(
         company,
+        attempt,
         errorCategory,
         counts,
         errors,
@@ -679,12 +840,13 @@ public class DomainResolutionService {
       counts.wdqsError++;
     }
     errors.add(company, errorCategory);
-    repository.updateCompanyDomainResolutionCache(
-        company.companyId(),
+    finalizeCompanyAttempt(
+        company,
+        attempt,
         method,
         isWdqsTimeoutCategory(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
         errorCategory,
-        Instant.now());
+        null);
   }
 
   private String findFailureCategory(List<String> keys, Map<String, String> failedCategories) {
@@ -702,18 +864,25 @@ public class DomainResolutionService {
 
   private boolean tryWikipediaInfoboxFallback(
       CompanyIdentity company,
+      DomainResolutionAttemptContext attemptContext,
       String failureReason,
       Counts counts,
       ResolutionMetricsCollector metrics,
       Instant deadline) {
     if (!hasWikipediaTitle(company)) {
+      recordStep(
+          attemptContext, "wikipedia_infobox", METHOD_WIKIPEDIA_INFOBOX, "skipped", "no_title");
       return false;
     }
     Instant now = Instant.now();
     if (deadline != null && now.isAfter(deadline)) {
+      recordStep(
+          attemptContext, "wikipedia_infobox", METHOD_WIKIPEDIA_INFOBOX, "skipped", "deadline");
       return false;
     }
     if (shouldSkipCached(company, METHOD_WIKIPEDIA_INFOBOX, now)) {
+      recordStep(
+          attemptContext, "wikipedia_infobox", METHOD_WIKIPEDIA_INFOBOX, "skipped", "cached");
       return false;
     }
 
@@ -723,17 +892,25 @@ public class DomainResolutionService {
     metrics.addWikipediaInfoboxDuration(Duration.between(startedAt, Instant.now()).toMillis());
 
     if (attempt.resolvedDomain() != null) {
-      repository.upsertCompanyDomain(
-          company.companyId(),
-          attempt.resolvedDomain(),
-          null,
-          "WIKIPEDIA",
-          WIKIPEDIA_INFOBOX_CONFIDENCE,
-          Instant.now(),
+      recordStep(
+          attemptContext,
+          "wikipedia_infobox",
           METHOD_WIKIPEDIA_INFOBOX,
-          null);
-      repository.updateCompanyDomainResolutionCache(
-          company.companyId(), METHOD_WIKIPEDIA_INFOBOX, STATUS_RESOLVED, null, Instant.now());
+          STATUS_RESOLVED,
+          failureReason,
+          attempt.resolvedDomain());
+      finalizeCompanyAttempt(
+          company,
+          attemptContext,
+          METHOD_WIKIPEDIA_INFOBOX,
+          STATUS_RESOLVED,
+          null,
+          new ResolvedDomainWrite(
+              attempt.resolvedDomain(),
+              "WIKIPEDIA",
+              WIKIPEDIA_INFOBOX_CONFIDENCE,
+              METHOD_WIKIPEDIA_INFOBOX,
+              null));
       counts.resolved++;
       metrics.incrementWikipediaInfoboxResolved();
       metrics.recordResolved("WIKIPEDIA_INFOBOX");
@@ -741,12 +918,12 @@ public class DomainResolutionService {
     }
 
     metrics.incrementWikipediaInfoboxRejected();
-    repository.updateCompanyDomainResolutionCache(
-        company.companyId(),
+    recordStep(
+        attemptContext,
+        "wikipedia_infobox",
         METHOD_WIKIPEDIA_INFOBOX,
         attempt.status() == null ? STATUS_INFOBOX_ERROR : attempt.status(),
-        attempt.errorCategory() == null ? failureReason : attempt.errorCategory(),
-        Instant.now());
+        attempt.errorCategory() == null ? failureReason : attempt.errorCategory());
     return false;
   }
 
@@ -895,6 +1072,7 @@ public class DomainResolutionService {
 
   private boolean tryCikFallbackLookup(
       CompanyIdentity company,
+      DomainResolutionAttemptContext attempt,
       Counts counts,
       ErrorCollector errors,
       ResolutionMetricsCollector metrics,
@@ -902,17 +1080,21 @@ public class DomainResolutionService {
       Map<String, HttpFetchResult> heuristicFetchCache,
       HeuristicBudget heuristicBudget) {
     if (!hasCik(company)) {
+      recordStep(attempt, "cik_lookup", METHOD_CIK, "skipped", "no_cik");
       return false;
     }
     Instant now = Instant.now();
     if (shouldSkipCached(company, METHOD_CIK, now)) {
+      recordStep(attempt, "cik_lookup", METHOD_CIK, "skipped", "cached");
       return false;
     }
     if (deadline != null && now.isAfter(deadline)) {
+      recordStep(attempt, "cik_lookup", METHOD_CIK, "skipped", "deadline");
       return false;
     }
     List<String> ciks = buildCikVariants(company.cik());
     if (ciks.isEmpty()) {
+      recordStep(attempt, "cik_lookup", METHOD_CIK, "skipped", "no_cik_variants");
       return false;
     }
 
@@ -924,10 +1106,12 @@ public class DomainResolutionService {
     if (match == null) {
       String errorCategory = findFailureCategory(ciks, lookupResult.failedCategories());
       if (errorCategory == null) {
+        recordStep(attempt, "cik_lookup", METHOD_CIK, STATUS_NO_ITEM, "cik");
         return false;
       }
       if (tryHeuristicFallback(
           company,
+          attempt,
           errorCategory,
           counts,
           errors,
@@ -944,16 +1128,19 @@ public class DomainResolutionService {
         counts.wdqsError++;
       }
       errors.add(company, errorCategory);
-      repository.updateCompanyDomainResolutionCache(
-          company.companyId(),
+      recordStep(attempt, "cik_lookup", METHOD_CIK, errorCategory, "transport_failure");
+      finalizeCompanyAttempt(
+          company,
+          attempt,
           METHOD_CIK,
           isWdqsTimeoutCategory(errorCategory) ? STATUS_WDQS_TIMEOUT : STATUS_WDQS_ERROR,
           errorCategory,
-          Instant.now());
+          null);
       return true;
     }
     applyMatch(
         company,
+        attempt,
         match,
         METHOD_CIK,
         "cik",
@@ -1344,6 +1531,7 @@ public class DomainResolutionService {
 
   private boolean tryHeuristicFallback(
       CompanyIdentity company,
+      DomainResolutionAttemptContext attempt,
       String failureReason,
       Counts counts,
       ErrorCollector errors,
@@ -1352,26 +1540,32 @@ public class DomainResolutionService {
       Map<String, HttpFetchResult> heuristicFetchCache,
       HeuristicBudget heuristicBudget) {
     if (company == null || company.name() == null || company.name().isBlank()) {
+      recordStep(attempt, "heuristic", METHOD_HEURISTIC, "skipped", "no_company_name");
       return false;
     }
     if (deadline != null && Instant.now().isAfter(deadline)) {
+      recordStep(attempt, "heuristic", METHOD_HEURISTIC, "skipped", "deadline");
       return false;
     }
     if (heuristicBudget != null && !heuristicBudget.allowAttempt()) {
+      recordStep(attempt, "heuristic", METHOD_HEURISTIC, "skipped", "budget_exhausted");
       return false;
     }
     NameSignals signals = buildNameSignals(company.name());
     if (signals == null || signals.strongTokens().isEmpty()) {
+      recordStep(attempt, "heuristic", METHOD_HEURISTIC, "skipped", "no_name_signals");
       return false;
     }
     if (!hasWikipediaTitle(company)
         && !hasCik(company)
         && isLowConfidenceHeuristicSignals(signals)) {
+      recordStep(attempt, "heuristic", METHOD_HEURISTIC, "skipped", "low_confidence_signals");
       return false;
     }
 
     List<String> candidates = heuristicDomainCandidates(company);
     if (candidates.isEmpty()) {
+      recordStep(attempt, "heuristic", METHOD_HEURISTIC, "skipped", "no_candidates");
       return false;
     }
 
@@ -1414,17 +1608,17 @@ public class DomainResolutionService {
       }
 
       String resolvedDomain = verdict.resolvedDomain();
-      repository.upsertCompanyDomain(
-          company.companyId(),
-          resolvedDomain,
+      String resolvedMethod = heuristicResolutionMethodForDomain(resolvedDomain);
+      recordStep(
+          attempt, "heuristic", METHOD_HEURISTIC, STATUS_RESOLVED, failureReason, resolvedDomain);
+      finalizeCompanyAttempt(
+          company,
+          attempt,
+          METHOD_HEURISTIC,
+          STATUS_RESOLVED,
           null,
-          "HEURISTIC",
-          HEURISTIC_CONFIDENCE,
-          Instant.now(),
-          heuristicResolutionMethodForDomain(resolvedDomain),
-          null);
-      repository.updateCompanyDomainResolutionCache(
-          company.companyId(), METHOD_HEURISTIC, STATUS_RESOLVED, null, Instant.now());
+          new ResolvedDomainWrite(
+              resolvedDomain, "HEURISTIC", HEURISTIC_CONFIDENCE, resolvedMethod, null));
       counts.resolved++;
       metrics.incrementHeuristicResolved();
       metrics.recordHeuristicResolvedTld(topLevelDomain(resolvedDomain));
@@ -1439,6 +1633,7 @@ public class DomainResolutionService {
           failureReason);
       return true;
     }
+    recordStep(attempt, "heuristic", METHOD_HEURISTIC, "no_match", failureReason);
     return false;
   }
 
@@ -1575,7 +1770,14 @@ public class DomainResolutionService {
             || hostnameContainsAcceptableRoot(resolvedDomain, signals.acceptableRoots());
 
     if (acceptByOfficialSiteSignals(
-        company, candidateDomain, resolvedDomain, pageTitle, bodyText, ogSiteName, signals, rootMatches)) {
+        company,
+        candidateDomain,
+        resolvedDomain,
+        pageTitle,
+        bodyText,
+        ogSiteName,
+        signals,
+        rootMatches)) {
       return HeuristicVerdict.accept(resolvedDomain);
     }
 
@@ -1599,7 +1801,10 @@ public class DomainResolutionService {
       String ogSiteName,
       NameSignals signals,
       boolean rootMatches) {
-    if (company == null || !hasCik(company) || signals == null || signals.strongTokens().isEmpty()) {
+    if (company == null
+        || !hasCik(company)
+        || signals == null
+        || signals.strongTokens().isEmpty()) {
       return false;
     }
     String normalizedTitle = normalizeEvidenceText(pageTitle);
@@ -1631,7 +1836,9 @@ public class DomainResolutionService {
     if (deterministicAliasMatch && exactTickerInTitle) {
       return true;
     }
-    return aliasMatch && exactTickerInTitle && hasBaseTokenMatch(company, signals, normalizedTitle, normalizedOgSiteName);
+    return aliasMatch
+        && exactTickerInTitle
+        && hasBaseTokenMatch(company, signals, normalizedTitle, normalizedOgSiteName);
   }
 
   private boolean hasDeterministicOfficialAliasMatch(
@@ -1648,7 +1855,8 @@ public class DomainResolutionService {
       return false;
     }
     for (String alias : aliasTokens) {
-      if (!containsExactToken(normalizedTitle, alias) && !containsExactToken(normalizedOgSiteName, alias)) {
+      if (!containsExactToken(normalizedTitle, alias)
+          && !containsExactToken(normalizedOgSiteName, alias)) {
         continue;
       }
       if (hostnameContainsAcceptableRoot(candidateDomain, List.of(alias))
@@ -1666,7 +1874,8 @@ public class DomainResolutionService {
       String normalizedBody,
       String normalizedOgSiteName) {
     String combined = (normalizedTitle + " " + normalizedOgSiteName + " " + normalizedBody).trim();
-    String strippedName = stripCorporateSuffixes(cleanupTitle(company.name() == null ? "" : company.name()));
+    String strippedName =
+        stripCorporateSuffixes(cleanupTitle(company.name() == null ? "" : company.name()));
     String normalizedStrippedName = normalizeEvidenceText(strippedName);
     if (!normalizedStrippedName.isBlank() && combined.contains(normalizedStrippedName)) {
       return true;
@@ -1685,7 +1894,10 @@ public class DomainResolutionService {
   }
 
   private boolean hasBaseTokenMatch(
-      CompanyIdentity company, NameSignals signals, String normalizedTitle, String normalizedOgSiteName) {
+      CompanyIdentity company,
+      NameSignals signals,
+      String normalizedTitle,
+      String normalizedOgSiteName) {
     if (company == null || company.name() == null) {
       return false;
     }
@@ -1760,9 +1972,7 @@ public class DomainResolutionService {
     }
     Pattern pattern =
         Pattern.compile(
-            "(^|[^a-z0-9])"
-                + Pattern.quote(token.toLowerCase(Locale.ROOT))
-                + "([^a-z0-9]|$)");
+            "(^|[^a-z0-9])" + Pattern.quote(token.toLowerCase(Locale.ROOT)) + "([^a-z0-9]|$)");
     return pattern.matcher(text.toLowerCase(Locale.ROOT)).find();
   }
 
@@ -1771,7 +1981,8 @@ public class DomainResolutionService {
       return false;
     }
     Pattern pattern =
-        Pattern.compile("(^|[^A-Z0-9])" + Pattern.quote(ticker.toUpperCase(Locale.ROOT)) + "([^A-Z0-9]|$)");
+        Pattern.compile(
+            "(^|[^A-Z0-9])" + Pattern.quote(ticker.toUpperCase(Locale.ROOT)) + "([^A-Z0-9]|$)");
     return pattern.matcher(text.toUpperCase(Locale.ROOT)).find();
   }
 
@@ -2260,6 +2471,55 @@ public class DomainResolutionService {
     }
   }
 
+  private static final class DomainResolutionAttemptContext {
+    private final Instant startedAt;
+    private final String selectionMode;
+    private final List<DomainResolutionAttemptStep> steps = new ArrayList<>();
+
+    private DomainResolutionAttemptContext(Instant startedAt, String selectionMode) {
+      this.startedAt = startedAt;
+      this.selectionMode = selectionMode;
+    }
+
+    private Instant startedAt() {
+      return startedAt;
+    }
+
+    private String selectionMode() {
+      return selectionMode;
+    }
+
+    private List<DomainResolutionAttemptStep> steps() {
+      return List.copyOf(steps);
+    }
+
+    private void addStep(String stage, String method, String outcome, String detail) {
+      addStep(stage, method, outcome, detail, null);
+    }
+
+    private void addStep(
+        String stage, String method, String outcome, String detail, String resolvedDomain) {
+      steps.add(
+          new DomainResolutionAttemptStep(
+              Instant.now(), stage, method, outcome, detail, resolvedDomain));
+    }
+  }
+
+  private record DomainResolutionAttemptStep(
+      Instant recordedAt,
+      String stage,
+      String method,
+      String outcome,
+      String detail,
+      String resolvedDomain) {}
+
+  private record ResolvedDomainWrite(
+      String domain,
+      String source,
+      double confidence,
+      String resolutionMethod,
+      String wikidataQid) {}
+
   private record HeuristicVerdict(boolean accepted, String resolvedDomain, String rejectionReason) {
     private static HeuristicVerdict accept(String resolvedDomain) {
       return new HeuristicVerdict(true, resolvedDomain, null);
@@ -2283,8 +2543,7 @@ public class DomainResolutionService {
 
   private record NameSignals(List<String> strongTokens, List<String> acceptableRoots) {}
 
-  private record WdqsLookupBatchResult(
-      WdqsLookup lookup, Map<String, String> failedCategories) {}
+  private record WdqsLookupBatchResult(WdqsLookup lookup, Map<String, String> failedCategories) {}
 
   private record WdqsQueryResult(JsonNode root, String errorCategory) {}
 
