@@ -148,4 +148,28 @@ class CareersDiscoverySelectionEligibilityTest {
     assertThat(repository.countCompaniesWithDomainWithoutAtsEligible(false)).isZero();
     assertThat(repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 1, false)).isEmpty();
   }
+
+  @Test
+  void fullModeSelectionTreatsCareersLandingEvidenceAsTerminal() {
+    String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    String ticker = "CL" + suffix;
+
+    long companyId = repository.upsertCompany(ticker, "Careers Landing Co " + suffix, "Tech");
+    repository.upsertCompanyDomain(
+        companyId, "cl-" + suffix.toLowerCase() + ".example.com", null);
+    repository.upsertAtsEndpoint(
+        companyId,
+        AtsType.GREENHOUSE,
+        "https://boards.greenhouse.io/" + suffix.toLowerCase(),
+        "https://cl-" + suffix.toLowerCase() + ".example.com/careers",
+        0.9,
+        Instant.now(),
+        "careers_landing",
+        true);
+
+    List<String> tickers = List.of(ticker);
+
+    assertThat(repository.countCompaniesWithDomainWithoutAtsEligible(false)).isZero();
+    assertThat(repository.findCompaniesWithDomainWithoutAtsByTickers(tickers, 1, false)).isEmpty();
+  }
 }

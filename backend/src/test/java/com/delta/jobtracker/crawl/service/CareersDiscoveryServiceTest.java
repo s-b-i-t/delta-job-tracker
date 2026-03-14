@@ -153,6 +153,72 @@ class CareersDiscoveryServiceTest {
   }
 
   @Test
+  void vendorProbeOnlyLandingDiscoveryPersistsProvisionalDetectionMethod() {
+    CompanyTarget company = new CompanyTarget(7L, "ACME", "Acme Corp", null, "acme.com", null);
+    String homepage = "https://acme.com/";
+    String careersPage = "https://acme.com/careers";
+    when(repository.findCareersDiscoveryState(7L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careersPage), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(careersPage, "<a href=\"https://boards.greenhouse.io/acme\">Jobs</a>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, true);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(7L),
+            eq(AtsType.GREENHOUSE),
+            eq("https://boards.greenhouse.io/acme"),
+            eq(careersPage),
+            eq(0.9),
+            any(Instant.class),
+            eq("vendor_probe"),
+            eq(true));
+    verify(repository, never())
+        .upsertAtsEndpoint(
+            eq(7L),
+            eq(AtsType.GREENHOUSE),
+            eq("https://boards.greenhouse.io/acme"),
+            eq(careersPage),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing"),
+            eq(true));
+  }
+
+  @Test
+  void fullModeLandingDiscoveryPersistsCareersLandingDetectionMethod() {
+    CompanyTarget company = new CompanyTarget(8L, "ACME", "Acme Corp", null, "acme.com", null);
+    String homepage = "https://acme.com/";
+    String careersPage = "https://acme.com/careers";
+    when(repository.findCareersDiscoveryState(8L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<a href=\"/careers\">Careers</a>"));
+    when(httpClient.get(eq(careersPage), anyString(), anyInt()))
+        .thenReturn(
+            successHtml(careersPage, "<a href=\"https://boards.greenhouse.io/acme\">Jobs</a>"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(8L),
+            eq(AtsType.GREENHOUSE),
+            eq("https://boards.greenhouse.io/acme"),
+            eq(careersPage),
+            eq(0.9),
+            any(Instant.class),
+            eq("careers_landing"),
+            eq(true));
+  }
+
+  @Test
   void sitemapDetectionFindsAtsEndpoint() {
     CompanyTarget company = new CompanyTarget(4L, "SITE", "Site Corp", null, "sitemapco.com", null);
     String homepage = "https://sitemapco.com/";

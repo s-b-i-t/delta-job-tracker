@@ -45,6 +45,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class CareersDiscoveryService {
   private static final Logger log = LoggerFactory.getLogger(CareersDiscoveryService.class);
+  private static final String VENDOR_PROBE_DETECTION_METHOD = "vendor_probe";
+  private static final String CAREERS_LANDING_DETECTION_METHOD = "careers_landing";
   private static final String HTML_ACCEPT =
       "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
   private static final int MAX_HOMEPAGE_BYTES = 512_000;
@@ -434,13 +436,15 @@ public class CareersDiscoveryService {
             vendorName = first.atsType().name();
             endpointExtracted = true;
             endpointUrl = first.atsUrl();
+            String landingDetectionMethod =
+                vendorProbeOnly ? VENDOR_PROBE_DETECTION_METHOD : CAREERS_LANDING_DETECTION_METHOD;
             atsDiscoveryResult =
-                AtsDiscoveryResult.validated(first.atsType(), first.atsUrl(), "careers_landing");
+                AtsDiscoveryResult.validated(first.atsType(), first.atsUrl(), landingDetectionMethod);
             registerEndpoints(
                 company,
                 landing.careersUrlFinal(),
                 extracted,
-                "careers_landing",
+                landingDetectionMethod,
                 0.9,
                 true,
                 seen,
