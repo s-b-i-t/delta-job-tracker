@@ -150,6 +150,7 @@ class CareersDiscoveryServiceTest {
     verify(repository, never())
         .upsertCareersDiscoveryState(anyLong(), any(Instant.class), any(), any(), anyInt(), any());
     verify(httpClient).get(eq("https://acme.com/"), anyString(), anyInt());
+    verify(httpClient, never()).get(eq("https://acme.com/jobs"), anyString());
   }
 
   @Test
@@ -251,6 +252,77 @@ class CareersDiscoveryServiceTest {
     assertThat(outcome.funnel().endpointsConfirmed()).isEqualTo(0);
     assertThat(outcome.funnel().atsDiscoveryResult()).isNotNull();
     assertThat(outcome.funnel().atsDiscoveryResult().evidence()).isEqualTo("careers_landing");
+  }
+
+  @Test
+  void fullModeContinuesPastVendorProbeToPromoteSameEndpointViaCareersPath() {
+    CompanyTarget company = new CompanyTarget(10L, "ACME", "Acme Corp", null, "acme.com", null);
+    String homepage = "https://acme.com/";
+    String vendorUrl = "https://boards.greenhouse.io/acme";
+    String careersUrl = "https://acme.com/careers";
+    String jobsUrl = "https://acme.com/jobs";
+    when(repository.findCareersDiscoveryState(10L)).thenReturn(null);
+    when(httpClient.get(eq(homepage), anyString(), anyInt()))
+        .thenReturn(successHtml(homepage, "<html>No careers link</html>"));
+    when(httpClient.get(eq(vendorUrl), anyString()))
+        .thenReturn(successHtml(vendorUrl, "<html>Greenhouse Jobs</html>"));
+    when(httpClient.get(eq(careersUrl), anyString(), anyInt())).thenReturn(failureFetch(careersUrl));
+    when(httpClient.get(eq(careersUrl), anyString())).thenReturn(failureFetch(careersUrl));
+    when(httpClient.get(eq(jobsUrl), anyString()))
+        .thenReturn(successHtml(jobsUrl, "<a href=\"https://boards.greenhouse.io/acme\">Jobs</a>"));
+    when(repository.upsertAtsEndpoint(
+            eq(10L),
+            eq(AtsType.GREENHOUSE),
+            eq(vendorUrl),
+            eq(vendorUrl),
+            eq(0.9),
+            any(Instant.class),
+            eq("vendor_probe"),
+            eq(true)))
+        .thenReturn(CrawlJdbcRepository.AtsEndpointUpsertOutcome.inserted("vendor_probe"));
+    when(repository.upsertAtsEndpoint(
+            eq(10L),
+            eq(AtsType.GREENHOUSE),
+            eq(vendorUrl),
+            eq(jobsUrl),
+            eq(0.85),
+            any(Instant.class),
+            eq("careers_path"),
+            eq(true)))
+        .thenReturn(
+            CrawlJdbcRepository.AtsEndpointUpsertOutcome.promoted(
+                "vendor_probe", "careers_path"));
+
+    CareersDiscoveryService.DiscoveryOutcome outcome =
+        service.discoverForCompany(company, null, null, null, false);
+
+    assertThat(outcome.hasEndpoints()).isTrue();
+    assertThat(outcome.countsByType()).containsEntry(AtsType.GREENHOUSE, 1);
+    assertThat(outcome.funnel()).isNotNull();
+    assertThat(outcome.funnel().endpointsPromoted()).isEqualTo(1);
+    assertThat(outcome.funnel().atsDiscoveryResult()).isNotNull();
+    assertThat(outcome.funnel().atsDiscoveryResult().evidence()).isEqualTo("careers_path");
+    verify(httpClient).get(eq(jobsUrl), anyString());
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(10L),
+            eq(AtsType.GREENHOUSE),
+            eq(vendorUrl),
+            eq(vendorUrl),
+            eq(0.9),
+            any(Instant.class),
+            eq("vendor_probe"),
+            eq(true));
+    verify(repository)
+        .upsertAtsEndpoint(
+            eq(10L),
+            eq(AtsType.GREENHOUSE),
+            eq(vendorUrl),
+            eq(jobsUrl),
+            eq(0.85),
+            any(Instant.class),
+            eq("careers_path"),
+            eq(true));
   }
 
   @Test

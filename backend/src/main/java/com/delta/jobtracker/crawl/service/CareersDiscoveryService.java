@@ -281,7 +281,7 @@ public class CareersDiscoveryService {
       VendorProbeLimiter vendorProbeLimiter,
       boolean vendorProbeOnly,
       int hostFailureCutoff) {
-    LinkedHashSet<String> seen = new LinkedHashSet<>();
+    LinkedHashMap<String, String> seen = new LinkedHashMap<>();
     Map<AtsType, Integer> countsByType = new LinkedHashMap<>();
     List<DiscoveryFailure> failures = new ArrayList<>();
     AtomicInteger cooldownSkips = new AtomicInteger(0);
@@ -637,28 +637,31 @@ public class CareersDiscoveryService {
         atsDiscoveryResult =
             AtsDiscoveryResult.validated(
                 vendorEndpoint.atsType(), vendorEndpoint.atsUrl(), "vendor_probe");
-        updateDiscoveryStateSuccess(company, vendorProbeOnly);
-        return new DiscoveryOutcome(
-            countsByType,
-            null,
-            cooldownSkips.get(),
-            false,
-            false,
-            new DiscoveryFunnel(
-                careersUrlFound,
-                careersUrlInitial,
-                careersUrlFinal,
-                careersDiscoveryMethod,
-                careersStageFailure,
-                vendorDetected,
-                vendorName,
-                endpointExtracted,
-                endpointUrl,
-                endpointPersistence.endpointsPromoted(),
-                endpointPersistence.endpointsConfirmed(),
-                httpStatusFirstFailure,
-                requestCount,
-                atsDiscoveryResult));
+        if (vendorProbeOnly) {
+          updateDiscoveryStateSuccess(company, vendorProbeOnly);
+          return new DiscoveryOutcome(
+              countsByType,
+              null,
+              cooldownSkips.get(),
+              false,
+              false,
+              new DiscoveryFunnel(
+                  careersUrlFound,
+                  careersUrlInitial,
+                  careersUrlFinal,
+                  careersDiscoveryMethod,
+                  careersStageFailure,
+                  vendorDetected,
+                  vendorName,
+                  endpointExtracted,
+                  endpointUrl,
+                  endpointPersistence.endpointsPromoted(),
+                  endpointPersistence.endpointsConfirmed(),
+                  httpStatusFirstFailure,
+                  requestCount,
+                  atsDiscoveryResult));
+        }
+        break;
       }
     }
 
@@ -760,6 +763,34 @@ public class CareersDiscoveryService {
       }
     }
 
+    if (!vendorProbeOnly
+        && endpointExtracted
+        && atsDiscoveryResult != null
+        && isVendorProbeDetectionMethod(atsDiscoveryResult.evidence())) {
+      updateDiscoveryStateSuccess(company, false);
+      return new DiscoveryOutcome(
+          countsByType,
+          null,
+          cooldownSkips.get(),
+          false,
+          false,
+          new DiscoveryFunnel(
+              careersUrlFound,
+              careersUrlInitial,
+              careersUrlFinal,
+              careersDiscoveryMethod,
+              careersStageFailure,
+              vendorDetected,
+              vendorName,
+              endpointExtracted,
+              endpointUrl,
+              endpointPersistence.endpointsPromoted(),
+              endpointPersistence.endpointsConfirmed(),
+              httpStatusFirstFailure,
+              requestCount,
+              atsDiscoveryResult));
+    }
+
     DiscoveryFailure failure = selectFailure(failures);
     if (failure != null) {
       atsDiscoveryResult =
@@ -853,7 +884,7 @@ public class CareersDiscoveryService {
 
   private void scanForAtsLinks(
       CompanyTarget company,
-      LinkedHashSet<String> seen,
+      LinkedHashMap<String, String> seen,
       Map<AtsType, Integer> countsByType,
       AtomicInteger cooldownSkips) {
     if (company == null || company.domain() == null || company.domain().isBlank()) {
@@ -1087,7 +1118,7 @@ public class CareersDiscoveryService {
       String detectionMethod,
       double confidence,
       boolean verified,
-      LinkedHashSet<String> seen,
+      LinkedHashMap<String, String> seen,
       Map<AtsType, Integer> countsByType,
       EndpointPersistenceStats endpointPersistence) {
     if (endpointsWithSource == null || endpointsWithSource.isEmpty()) {
@@ -1114,7 +1145,7 @@ public class CareersDiscoveryService {
       String detectionMethod,
       double confidence,
       boolean verified,
-      LinkedHashSet<String> seen,
+      LinkedHashMap<String, String> seen,
       Map<AtsType, Integer> countsByType,
       EndpointPersistenceStats endpointPersistence) {
     if (endpoints == null || endpoints.isEmpty()) {
@@ -1141,7 +1172,7 @@ public class CareersDiscoveryService {
       String detectionMethod,
       double confidence,
       boolean verified,
-      LinkedHashSet<String> seen,
+      LinkedHashMap<String, String> seen,
       Map<AtsType, Integer> countsByType,
       EndpointPersistenceStats endpointPersistence) {
     String endpointUrl = endpoint.atsUrl();
@@ -1149,24 +1180,40 @@ public class CareersDiscoveryService {
       return;
     }
     String key = endpoint.atsType().name() + "|" + endpointUrl.toLowerCase(Locale.ROOT);
-    if (seen.contains(key)) {
+    String previousDetectionMethod = seen.get(key);
+    if (previousDetectionMethod != null
+        && !shouldAllowStrongerSameRunPromotion(previousDetectionMethod, detectionMethod)) {
       return;
     }
-    seen.add(key);
+    boolean alreadySeen = previousDetectionMethod != null;
+    seen.put(key, detectionMethod);
     CrawlJdbcRepository.AtsEndpointUpsertOutcome upsertOutcome =
         repository.upsertAtsEndpoint(
-        company.companyId(),
-        endpoint.atsType(),
-        endpointUrl,
-        discoveredFromUrl,
-        confidence,
-        Instant.now(),
-        detectionMethod,
-        verified);
+            company.companyId(),
+            endpoint.atsType(),
+            endpointUrl,
+            discoveredFromUrl,
+            confidence,
+            Instant.now(),
+            detectionMethod,
+            verified);
     if (endpointPersistence != null) {
       endpointPersistence.record(upsertOutcome);
     }
-    countsByType.put(endpoint.atsType(), countsByType.getOrDefault(endpoint.atsType(), 0) + 1);
+    if (!alreadySeen) {
+      countsByType.put(endpoint.atsType(), countsByType.getOrDefault(endpoint.atsType(), 0) + 1);
+    }
+  }
+
+  private boolean shouldAllowStrongerSameRunPromotion(
+      String previousDetectionMethod, String currentDetectionMethod) {
+    return isVendorProbeDetectionMethod(previousDetectionMethod)
+        && !isVendorProbeDetectionMethod(currentDetectionMethod);
+  }
+
+  private boolean isVendorProbeDetectionMethod(String detectionMethod) {
+    return detectionMethod != null
+        && VENDOR_PROBE_DETECTION_METHOD.equalsIgnoreCase(detectionMethod.trim());
   }
 
   private HttpFetchResult fetchHomepage(String homepageUrl, DiscoveryMetrics metrics) {
